@@ -1,0 +1,12 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/wp-env.json",
+	"core": "WordPress/WordPress#6.8",
+	"phpVersion": "8.1",
+	"testsEnvironment": false,
+	"plugins": [ "." ],
+	"config": {
+		"WP_ENVIRONMENT_TYPE": "local",
+		"WP_DEBUG": true,
+		"SCRIPT_DEBUG": true
+	}
+}

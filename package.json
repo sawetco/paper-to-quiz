@@ -1,0 +1,68 @@
+{
+	"name": "paper-to-quiz",
+	"version": "1.0.0",
+	"private": true,
+	"description": "Convert PDF exams and worksheets into secure, image-based WordPress quizzes.",
+	"license": "GPL-2.0-or-later",
+	"files": [
+		"build",
+		"build-tools",
+		"src",
+		"src-js",
+		"!src-js/**/*.test.js",
+		"!src-js/**/*.test.ts",
+		"!src-js/**/*.test.tsx",
+		"paper-to-quiz.php",
+		"uninstall.php",
+		"LICENSE",
+		"third-party-licenses.txt",
+		"readme.txt",
+		"README.md",
+		"CONTRIBUTING.md",
+		"SECURITY.md",
+		"languages",
+		"tsconfig.json",
+		"webpack.config.js"
+	],
+	"scripts": {
+		"start": "wp-scripts start",
+		"build": "wp-scripts build",
+		"check:build-portability": "node -e \"const fs=require('node:fs');const path=require('node:path');const root=process.cwd().replaceAll('\\\\','/');const files=fs.readdirSync('build').filter((name)=>/\\.(?:js|css|php)$/.test(name));const leaked=files.filter((name)=>fs.readFileSync(path.join('build',name),'utf8').replaceAll('\\\\','/').includes(root));if(leaked.length){console.error('Build contains the local workspace path:',leaked);process.exit(1);}\"",
+		"lint:js": "wp-scripts lint-js src-js",
+		"lint:css": "wp-scripts lint-style \"src-js/**/*.scss\"",
+		"test:unit": "wp-scripts test-unit-js",
+		"test:php": "wp-env run cli composer --working-dir=wp-content/plugins/paper-to-quiz install --quiet && wp-env run cli composer --working-dir=wp-content/plugins/paper-to-quiz test",
+		"env:start": "wp-env start",
+		"i18n": "wp-env run cli sh -c \"cd wp-content/plugins/paper-to-quiz && php -d memory_limit=512M /usr/local/bin/wp i18n make-pot . languages/paper-to-quiz.pot --exclude=node_modules,tests,languages,build/pdf.worker.min.js --allow-root\" && wp-env run cli sh -c \"cd wp-content/plugins/paper-to-quiz && /usr/local/bin/wp i18n update-po languages/paper-to-quiz.pot languages/paper-to-quiz-tr_TR.po --allow-root\" && wp-env run cli sh -c \"cd wp-content/plugins/paper-to-quiz && /usr/local/bin/wp i18n make-mo languages/paper-to-quiz-tr_TR.po languages --allow-root\" && wp-env run cli sh -c \"cd wp-content/plugins/paper-to-quiz && /usr/local/bin/wp i18n make-json languages --no-purge --use-map=languages/paper-to-quiz-json-map.json --allow-root\"",
+		"env:install": "node -e \"const { spawnSync } = require('node:child_process'); const path = require('node:path'); const wpEnv = process.platform === 'win32' ? path.resolve('node_modules/.bin/wp-env.cmd') : 'wp-env'; const options = process.platform === 'win32' ? { stdio: 'inherit', shell: true } : { stdio: 'inherit' }; const run = (args) => { const result = spawnSync(wpEnv, args, options); if (result.status !== 0) process.exit(result.status || 1); }; const installed = spawnSync(wpEnv, ['run', 'cli', 'wp', 'core', 'is-installed'], options); if (installed.status !== 0) run(['run', 'cli', 'wp', 'core', 'install', '--url=http://localhost:8888', '--title=Paper to Quiz Integration', '--admin_user=admin', '--admin_password=paper-to-quiz-integration', '--admin_email=admin@example.com', '--skip-email']); run(['run', 'cli', 'wp', 'plugin', 'activate', 'paper-to-quiz']);\"",
+		"env:stop": "wp-env stop",
+		"test:integration:run": "wp-env run cli env WP_ENVIRONMENT_TYPE=local PTQ_ALLOW_REGRESSION=1 wp eval-file wp-content/plugins/paper-to-quiz/tests/data-regression.php && wp-env run cli env WP_ENVIRONMENT_TYPE=local PTQ_ALLOW_REGRESSION=1 wp eval-file wp-content/plugins/paper-to-quiz/tests/rest-regression.php",
+		"test:integration": "node -e \"const { spawnSync } = require('node:child_process'); const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'; const npmOptions = { stdio: 'inherit', shell: true }; const run = (script) => { const result = spawnSync(npm, ['run', script], npmOptions); if (result.status !== 0) { const error = new Error('npm run ' + script + ' failed'); error.exitCode = result.status || 1; throw error; } }; let exitCode = 1; try { run('env:start'); run('env:install'); run('test:integration:run'); exitCode = 0; } catch (error) { console.error(error.message); exitCode = error.exitCode || 1; } finally { const stop = spawnSync(npm, ['run', 'env:stop'], npmOptions); if (exitCode === 0 && stop.status !== 0) { exitCode = stop.status || 1; } } process.exit(exitCode);\"",
+		"plugin-zip": "wp-scripts plugin-zip"
+	},
+	"dependencies": {
+		"@dnd-kit/core": "^6.3.1",
+		"@dnd-kit/sortable": "^10.0.0",
+		"@dnd-kit/utilities": "^3.2.2",
+		"@wordpress/api-fetch": "^7.51.0",
+		"@wordpress/components": "^37.0.0",
+		"@wordpress/element": "^8.3.0",
+		"@wordpress/i18n": "^6.24.0",
+		"konva": "^9.3.22",
+		"pdfjs-dist": "^6.1.200",
+		"react-konva": "^18.2.10"
+	},
+	"devDependencies": {
+		"@testing-library/jest-dom": "^6.9.1",
+		"@testing-library/react": "^16.3.1",
+		"@types/jest": "^30.0.0",
+		"@types/react": "^18.3.27",
+		"@types/react-dom": "^18.3.7",
+		"@wordpress/env": "11.12.0",
+		"@wordpress/scripts": "^33.0.0",
+		"typescript": "^5.9.3"
+	},
+	"engines": {
+		"node": ">=22"
+	}
+}

@@ -1,0 +1,32 @@
+# Third-Party Software
+
+This plugin bundles third-party software. The plugin itself is licensed under
+the **GNU General Public License v2.0 or later** (see `LICENSE`). The bundled
+components retain their original licenses; their attribution is provided below.
+
+## PDF.js (pdfjs-dist)
+
+- **Bundled file:** `build/pdf.worker.min.js`
+- **Source package:** [pdfjs-dist](https://www.npmjs.com/package/pdfjs-dist) version 6.2.108
+- **Upstream project:** [mozilla/pdf.js](https://github.com/mozilla/pdf.js)
+- **Copyright:** © Mozilla and individual contributors.
+- **License:** Apache License, Version 2.0 — https://www.apache.org/licenses/LICENSE-2.0
+
+> License compatibility note: the Apache License 2.0 is one-way compatible with
+> GPLv3 but not with GPLv2-only. Because this plugin is distributed under
+> "GPL-2.0-or-later", the combined work may be received and redistributed under
+> GPLv3 (or later), under which bundling the Apache-2.0 PDF.js worker is
+> permitted. A copy of the Apache License 2.0 is available at the URL above.
+
+## Other bundled runtime libraries
+
+The compiled assets in `build/` also bundle code from these dependencies, each
+distributed under its own license (MIT / BSD / GPL, all GPL-compatible):
+
+- [`@wordpress/*`](https://github.com/WordPress/gutenberg) packages — GPL-2.0-or-later
+- [`@dnd-kit/*`](https://github.com/clauderic/dnd-kit) — MIT
+- [`konva`](https://github.com/konvajs/konva) / [`react-konva`](https://github.com/konvajs/react-konva) — MIT
+- [`pdfjs-dist`](https://github.com/mozilla/pdf.js) — Apache-2.0 (see above)
+
+Build and development tooling (`@wordpress/scripts`, TypeScript, Jest, PHPUnit,
+PHPCS, etc.) is not included in the distributed plugin archive.

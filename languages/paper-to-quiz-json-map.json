@@ -1,0 +1,7 @@
+{
+	"build/0.js": [ "build/admin.min.js" ],
+	"build/115.js": [ "build/admin.min.js" ],
+	"build/244.js": [ "build/admin.min.js" ],
+	"build/admin.js": [ "build/admin.min.js" ],
+	"build/student.js": [ "build/student.min.js" ]
+}
