@@ -50,7 +50,7 @@
 		"@wordpress/i18n": "^6.24.0",
 		"konva": "^9.3.22",
 		"pdfjs-dist": "^6.1.200",
-		"react-konva": "^18.2.10"
+		"react-konva": "^19.2.5"
 	},
 	"devDependencies": {
 		"@testing-library/jest-dom": "^6.9.1",
