@@ -30,7 +30,7 @@ jobs:
             - run: npm run plugin-zip
             - name: Extract distribution
               run: unzip paper-to-quiz.zip -d plugin-check-build
-            - uses: wordpress/plugin-check-action@v1.1.6
+            - uses: wordpress/plugin-check-action@v1.1.7
               with:
                   build-dir: ./plugin-check-build/paper-to-quiz
 
