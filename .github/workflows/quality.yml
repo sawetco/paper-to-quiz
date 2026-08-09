@@ -1,0 +1,98 @@
+name: Quality
+
+on:
+    push:
+    pull_request:
+
+permissions:
+    contents: read
+
+jobs:
+    javascript:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 22
+                  cache: npm
+            - run: npm ci
+            - run: npm audit --omit=dev --audit-level=high
+            - run: npm run lint:js
+            - run: npm run lint:css
+            - run: npx tsc --noEmit
+            - run: npm run test:unit -- --runInBand
+            - run: npm run build
+            - run: npm run check:build-portability
+            - name: Validate i18n json-map
+              run: |
+                  node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('languages/paper-to-quiz-json-map.json','utf8'));const missing=Object.keys(m).filter(k=>!fs.existsSync(k));if(missing.length){console.error('Stale json-map entries (not in build/):',missing);process.exit(1);}"
+            - run: npm run plugin-zip
+            - name: Extract distribution
+              run: unzip paper-to-quiz.zip -d plugin-check-build
+            - uses: wordpress/plugin-check-action@v1.1.6
+              with:
+                  build-dir: ./plugin-check-build/paper-to-quiz
+
+    php-syntax:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                php: ['8.1', '8.3', '8.5']
+        steps:
+            - uses: actions/checkout@v7
+            - uses: shivammathur/setup-php@v2
+              with:
+                  php-version: ${{ matrix.php }}
+                  coverage: none
+            - name: Validate PHP syntax
+              run: find . -type f -name '*.php' -not -path './node_modules/*' -print0 | xargs -0 -n1 php -l
+
+    php-unit:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 22
+                  cache: npm
+            - run: npm ci
+            - run: npm run env:start
+            - run: npm run env:install
+            - run: npm run test:php
+            - if: always()
+              name: Stop wp-env
+              run: npm run env:stop
+            - if: failure()
+              name: Upload wp-env logs
+              uses: actions/upload-artifact@v6
+              with:
+                  name: wp-env-logs-phpunit
+                  path: |
+                      ~/.wp-env/**/logs/**
+                      ~/.npm/_logs/**
+                  if-no-files-found: ignore
+
+    integration:
+        needs: [javascript, php-syntax]
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 22
+                  cache: npm
+            - run: npm ci
+            - run: npm run test:integration
+            - if: always()
+              name: Stop wp-env
+              run: npm run env:stop
+            - if: failure()
+              name: Upload wp-env logs
+              uses: actions/upload-artifact@v6
+              with:
+                  name: wp-env-logs
+                  path: |
+                      ~/.wp-env/**/logs/**
+                      ~/.npm/_logs/**
+                  if-no-files-found: ignore

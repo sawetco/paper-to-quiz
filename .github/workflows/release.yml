@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run build
+      - run: npm run check:build-portability
+      - run: npm run plugin-zip
+      - name: Publish WordPress package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" paper-to-quiz.zip --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" paper-to-quiz.zip \
+              --verify-tag \
+              --generate-notes \
+              --title "Paper to Quiz ${GITHUB_REF_NAME#v}"
+          fi

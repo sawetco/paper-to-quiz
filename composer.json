@@ -1,0 +1,25 @@
+{
+  "name": "sawetco/paper-to-quiz",
+  "description": "Convert PDF exams and worksheets into secure, image-based WordPress quizzes.",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "require": {
+    "php": ">=8.1"
+  },
+  "require-dev": {
+    "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+    "phpunit/phpunit": "^10.0",
+    "wp-coding-standards/wpcs": "^3.2",
+    "yoast/phpunit-polyfills": "^2.0"
+  },
+  "scripts": {
+    "lint": "phpcs",
+    "test": "phpunit"
+  },
+  "config": {
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    },
+    "sort-packages": true
+  }
+}

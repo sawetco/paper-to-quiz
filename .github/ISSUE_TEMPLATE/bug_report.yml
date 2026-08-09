@@ -1,0 +1,38 @@
+name: Bug report
+description: Report reproducible incorrect behavior using synthetic data.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include personal data, private PDFs, credentials, or security vulnerabilities.
+  - type: input
+    id: version
+    attributes:
+      label: Paper to Quiz version
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: WordPress, PHP, and browser versions
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
