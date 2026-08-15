@@ -25,6 +25,20 @@ contracts, or release behavior changes.
 - `build/`: generated production assets; never edit by hand and do not commit.
 - `uninstall.php`: permanent cleanup only when the administrator explicitly opts in.
 
+## Branches and distribution variants
+
+- `main` is the clean WordPress.org source. It installs only the current
+  `paper_to_quiz_*` schema and must not contain compatibility code for the
+  pre-directory `ptq_*` installation.
+- `codex/migration-support` is the migration-supported source for existing
+  private/GitHub installations. It preserves the one-time prefix, option,
+  capability, cron, private-storage, and schema/data migration paths.
+- Build `paper-to-quiz.zip` from the branch whose behavior is required. Never
+  upload a ZIP built from `codex/migration-support` to WordPress.org.
+- Shared product changes land on `main` first and are then cherry-picked or
+  reapplied deliberately to `codex/migration-support`. Do not merge `main`
+  wholesale over migration-specific compatibility code.
+
 ## Local development
 
 The package manager is npm. Preserve `package-lock.json`.
@@ -93,9 +107,11 @@ Integration gate (disposable local wp-env only):
 npm run test:integration
 ```
 
-This starts a disposable local WordPress environment, runs both regression
-scripts plus the MySQL prefix-migration regression with the required local
-guards, and stops the environment afterward.
+On `main`, this starts a disposable local WordPress environment, resets both
+wp-env databases, installs WordPress from scratch, runs both clean-install
+regression scripts with the required local guards, and stops the environment
+afterward. The migration branch additionally runs its MySQL prefix migration
+regression.
 Never run the regression scripts against production or against real data.
 
 The data regression script creates and then removes temporary plugin records:
@@ -122,14 +138,15 @@ wp eval-file wp-content/plugins/paper-to-quiz/tests/data-regression.php
 - Result-email workers send only jobs whose conditional claim update they won;
   a job claimed by another worker must never be sent by the losing worker.
 
-## Data and migrations
+## Data and schema
 
-- A schema change updates `PAPER_TO_QUIZ_DB_VERSION`, install/migration logic, uninstall
-  coverage, types, and tests together.
-- `LegacyPrefixMigration` upgrades the pre-directory-review `ptq_` database,
-  option, capability, cron, and transient identifiers while preserving existing
-  assessment record contents. Keep this compatibility path while version
-  1.0.0 installations may still be upgraded.
+- A schema change updates `PAPER_TO_QUIZ_DB_VERSION`, installation/update logic,
+  uninstall coverage, types, and tests together.
+- `main` starts from database schema version `1.0.0` and contains no historical
+  data migration. Add future migrations only for WordPress.org versions
+  released after this baseline.
+- Historical migration requirements belong only to
+  `codex/migration-support`.
 - Check every database write and use transactions for multi-table operations.
 - Convert unique-index conflicts into useful field-level REST errors; never leak
   raw database failures as a generic 500 response.

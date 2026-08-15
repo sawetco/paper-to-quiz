@@ -8,14 +8,10 @@ final class Installer {
 	private const SCHEMA_FAILURE_TTL = 5 * MINUTE_IN_SECONDS;
 
 	public static function activate(): void {
-		if (! LegacyPrefixMigration::run()) {
-			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- WordPress displays activation exceptions in its own escaped error screen.
-			throw new \RuntimeException(__('Paper to Quiz could not migrate its existing database tables. Restore the database backup and resolve the conflicting table names before activation.', 'paper-to-quiz'));
-		}
 		add_filter('cron_schedules', array(self::class, 'cron_schedules'));
 		if (! self::install_schema()) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- WordPress displays activation exceptions in its own escaped error screen.
-			throw new \RuntimeException(__('Paper to Quiz could not finish its database migration. Restore the database backup and resolve the conflicting plugin tables before activation.', 'paper-to-quiz'));
+			throw new \RuntimeException(__('Paper to Quiz could not create its database tables. Check the database permissions before activation.', 'paper-to-quiz'));
 		}
 		self::add_capabilities();
 
@@ -51,10 +47,6 @@ final class Installer {
 	}
 
 	public static function maybe_upgrade(): bool {
-		if (! LegacyPrefixMigration::run()) {
-			add_action('admin_notices', array(self::class, 'migration_error_notice'));
-			return false;
-		}
 		// Keep role capabilities current for sites that were already active before
 		// a capability was introduced or renamed. This is idempotent and must run
 		// even when the schema verification cache allows an early return below.
@@ -72,7 +64,6 @@ final class Installer {
 		$failed   = 'paper_to_quiz_schema_failed_' . PAPER_TO_QUIZ_DB_VERSION;
 
 		if (
-			! LegacyPrefixMigration::has_legacy_tables() &&
 			get_option('paper_to_quiz_db_version') === PAPER_TO_QUIZ_DB_VERSION &&
 			get_transient($verified) === '1'
 		) {
@@ -93,17 +84,7 @@ final class Installer {
 		return false;
 	}
 
-	public static function migration_error_notice(): void {
-		if (! current_user_can('activate_plugins')) {
-			return;
-		}
-		echo '<div class="notice notice-error"><p>' . esc_html__('Paper to Quiz could not complete its database prefix migration because old and new table names exist together. Restore the database backup or resolve the conflicting plugin tables before continuing.', 'paper-to-quiz') . '</p></div>';
-	}
-
 	public static function repair_schema(): bool {
-		if (! LegacyPrefixMigration::run()) {
-			return false;
-		}
 		delete_transient('paper_to_quiz_schema_failed_' . PAPER_TO_QUIZ_DB_VERSION);
 		return self::install_schema();
 	}
@@ -423,12 +404,6 @@ final class Installer {
 		foreach ($sql as $statement) {
 			dbDelta($statement);
 		}
-		if (! LegacyPrefixMigration::migrate_tables_after_schema()) {
-			return false;
-		}
-
-		self::migrate_test_invariants();
-		self::migrate_revision_subjects();
 
 		add_option(
 			Settings::OPTION,
@@ -445,78 +420,4 @@ final class Installer {
 		return true;
 	}
 
-	private static function migrate_test_invariants(): void {
-		global $wpdb;
-
-		$prefix = $wpdb->prefix . 'paper_to_quiz_';
-		$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time bounded data migration for plugin-owned rows.
-			$wpdb->prepare(
-				"UPDATE %i r
-				INNER JOIN %i a ON a.id = r.assessment_id
-				SET r.access_mode = 'guest_allowed',
-					r.duration_seconds = NULL,
-					r.window_start_utc = NULL,
-					r.window_end_utc = NULL,
-					r.results_release_at_utc = NULL,
-					r.allow_repeat = 1,
-					r.ranking_enabled = 0,
-					r.feedback_timing = IF(
-						r.feedback_timing IN ('never','immediate','after_submit'),
-						r.feedback_timing,
-						'after_submit'
-					)
-				WHERE a.type = 'test'",
-				$prefix . 'revisions',
-				$prefix . 'assessments'
-			)
-		);
-		$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Clears invalid deadlines on unfinished tests created by earlier versions.
-			$wpdb->prepare(
-				"UPDATE %i t
-				INNER JOIN %i a ON a.id = t.assessment_id
-				SET t.deadline_at = NULL
-				WHERE a.type = 'test' AND t.status = 'in_progress'",
-				$prefix . 'attempts',
-				$prefix . 'assessments'
-			)
-		);
-		$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Published revisions remain available while a draft is edited.
-			$wpdb->prepare(
-				"UPDATE %i
-				SET status = 'published'
-				WHERE published_revision_id IS NOT NULL AND current_draft_revision_id IS NOT NULL AND status = 'draft'",
-				$prefix . 'assessments'
-			)
-		);
-	}
-
-	private static function migrate_revision_subjects(): void {
-		global $wpdb;
-
-		$questions_table = $wpdb->prefix . 'paper_to_quiz_questions';
-		$revisions_table = $wpdb->prefix . 'paper_to_quiz_revisions';
-		$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time migration reads plugin-owned subject assignments.
-			$wpdb->prepare(
-				'SELECT revision_id,subject_id FROM %i WHERE subject_id IS NOT NULL GROUP BY revision_id,subject_id ORDER BY revision_id,subject_id',
-				$questions_table
-			),
-			ARRAY_A
-		) ?: array();
-		$subjects_by_revision = array();
-		foreach ($rows as $row) {
-			$revision_id = (int) $row['revision_id'];
-			$subjects_by_revision[$revision_id][] = (int) $row['subject_id'];
-		}
-
-		foreach ($subjects_by_revision as $revision_id => $subject_ids) {
-			$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time bounded update of plugin-owned revision metadata.
-				$wpdb->prepare(
-					"UPDATE %i SET subject_ids_json = %s WHERE id = %d AND (subject_ids_json IS NULL OR subject_ids_json = '' OR subject_ids_json = '[]')",
-					$revisions_table,
-					wp_json_encode(array_values(array_unique($subject_ids))),
-					$revision_id
-				)
-			);
-		}
-	}
 }

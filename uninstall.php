@@ -11,10 +11,6 @@ if (! defined('WP_UNINSTALL_PLUGIN')) {
 
 (static function (): void {
 	$settings = get_option('paper_to_quiz_settings', array());
-	if (! is_array($settings) || ! $settings) {
-		$legacy_prefix = 'ptq_';
-		$settings      = get_option($legacy_prefix . 'settings', array());
-	}
 	$purge    = is_array($settings) && ! empty($settings['purge_on_uninstall']);
 
 	if (! $purge) {

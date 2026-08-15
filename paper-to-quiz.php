@@ -21,7 +21,7 @@ if (! defined('ABSPATH')) {
 }
 
 define('PAPER_TO_QUIZ_VERSION', '1.1.0');
-define('PAPER_TO_QUIZ_DB_VERSION', '1.3.0');
+define('PAPER_TO_QUIZ_DB_VERSION', '1.0.0');
 define('PAPER_TO_QUIZ_FILE', __FILE__);
 define('PAPER_TO_QUIZ_DIR', plugin_dir_path(__FILE__));
 define('PAPER_TO_QUIZ_URL', plugin_dir_url(__FILE__));

@@ -88,8 +88,7 @@ instructions, the security policy, and contribution guidelines are included in
 
 * Updated all WordPress-global identifiers to the collision-safe
   `paper_to_quiz` prefix requested during the WordPress.org review.
-* Added an automatic, data-preserving migration for existing database tables,
-  settings, capabilities, scheduled tasks, and private-storage keys.
+* Prepared a clean installation baseline for the first WordPress.org release.
 * Removed bundled locale files so translations are delivered through
   translate.wordpress.org.
 

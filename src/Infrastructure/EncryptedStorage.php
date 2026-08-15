@@ -16,7 +16,7 @@ final class EncryptedStorage {
 
 	public function __construct() {
 		$uploads        = wp_upload_dir();
-		$this->base_dir = trailingslashit($uploads['basedir']) . 'ptq-private';
+		$this->base_dir = trailingslashit($uploads['basedir']) . 'paper-to-quiz-private';
 		$this->uploads_error = (string) ($uploads['error'] ?? '');
 	}
 
@@ -306,12 +306,6 @@ final class EncryptedStorage {
 
 	private function derive_key(string $purpose): string {
 		$master = defined('PAPER_TO_QUIZ_PRIVATE_STORAGE_KEY') ? (string) PAPER_TO_QUIZ_PRIVATE_STORAGE_KEY : '';
-		$legacy_constant = 'PT' . 'Q_PRIVATE_STORAGE_KEY';
-		if ($master === '' && defined($legacy_constant)) {
-			// Compatibility for installations that defined the pre-directory-review constant.
-			$master = (string) constant($legacy_constant);
-		}
-
 		if ($master === '') {
 			$encoded = (string) get_option('paper_to_quiz_storage_key', '');
 			if ($encoded === '') {
