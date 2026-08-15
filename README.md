@@ -65,7 +65,7 @@ Advanced users who prefer to keep the key outside the database may optionally
 add the following constant to `wp-config.php` **before uploading the first PDF**:
 
 ```php
-define('PTQ_PRIVATE_STORAGE_KEY', 'a-random-and-secret-value-of-at-least-32-bytes');
+define('PAPER_TO_QUIZ_PRIVATE_STORAGE_KEY', 'a-random-and-secret-value-of-at-least-32-bytes');
 ```
 
 If you use this method, keep the value in a secure backup and never change it.

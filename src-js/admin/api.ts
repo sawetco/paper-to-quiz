@@ -1,10 +1,10 @@
 import { __, sprintf } from '@wordpress/i18n';
 
-const config = window.ptqAdmin;
+const config = window.paperToQuizAdmin;
 let currentContentName: string = __( 'Record', 'paper-to-quiz' );
-if ( config.page === 'ptq-exams' ) {
+if ( config.page === 'paper-to-quiz-exams' ) {
 	currentContentName = __( 'Exam', 'paper-to-quiz' );
-} else if ( config.page === 'ptq-tests' ) {
+} else if ( config.page === 'paper-to-quiz-tests' ) {
 	currentContentName = __( 'Test', 'paper-to-quiz' );
 }
 
@@ -41,8 +41,8 @@ function friendlyMessage( data: unknown, status: number ): string {
 		data?: { params?: Record< string, string > };
 	};
 	if (
-		response.code?.startsWith( 'ptq_chunk_' ) ||
-		response.code === 'ptq_upload_incomplete'
+		response.code?.startsWith( 'paper_to_quiz_chunk_' ) ||
+		response.code === 'paper_to_quiz_upload_incomplete'
 	) {
 		return __(
 			'The PDF could not be uploaded. Please try again.',
@@ -81,7 +81,7 @@ function friendlyMessage( data: unknown, status: number ): string {
 		return __( 'Check the information in the form.', 'paper-to-quiz' );
 	}
 	if (
-		response.code === 'ptq_storage_failed' &&
+		response.code === 'paper_to_quiz_storage_failed' &&
 		typeof response.message === 'string' &&
 		response.message
 	) {
@@ -203,7 +203,7 @@ export async function uploadPdf(
 					method: 'PUT',
 					headers: {
 						'Content-Type': 'application/octet-stream',
-						'X-PTQ-Chunk-SHA256': hex,
+						'X-Paper-To-Quiz-Chunk-SHA256': hex,
 					},
 					body: bytes,
 				} );

@@ -53,7 +53,7 @@ final class AssessmentService {
 			'abcd'  => array('A', 'B', 'C', 'D'),
 			'abcde' => array('A', 'B', 'C', 'D', 'E'),
 		);
-		return apply_filters('ptq_answer_option_sets', $sets); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public API required by the plugin contract.
+		return apply_filters('paper_to_quiz_answer_option_sets', $sets); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public API required by the plugin contract.
 	}
 
 	public function list(
@@ -241,7 +241,7 @@ final class AssessmentService {
 	public function save(array $payload, ?int $assessment_id, int $user_id): array|\WP_Error {
 		$type = sanitize_key((string) ($payload['type'] ?? 'test'));
 		if (! in_array($type, array('exam', 'test'), true)) {
-			return new \WP_Error('ptq_invalid_type', __('Invalid assessment type.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_invalid_type', __('Invalid assessment type.', 'paper-to-quiz'), array('status' => 400));
 		}
 		if (! $assessment_id) {
 			$policy_error = $this->validate_policy_payload($payload, $type);
@@ -253,7 +253,7 @@ final class AssessmentService {
 
 		$title = sanitize_text_field((string) ($payload['title'] ?? ''));
 		if ($title === '') {
-			return new \WP_Error('ptq_title_required', __('Title is required.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_title_required', __('Title is required.', 'paper-to-quiz'), array('status' => 400));
 		}
 		if (! $assessment_id) {
 			$subject_error = $this->validate_subject_selection($payload);
@@ -289,7 +289,7 @@ final class AssessmentService {
 		} else {
 			$record = $this->get($assessment_id);
 			if (! $record) {
-				return new \WP_Error('ptq_not_found', __('Record not found.', 'paper-to-quiz'), array('status' => 404));
+				return new \WP_Error('paper_to_quiz_not_found', __('Record not found.', 'paper-to-quiz'), array('status' => 404));
 			}
 			$type = (string) $record['assessment']['type'];
 			if (! array_key_exists('subject_ids', $payload)) {
@@ -317,7 +317,7 @@ final class AssessmentService {
 			$data = $this->revision_payload($payload);
 			unset($data['assessment_id'], $data['revision_no'], $data['lifecycle'], $data['created_at']);
 			if (false === $this->db->wpdb()->update($this->db->table('revisions'), $data, array('id' => $revision_id))) {
-				return new \WP_Error('ptq_revision_save_failed', __('Draft details could not be saved.', 'paper-to-quiz'), array('status' => 500));
+				return new \WP_Error('paper_to_quiz_revision_save_failed', __('Draft details could not be saved.', 'paper-to-quiz'), array('status' => 500));
 			}
 			$assessment_status = ! empty($record['assessment']['published_revision_id']) ? 'published' : 'draft';
 			if (false === $this->db->wpdb()->update(
@@ -329,7 +329,7 @@ final class AssessmentService {
 				),
 				array('id' => $assessment_id)
 			)) {
-				return new \WP_Error('ptq_assessment_save_failed', __('Record could not be updated.', 'paper-to-quiz'), array('status' => 500));
+				return new \WP_Error('paper_to_quiz_assessment_save_failed', __('Record could not be updated.', 'paper-to-quiz'), array('status' => 500));
 			}
 		}
 
@@ -339,17 +339,17 @@ final class AssessmentService {
 	public function set_source_asset(int $assessment_id, int $asset_id, ?string $question_strategy = null): array|\WP_Error {
 		$record = $this->get($assessment_id);
 		if (! $record || ! $record['revision']) {
-			return new \WP_Error('ptq_not_found', __('Draft not found.', 'paper-to-quiz'), array('status' => 404));
+			return new \WP_Error('paper_to_quiz_not_found', __('Draft not found.', 'paper-to-quiz'), array('status' => 404));
 		}
 		if ($record['revision']['lifecycle'] !== 'draft') {
-			return new \WP_Error('ptq_immutable', __('Published revisions cannot be changed.', 'paper-to-quiz'), array('status' => 409));
+			return new \WP_Error('paper_to_quiz_immutable', __('Published revisions cannot be changed.', 'paper-to-quiz'), array('status' => 409));
 		}
 
 		$old       = (int) $record['revision']['source_asset_id'];
 		$questions = $record['questions'];
 		if ($old && $old !== $asset_id && $questions && ! in_array($question_strategy, array('preserve', 'clear'), true)) {
 			return new \WP_Error(
-				'ptq_pdf_question_strategy_required',
+				'paper_to_quiz_pdf_question_strategy_required',
 				__('Specify whether existing questions should be kept or cleared when replacing the PDF.', 'paper-to-quiz'),
 				array('status' => 409)
 			);
@@ -401,7 +401,7 @@ final class AssessmentService {
 		} catch (\Throwable $error) {
 			$this->db->rollback();
 			return OperationalErrorReporter::report(
-				'ptq_pdf_replace_failed',
+				'paper_to_quiz_pdf_replace_failed',
 				$error,
 				__('The PDF could not be replaced. Please try again.', 'paper-to-quiz'),
 				500
@@ -422,20 +422,20 @@ final class AssessmentService {
 	): array|\WP_Error {
 		$revision = $this->get_revision($revision_id);
 		if (! $revision || $revision['lifecycle'] !== 'draft') {
-			return new \WP_Error('ptq_immutable', __('Only draft questions can be edited.', 'paper-to-quiz'), array('status' => 409));
+			return new \WP_Error('paper_to_quiz_immutable', __('Only draft questions can be edited.', 'paper-to-quiz'), array('status' => 409));
 		}
 
 		$crop = $metadata['crop'] ?? array();
 		foreach (array('x', 'y', 'width', 'height') as $key) {
 			if (! isset($crop[$key]) || ! is_numeric($crop[$key])) {
-				return new \WP_Error('ptq_invalid_crop', __('Crop coordinates are invalid.', 'paper-to-quiz'), array('status' => 400));
+				return new \WP_Error('paper_to_quiz_invalid_crop', __('Crop coordinates are invalid.', 'paper-to-quiz'), array('status' => 400));
 			}
 		}
 
 		$requested_ordinal = max(1, (int) ($metadata['ordinal'] ?? 1));
 		$client_key       = sanitize_text_field((string) ($metadata['client_key'] ?? ''));
 		if ($client_key !== '' && ! wp_is_uuid($client_key)) {
-			return new \WP_Error('ptq_question_client_key', __('The question record key is invalid.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_question_client_key', __('The question record key is invalid.', 'paper-to-quiz'), array('status' => 400));
 		}
 
 		if (! $question_id && $client_key !== '') {
@@ -479,13 +479,13 @@ final class AssessmentService {
 				ARRAY_A
 			);
 			if (! $existing) {
-				return new \WP_Error('ptq_question_not_found', __('Question not found.', 'paper-to-quiz'), array('status' => 404));
+				return new \WP_Error('paper_to_quiz_question_not_found', __('Question not found.', 'paper-to-quiz'), array('status' => 404));
 			}
 			$data['ordinal'] = (int) $existing['ordinal'] === $requested_ordinal
 				? $requested_ordinal
 				: $this->next_temporary_ordinal($revision_id);
 			if (false === $this->db->wpdb()->update($this->db->table('questions'), $data, array('id' => $question_id))) {
-				return new \WP_Error('ptq_question_save', __('Question could not be saved.', 'paper-to-quiz'), array('status' => 500));
+				return new \WP_Error('paper_to_quiz_question_save', __('Question could not be saved.', 'paper-to-quiz'), array('status' => 500));
 			}
 			if ($main_asset_id && (int) $existing['main_asset_id'] !== $main_asset_id) {
 				$this->assets->release((int) $existing['main_asset_id']);
@@ -516,7 +516,7 @@ final class AssessmentService {
 						);
 					}
 				}
-				return new \WP_Error('ptq_question_save', __('Question could not be saved.', 'paper-to-quiz'), array('status' => 500));
+				return new \WP_Error('paper_to_quiz_question_save', __('Question could not be saved.', 'paper-to-quiz'), array('status' => 500));
 			}
 			$question_id = (int) $this->db->wpdb()->insert_id;
 		}
@@ -527,7 +527,7 @@ final class AssessmentService {
 	public function update_answer_key(int $revision_id, array $items, bool $prune_missing = false): array|\WP_Error {
 		$revision = $this->get_revision($revision_id);
 		if (! $revision || $revision['lifecycle'] !== 'draft') {
-			return new \WP_Error('ptq_immutable', __('Only draft answer keys can be edited.', 'paper-to-quiz'), array('status' => 409));
+			return new \WP_Error('paper_to_quiz_immutable', __('Only draft answer keys can be edited.', 'paper-to-quiz'), array('status' => 409));
 		}
 
 		$options = $revision['options'];
@@ -538,7 +538,7 @@ final class AssessmentService {
 		$unique_item_ids = array_values(array_unique($item_ids));
 		if (count($item_ids) !== count($unique_item_ids)) {
 			return new \WP_Error(
-				'ptq_answer_key_questions',
+				'paper_to_quiz_answer_key_questions',
 				__('The answer key must include every draft question exactly once.', 'paper-to-quiz'),
 				array('status' => 400)
 			);
@@ -632,11 +632,11 @@ final class AssessmentService {
 		} catch (\InvalidArgumentException $error) {
 			$this->db->rollback();
 			$validation_message = $error->getMessage();
-			return new \WP_Error('ptq_answer_key_failed', $validation_message, array('status' => 400));
+			return new \WP_Error('paper_to_quiz_answer_key_failed', $validation_message, array('status' => 400));
 		} catch (\Throwable $error) {
 			$this->db->rollback();
 			return OperationalErrorReporter::report(
-				'ptq_answer_key_failed',
+				'paper_to_quiz_answer_key_failed',
 				$error,
 				__('The answer key could not be saved. Please try again.', 'paper-to-quiz'),
 				500
@@ -654,11 +654,11 @@ final class AssessmentService {
 	public function delete_question(int $question_id): bool|\WP_Error {
 		$question = $this->question($question_id);
 		if (! $question) {
-			return new \WP_Error('ptq_not_found', __('Question not found.', 'paper-to-quiz'), array('status' => 404));
+			return new \WP_Error('paper_to_quiz_not_found', __('Question not found.', 'paper-to-quiz'), array('status' => 404));
 		}
 		$revision = $this->get_revision((int) $question['revision_id']);
 		if (! $revision || $revision['lifecycle'] !== 'draft') {
-			return new \WP_Error('ptq_immutable', __('Published questions cannot be deleted.', 'paper-to-quiz'), array('status' => 409));
+			return new \WP_Error('paper_to_quiz_immutable', __('Published questions cannot be deleted.', 'paper-to-quiz'), array('status' => 409));
 		}
 
 		$this->db->wpdb()->delete($this->db->table('questions'), array('id' => $question_id), array('%d'));
@@ -681,13 +681,13 @@ final class AssessmentService {
 	public function publish(int $assessment_id): array|\WP_Error {
 		$record = $this->get($assessment_id);
 		if (! $record || ! $record['revision']) {
-			return new \WP_Error('ptq_not_found', __('Record not found.', 'paper-to-quiz'), array('status' => 404));
+			return new \WP_Error('paper_to_quiz_not_found', __('Record not found.', 'paper-to-quiz'), array('status' => 404));
 		}
 
 		$errors = $this->validate_publish($record);
 		if ($errors) {
 			return new \WP_Error(
-				'ptq_publish_validation',
+				'paper_to_quiz_publish_validation',
 				__('Publishing checks are incomplete.', 'paper-to-quiz'),
 				array('status' => 422, 'errors' => $errors)
 			);
@@ -722,21 +722,21 @@ final class AssessmentService {
 		} catch (\Throwable $error) {
 			$this->db->rollback();
 			return OperationalErrorReporter::report(
-				'ptq_publish_failed',
+				'paper_to_quiz_publish_failed',
 				$error,
 				__('Publishing could not be completed.', 'paper-to-quiz'),
 				500
 			);
 		}
 
-		do_action('ptq_assessment_published', $assessment_id, $revision_id); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public API required by the plugin contract.
+		do_action('paper_to_quiz_assessment_published', $assessment_id, $revision_id); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public API required by the plugin contract.
 		return $this->get($assessment_id, true) ?: array();
 	}
 
 	public function duplicate(int $assessment_id, int $user_id): array|\WP_Error {
 		$source = $this->get($assessment_id);
 		if (! $source || ! $source['revision']) {
-			return new \WP_Error('ptq_not_found', __('The record to duplicate could not be found.', 'paper-to-quiz'), array('status' => 404));
+			return new \WP_Error('paper_to_quiz_not_found', __('The record to duplicate could not be found.', 'paper-to-quiz'), array('status' => 404));
 		}
 
 		$payload = array(
@@ -864,7 +864,7 @@ final class AssessmentService {
 	private function clone_published_to_draft(array $record): int|\WP_Error {
 		$source = $record['revision'];
 		if (! $source || $source['lifecycle'] !== 'published') {
-			return new \WP_Error('ptq_published_revision_missing', __('The published revision to duplicate could not be found.', 'paper-to-quiz'), array('status' => 409));
+			return new \WP_Error('paper_to_quiz_published_revision_missing', __('The published revision to duplicate could not be found.', 'paper-to-quiz'), array('status' => 409));
 		}
 
 		$assessment_id = (int) $record['assessment']['id'];
@@ -953,7 +953,7 @@ final class AssessmentService {
 		} catch (\Throwable $error) {
 			$this->db->rollback();
 			return OperationalErrorReporter::report(
-				'ptq_draft_clone_failed',
+				'paper_to_quiz_draft_clone_failed',
 				$error,
 				__('The draft revision could not be created. Please try again.', 'paper-to-quiz'),
 				500
@@ -1123,14 +1123,14 @@ final class AssessmentService {
 		}
 		if (! empty($payload['allow_repeat'])) {
 			return new \WP_Error(
-				'ptq_repeat_ranking_conflict',
+				'paper_to_quiz_repeat_ranking_conflict',
 				__('Ranking cannot be enabled for repeatable exams.', 'paper-to-quiz'),
 				array('status' => 400)
 			);
 		}
 		if (($payload['access_mode'] ?? 'guest_allowed') !== 'login_required') {
 			return new \WP_Error(
-				'ptq_guest_ranking_conflict',
+				'paper_to_quiz_guest_ranking_conflict',
 				__('Ranking can only be enabled for exams that require WordPress membership.', 'paper-to-quiz'),
 				array('status' => 400)
 			);
@@ -1143,7 +1143,7 @@ final class AssessmentService {
 		if (! $subject_ids) {
 			$message = __('Select at least one subject.', 'paper-to-quiz');
 			return new \WP_Error(
-				'ptq_subject_required',
+				'paper_to_quiz_subject_required',
 				$message,
 				array('status' => 400, 'params' => array('subject_ids' => $message))
 			);
@@ -1159,7 +1159,7 @@ final class AssessmentService {
 		if ($valid_count !== count($subject_ids)) {
 			$message = __('One or more selected subjects are no longer available. Review the subject selection and try again.', 'paper-to-quiz');
 			return new \WP_Error(
-				'ptq_subject_invalid',
+				'paper_to_quiz_subject_invalid',
 				$message,
 				array('status' => 400, 'params' => array('subject_ids' => $message))
 			);

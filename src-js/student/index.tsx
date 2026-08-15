@@ -17,7 +17,9 @@ document
 		createRoot( mount ).render(
 			<StudentApp
 				assessmentId={ Number( element.dataset.assessmentId ) }
-				restRoot={ element.dataset.restRoot || '/wp-json/ptq/v1/' }
+				restRoot={
+					element.dataset.restRoot || '/wp-json/paper-to-quiz/v1/'
+				}
 				nonce={ element.dataset.nonce || '' }
 				mountElement={ mount }
 			/>

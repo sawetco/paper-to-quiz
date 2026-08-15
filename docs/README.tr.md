@@ -66,7 +66,7 @@ Anahtarı veritabanından ayrı yönetmek isteyen ileri düzey kullanıcılar,
 olarak şu sabiti ekleyebilir:
 
 ```php
-define('PTQ_PRIVATE_STORAGE_KEY', 'en-az-32-baytlik-rastgele-ve-gizli-bir-deger');
+define('PAPER_TO_QUIZ_PRIVATE_STORAGE_KEY', 'en-az-32-baytlik-rastgele-ve-gizli-bir-deger');
 ```
 
 Bu yöntem kullanılırsa değer güvenli bir yerde yedeklenmeli ve daha sonra

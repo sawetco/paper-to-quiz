@@ -32,7 +32,7 @@ final class ResultEmailService {
 				$now
 			)
 		);
-		wp_schedule_single_event(time() + 10, 'ptq_process_result_emails', array($attempt_id), true);
+		wp_schedule_single_event(time() + 10, 'paper_to_quiz_process_result_emails', array($attempt_id), true);
 	}
 
 	public function process(): void {
@@ -151,7 +151,7 @@ final class ResultEmailService {
 				 * the recurring 5-minute queue tick. Mirrors the immediate-send
 				 * path used by enqueue().
 				 */
-				wp_schedule_single_event($next, 'ptq_process_result_emails', array((int) $job['attempt_id']), true);
+				wp_schedule_single_event($next, 'paper_to_quiz_process_result_emails', array((int) $job['attempt_id']), true);
 				return;
 			}
 			$this->db->wpdb()->update(

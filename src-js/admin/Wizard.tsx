@@ -1264,7 +1264,7 @@ function PdfStep( {
 							'Select a PDF file. You can upload up to %d MB.',
 							'paper-to-quiz'
 						),
-						window.ptqAdmin.settings.max_pdf_mb || 50
+						window.paperToQuizAdmin.settings.max_pdf_mb || 50
 					) }
 				</span>
 			</label>
@@ -1741,7 +1741,7 @@ function AuthenticatedImage( { src, alt }: { src: string; alt: string } ) {
 		let objectUrl = '';
 		fetch( src, {
 			credentials: 'same-origin',
-			headers: { 'X-WP-Nonce': window.ptqAdmin.nonce },
+			headers: { 'X-WP-Nonce': window.paperToQuizAdmin.nonce },
 		} )
 			.then( ( response ) => response.blob() )
 			.then( ( blob ) => {

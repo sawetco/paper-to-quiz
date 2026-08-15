@@ -47,7 +47,7 @@ Plugin Check, and the relevant local regression script.
 - Explain the problem and the behavior after the change.
 - Add or update tests for behavior changes.
 - Keep published revisions immutable and preserve started-attempt revision IDs.
-- Never rename `PaperToQuiz`, `PTQ_*`, `ptq_`, `ptq/v1`, or
+- Never rename `PaperToQuiz`, `PAPER_TO_QUIZ_*`, `paper_to_quiz_`, `paper-to-quiz/v1`, or
   `[paper_to_quiz]` without a complete migration and compatibility plan.
 - Update `AGENTS.md`, README, and changelog when architecture, commands, schema,
   or release behavior changes.

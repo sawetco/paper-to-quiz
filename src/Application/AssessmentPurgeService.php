@@ -28,7 +28,7 @@ final class AssessmentPurgeService {
 			ARRAY_A
 		);
 		if (! $assessment) {
-			return new \WP_Error('ptq_not_found', __('Record not found.', 'paper-to-quiz'), array('status' => 404));
+			return new \WP_Error('paper_to_quiz_not_found', __('Record not found.', 'paper-to-quiz'), array('status' => 404));
 		}
 
 		return array(
@@ -59,7 +59,7 @@ final class AssessmentPurgeService {
 	public function purge(int $assessment_id): array|\WP_Error {
 		$impact = $this->purge_impact($assessment_id);
 		if (is_wp_error($impact)) {
-			if ($impact->get_error_code() === 'ptq_not_found') {
+			if ($impact->get_error_code() === 'paper_to_quiz_not_found') {
 				return array(
 					'id'              => $assessment_id,
 					'title'           => '',
@@ -75,7 +75,7 @@ final class AssessmentPurgeService {
 		}
 		if ($impact['status'] !== 'trash') {
 			return new \WP_Error(
-				'ptq_not_in_trash',
+				'paper_to_quiz_not_in_trash',
 				__('Content must be moved to the trash before it can be permanently deleted.', 'paper-to-quiz'),
 				array('status' => 409)
 			);
@@ -204,7 +204,7 @@ final class AssessmentPurgeService {
 		} catch (\Throwable $error) {
 			$this->db->rollback();
 			return OperationalErrorReporter::report(
-				'ptq_purge_failed',
+				'paper_to_quiz_purge_failed',
 				$error,
 				__('Content could not be permanently deleted. Please try again.', 'paper-to-quiz'),
 				500
@@ -213,7 +213,7 @@ final class AssessmentPurgeService {
 
 		foreach ($attempt_ids as $attempt_id) {
 			try {
-				wp_clear_scheduled_hook('ptq_process_result_emails', array($attempt_id));
+				wp_clear_scheduled_hook('paper_to_quiz_process_result_emails', array($attempt_id));
 			} catch (\Throwable $error) {
 				$this->log_cleanup_warning('unschedule_result_email', $attempt_id, $error);
 			}

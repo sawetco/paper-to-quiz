@@ -8,23 +8,28 @@ final class Installer {
 	private const SCHEMA_FAILURE_TTL = 5 * MINUTE_IN_SECONDS;
 
 	public static function activate(): void {
+		if (! LegacyPrefixMigration::run()) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- WordPress displays activation exceptions in its own escaped error screen.
+			throw new \RuntimeException(__('Paper to Quiz could not migrate its existing database tables. Restore the database backup and resolve the conflicting table names before activation.', 'paper-to-quiz'));
+		}
 		add_filter('cron_schedules', array(self::class, 'cron_schedules'));
-		self::install_schema();
+		if (! self::install_schema()) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- WordPress displays activation exceptions in its own escaped error screen.
+			throw new \RuntimeException(__('Paper to Quiz could not finish its database migration. Restore the database backup and resolve the conflicting plugin tables before activation.', 'paper-to-quiz'));
+		}
 		self::add_capabilities();
 
 		$storage = new EncryptedStorage();
 		$storage->ensure_base_directory();
-
-		if (! wp_next_scheduled('ptq_daily_cleanup')) {
-			wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'ptq_daily_cleanup');
-		}
-		self::ensure_schedules();
 	}
 
 	public static function ensure_schedules(): void {
+		if (! wp_next_scheduled('paper_to_quiz_daily_cleanup')) {
+			wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'paper_to_quiz_daily_cleanup');
+		}
 		$args = array('queue');
-		if (! wp_next_scheduled('ptq_process_result_emails', $args)) {
-			wp_schedule_event(time() + 5 * MINUTE_IN_SECONDS, 'ptq_five_minutes', 'ptq_process_result_emails', $args);
+		if (! wp_next_scheduled('paper_to_quiz_process_result_emails', $args)) {
+			wp_schedule_event(time() + 5 * MINUTE_IN_SECONDS, 'paper_to_quiz_five_minutes', 'paper_to_quiz_process_result_emails', $args);
 		}
 	}
 
@@ -33,7 +38,7 @@ final class Installer {
 	 * @return array<string,array<string,int|string>>
 	 */
 	public static function cron_schedules(array $schedules): array {
-		$schedules['ptq_five_minutes'] = array(
+		$schedules['paper_to_quiz_five_minutes'] = array(
 			'interval' => 5 * MINUTE_IN_SECONDS,
 			'display'  => __('Every 5 minutes', 'paper-to-quiz'),
 		);
@@ -41,11 +46,15 @@ final class Installer {
 	}
 
 	public static function deactivate(): void {
-		wp_clear_scheduled_hook('ptq_daily_cleanup');
-		wp_clear_scheduled_hook('ptq_process_result_emails');
+		wp_clear_scheduled_hook('paper_to_quiz_daily_cleanup');
+		wp_clear_scheduled_hook('paper_to_quiz_process_result_emails');
 	}
 
-	public static function maybe_upgrade(): void {
+	public static function maybe_upgrade(): bool {
+		if (! LegacyPrefixMigration::run()) {
+			add_action('admin_notices', array(self::class, 'migration_error_notice'));
+			return false;
+		}
 		// Keep role capabilities current for sites that were already active before
 		// a capability was introduced or renamed. This is idempotent and must run
 		// even when the schema verification cache allows an early return below.
@@ -59,35 +68,50 @@ final class Installer {
 			// The settings health check reports the actionable storage status.
 		}
 
-		$verified = 'ptq_schema_verified_' . PTQ_DB_VERSION;
-		$failed   = 'ptq_schema_failed_' . PTQ_DB_VERSION;
+		$verified = 'paper_to_quiz_schema_verified_' . PAPER_TO_QUIZ_DB_VERSION;
+		$failed   = 'paper_to_quiz_schema_failed_' . PAPER_TO_QUIZ_DB_VERSION;
 
-		if (get_option('ptq_db_version') === PTQ_DB_VERSION && get_transient($verified) === '1') {
-			return;
+		if (
+			! LegacyPrefixMigration::has_legacy_tables() &&
+			get_option('paper_to_quiz_db_version') === PAPER_TO_QUIZ_DB_VERSION &&
+			get_transient($verified) === '1'
+		) {
+			return true;
 		}
 
 		if (get_transient($failed) === '1') {
-			return;
+			return false;
 		}
 
 		if (self::install_schema()) {
 			delete_transient($failed);
 			set_transient($verified, '1', 12 * HOUR_IN_SECONDS);
-			return;
+			return true;
 		}
 
 		set_transient($failed, '1', self::SCHEMA_FAILURE_TTL);
+		return false;
+	}
+
+	public static function migration_error_notice(): void {
+		if (! current_user_can('activate_plugins')) {
+			return;
+		}
+		echo '<div class="notice notice-error"><p>' . esc_html__('Paper to Quiz could not complete its database prefix migration because old and new table names exist together. Restore the database backup or resolve the conflicting plugin tables before continuing.', 'paper-to-quiz') . '</p></div>';
 	}
 
 	public static function repair_schema(): bool {
-		delete_transient('ptq_schema_failed_' . PTQ_DB_VERSION);
+		if (! LegacyPrefixMigration::run()) {
+			return false;
+		}
+		delete_transient('paper_to_quiz_schema_failed_' . PAPER_TO_QUIZ_DB_VERSION);
 		return self::install_schema();
 	}
 
 	private static function schema_is_complete(): bool {
 		global $wpdb;
 
-		$prefix = $wpdb->prefix . 'ptq_';
+		$prefix = $wpdb->prefix . 'paper_to_quiz_';
 		$found  = $wpdb->get_col( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Bounded schema health check cached for twelve hours.
 			$wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($prefix) . '%')
 		);
@@ -156,10 +180,10 @@ final class Installer {
 
 		foreach (
 			array(
-				'ptq_manage_assessments',
-				'ptq_publish_assessments',
-				'ptq_view_results',
-				'ptq_manage_settings',
+				'paper_to_quiz_manage_assessments',
+				'paper_to_quiz_publish_assessments',
+				'paper_to_quiz_view_results',
+				'paper_to_quiz_manage_settings',
 			) as $capability
 		) {
 			if (! $administrator->has_cap($capability)) {
@@ -173,7 +197,7 @@ final class Installer {
 
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		$charset = $wpdb->get_charset_collate();
-		$prefix  = $wpdb->prefix . 'ptq_';
+		$prefix  = $wpdb->prefix . 'paper_to_quiz_';
 
 		$sql = array();
 		$sql[] = "CREATE TABLE {$prefix}assessments (
@@ -399,6 +423,9 @@ final class Installer {
 		foreach ($sql as $statement) {
 			dbDelta($statement);
 		}
+		if (! LegacyPrefixMigration::migrate_tables_after_schema()) {
+			return false;
+		}
 
 		self::migrate_test_invariants();
 		self::migrate_revision_subjects();
@@ -414,14 +441,14 @@ final class Installer {
 			return false;
 		}
 
-		update_option('ptq_db_version', PTQ_DB_VERSION, false);
+		update_option('paper_to_quiz_db_version', PAPER_TO_QUIZ_DB_VERSION, false);
 		return true;
 	}
 
 	private static function migrate_test_invariants(): void {
 		global $wpdb;
 
-		$prefix = $wpdb->prefix . 'ptq_';
+		$prefix = $wpdb->prefix . 'paper_to_quiz_';
 		$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time bounded data migration for plugin-owned rows.
 			$wpdb->prepare(
 				"UPDATE %i r
@@ -466,8 +493,8 @@ final class Installer {
 	private static function migrate_revision_subjects(): void {
 		global $wpdb;
 
-		$questions_table = $wpdb->prefix . 'ptq_questions';
-		$revisions_table = $wpdb->prefix . 'ptq_revisions';
+		$questions_table = $wpdb->prefix . 'paper_to_quiz_questions';
+		$revisions_table = $wpdb->prefix . 'paper_to_quiz_revisions';
 		$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time migration reads plugin-owned subject assignments.
 			$wpdb->prepare(
 				'SELECT revision_id,subject_id FROM %i WHERE subject_id IS NOT NULL GROUP BY revision_id,subject_id ORDER BY revision_id,subject_id',

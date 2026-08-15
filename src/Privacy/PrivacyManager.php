@@ -55,7 +55,7 @@ final class PrivacyManager {
 			$items[] = array(
 				'group_id'    => 'paper-to-quiz-results',
 				'group_label' => __('Quiz Results', 'paper-to-quiz'),
-				'item_id'     => 'ptq-attempt-' . $attempt['id'],
+				'item_id'     => 'paper-to-quiz-attempt-' . $attempt['id'],
 				'data'        => array(
 					array('name' => __('Assessment', 'paper-to-quiz'), 'value' => $attempt['title']),
 					array('name' => __('Started', 'paper-to-quiz'), 'value' => $attempt['started_at']),

@@ -53,7 +53,7 @@ final class RankingTest extends TestCase {
 
 	public function tearDown(): void {
 		$wpdb   = $this->db->wpdb();
-		$prefix = $wpdb->prefix . 'ptq_';
+		$prefix = $wpdb->prefix . 'paper_to_quiz_';
 
 		wp_set_current_user( 0 );
 
@@ -266,7 +266,7 @@ final class RankingTest extends TestCase {
 
 	private function create_member_user( string $suffix ): int {
 		$wpdb     = $this->db->wpdb();
-		$login    = 'ptq_' . $suffix . '_' . wp_generate_password( 4, false, false );
+		$login    = 'paper_to_quiz_' . $suffix . '_' . wp_generate_password( 4, false, false );
 		$email    = strtolower( $login ) . '@example.com';
 		$user_id  = (int) wp_insert_user(
 			array(

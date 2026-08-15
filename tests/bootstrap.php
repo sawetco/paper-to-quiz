@@ -17,10 +17,10 @@
 
 declare(strict_types=1);
 
-if (defined('PTQ_PHPUNIT_BOOTSTRAP_LOADED')) {
+if (defined('PAPER_TO_QUIZ_PHPUNIT_BOOTSTRAP_LOADED')) {
     return;
 }
-define('PTQ_PHPUNIT_BOOTSTRAP_LOADED', true);
+define('PAPER_TO_QUIZ_PHPUNIT_BOOTSTRAP_LOADED', true);
 
 $wp_load = '/var/www/html/wp-load.php';
 

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace PaperToQuiz\Infrastructure;
 
 final class Database {
+	public const TABLE_PREFIX = 'paper_to_quiz_';
+
 	/** @var \wpdb */
 	private $wpdb;
 
@@ -36,7 +38,7 @@ final class Database {
 			throw new \InvalidArgumentException('Unknown table name.');
 		}
 
-		return $this->wpdb->prefix . 'ptq_' . $name;
+		return $this->wpdb->prefix . self::TABLE_PREFIX . $name;
 	}
 
 	public function begin(): void {

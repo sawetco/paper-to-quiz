@@ -131,7 +131,7 @@ declare global {
 				multiple: boolean;
 			} ) => WpMediaFrame;
 		};
-		ptqAdmin: {
+		paperToQuizAdmin: {
 			restRoot: string;
 			nonce: string;
 			page: string;

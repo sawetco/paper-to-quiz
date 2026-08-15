@@ -60,7 +60,7 @@ final class TermService {
 		$color     = $raw_color === '' ? null : sanitize_hex_color($raw_color);
 		if ($raw_color !== '' && $color === null) {
 			return new \WP_Error(
-				'ptq_invalid_class_color',
+				'paper_to_quiz_invalid_class_color',
 				__('Select a valid class color.', 'paper-to-quiz'),
 				array('status' => 400)
 			);
@@ -154,12 +154,12 @@ final class TermService {
 
 	private function save_term(string $type, string $name, ?int $id, array $extra = array()): array|\WP_Error {
 		if (trim($name) === '') {
-			return new \WP_Error('ptq_invalid_term', __('Invalid term.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_invalid_term', __('Invalid term.', 'paper-to-quiz'), array('status' => 400));
 		}
 		$name = sanitize_text_field($name);
 		$slug = sanitize_title($name);
 		if ($slug === '') {
-			return new \WP_Error('ptq_invalid_term', __('Invalid term.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_invalid_term', __('Invalid term.', 'paper-to-quiz'), array('status' => 400));
 		}
 		$data = array(
 			'type'       => $type,
@@ -177,7 +177,7 @@ final class TermService {
 				return $this->term_exists_error($type, $conflict);
 			}
 			if (false === $this->db->wpdb()->update($this->db->table('terms'), $data, array('id' => $id, 'type' => $type))) {
-				return new \WP_Error('ptq_term_save_failed', __('The term could not be saved.', 'paper-to-quiz'), array('status' => 500));
+				return new \WP_Error('paper_to_quiz_term_save_failed', __('The term could not be saved.', 'paper-to-quiz'), array('status' => 500));
 			}
 		} else {
 			$existing = $this->find_term_by_slug($type, $slug);
@@ -187,7 +187,7 @@ final class TermService {
 				}
 				$id = (int) $existing['id'];
 				if (false === $this->db->wpdb()->update($this->db->table('terms'), $data, array('id' => $id, 'type' => $type, 'status' => 'trash'))) {
-					return new \WP_Error('ptq_term_save_failed', __('The term could not be restored.', 'paper-to-quiz'), array('status' => 500));
+					return new \WP_Error('paper_to_quiz_term_save_failed', __('The term could not be restored.', 'paper-to-quiz'), array('status' => 500));
 				}
 			} else {
 				$data['created_at'] = current_time('mysql', true);
@@ -197,7 +197,7 @@ final class TermService {
 					if ($existing) {
 						return $this->term_exists_error($type, $existing);
 					}
-					return new \WP_Error('ptq_term_save_failed', __('The term could not be saved.', 'paper-to-quiz'), array('status' => 500));
+					return new \WP_Error('paper_to_quiz_term_save_failed', __('The term could not be saved.', 'paper-to-quiz'), array('status' => 500));
 				}
 				$id = (int) $this->db->wpdb()->insert_id;
 			}
@@ -206,7 +206,7 @@ final class TermService {
 			$this->db->wpdb()->prepare('SELECT * FROM ' . $this->db->table('terms') . ' WHERE id = %d AND type = %s', $id, $type),
 			ARRAY_A
 		);
-		return $row ?: new \WP_Error('ptq_term_not_found', __('Term not found.', 'paper-to-quiz'), array('status' => 404));
+		return $row ?: new \WP_Error('paper_to_quiz_term_not_found', __('Term not found.', 'paper-to-quiz'), array('status' => 404));
 	}
 
 	private function find_term_by_slug(string $type, string $slug, ?int $except_id = null): ?array {
@@ -223,7 +223,7 @@ final class TermService {
 	private function term_exists_error(string $type, array $term): \WP_Error {
 		$label = $type === 'class' ? __('class', 'paper-to-quiz') : __('subject', 'paper-to-quiz');
 		return new \WP_Error(
-			'ptq_term_exists',
+			'paper_to_quiz_term_exists',
 			sprintf(
 				/* translators: %s: Class or subject label. */
 				__('A %s with this name already exists.', 'paper-to-quiz'),
@@ -259,11 +259,11 @@ final class TermService {
 			ARRAY_A
 		);
 		if (! $term) {
-			return new \WP_Error('ptq_term_not_found', __('Record not found.', 'paper-to-quiz'), array('status' => 404));
+			return new \WP_Error('paper_to_quiz_term_not_found', __('Record not found.', 'paper-to-quiz'), array('status' => 404));
 		}
 		if ($term['status'] !== 'trash') {
 			return new \WP_Error(
-				'ptq_term_not_in_trash',
+				'paper_to_quiz_term_not_in_trash',
 				__('The record must be moved to the trash before it can be permanently deleted.', 'paper-to-quiz'),
 				array('status' => 409)
 			);
@@ -283,7 +283,7 @@ final class TermService {
 			);
 		if ($usage > 0) {
 			return new \WP_Error(
-				'ptq_term_in_use',
+				'paper_to_quiz_term_in_use',
 				sprintf(
 					/* translators: %d: Number of references to the class or subject. */
 					__('This record cannot be permanently deleted because it is used in %d historical revisions or questions.', 'paper-to-quiz'),
@@ -297,7 +297,7 @@ final class TermService {
 			array('id' => $id, 'type' => $type, 'status' => 'trash'),
 			array('%d', '%s', '%s')
 		)) {
-			return new \WP_Error('ptq_term_purge_failed', __('The record could not be permanently deleted.', 'paper-to-quiz'), array('status' => 500));
+			return new \WP_Error('paper_to_quiz_term_purge_failed', __('The record could not be permanently deleted.', 'paper-to-quiz'), array('status' => 500));
 		}
 		return true;
 	}

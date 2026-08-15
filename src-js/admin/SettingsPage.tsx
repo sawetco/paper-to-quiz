@@ -112,7 +112,7 @@ export function SettingsPage() {
 	}
 
 	return (
-		<div className="ptq-page ptq-settings-page">
+		<div className="ptq-page paper-to-quiz-settings-page">
 			<h1>{ __( 'Settings', 'paper-to-quiz' ) }</h1>
 			{ saved && (
 				<Notice status="success" onRemove={ () => setSaved( false ) }>

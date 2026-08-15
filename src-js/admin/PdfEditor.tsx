@@ -1115,8 +1115,11 @@ async function renderCrop(
 ): Promise< { main: Blob; thumb: Blob } > {
 	const page = await pdf.getPage( selection.page );
 	const base = page.getViewport( { scale: 1 } );
-	const dpiScale = Number( window.ptqAdmin.settings.crop_dpi || 300 ) / 72;
-	const maxEdge = Number( window.ptqAdmin.settings.max_image_edge || 4000 );
+	const dpiScale =
+		Number( window.paperToQuizAdmin.settings.crop_dpi || 300 ) / 72;
+	const maxEdge = Number(
+		window.paperToQuizAdmin.settings.max_image_edge || 4000
+	);
 	const cropBaseWidth = base.width * selection.width;
 	const cropBaseHeight = base.height * selection.height;
 	const scale = Math.min(

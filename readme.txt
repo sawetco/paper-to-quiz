@@ -4,7 +4,7 @@ Tags: quiz, exam, pdf, education, test
 Requires at least: 6.8
 Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -42,7 +42,7 @@ external service.
 4. Create an exam or test and complete the guided workflow.
 5. Add the generated `[paper_to_quiz]` shortcode to a page.
 
-For production, define `PTQ_PRIVATE_STORAGE_KEY` with at least 32 random bytes
+For production, define `PAPER_TO_QUIZ_PRIVATE_STORAGE_KEY` with at least 32 random bytes
 in WordPress configuration. Deactivation preserves data. Permanent uninstall
 cleanup runs only when explicitly enabled under Settings > Danger Zone.
 
@@ -83,6 +83,15 @@ instructions, the security policy, and contribution guidelines are included in
 `README.md`, `SECURITY.md`, and `CONTRIBUTING.md`.
 
 == Changelog ==
+
+= 1.1.0 =
+
+* Updated all WordPress-global identifiers to the collision-safe
+  `paper_to_quiz` prefix requested during the WordPress.org review.
+* Added an automatic, data-preserving migration for existing database tables,
+  settings, capabilities, scheduled tasks, and private-storage keys.
+* Removed bundled locale files so translations are delivered through
+  translate.wordpress.org.
 
 = 1.0.0 =
 

@@ -35,7 +35,9 @@ final class Plugin {
 	}
 
 	public function boot(): void {
-		Installer::maybe_upgrade();
+		if (! Installer::maybe_upgrade()) {
+			return;
+		}
 
 		$db                  = new Database();
 		$this->storage       = new EncryptedStorage();
@@ -55,16 +57,16 @@ final class Plugin {
 		$settings            = new Settings();
 
 		add_filter('cron_schedules', array(Installer::class, 'cron_schedules'));
-		Installer::ensure_schedules();
+		add_action('init', array(Installer::class, 'ensure_schedules'));
 		add_action('admin_menu', array($menu, 'register'));
 		add_action('admin_enqueue_scripts', array($menu, 'enqueue'));
 		add_action('admin_init', array($settings, 'register'));
 		add_action('rest_api_init', array($admin_controller, 'register_routes'));
 		add_action('rest_api_init', array($public_controller, 'register_routes'));
 		add_filter('rest_pre_serve_request', array($this, 'serve_binary'), 10, 4);
-		add_action('ptq_daily_cleanup', array($cleanup, 'run'));
-		add_action('ptq_attempt_completed', array($email_service, 'enqueue'));
-		add_action('ptq_process_result_emails', array($email_service, 'process'));
+		add_action('paper_to_quiz_daily_cleanup', array($cleanup, 'run'));
+		add_action('paper_to_quiz_attempt_completed', array($email_service, 'enqueue'));
+		add_action('paper_to_quiz_process_result_emails', array($email_service, 'process'));
 
 		$shortcode->register();
 		$privacy->register();

@@ -12,7 +12,7 @@ contracts, or release behavior changes.
   `@wordpress/components`.
 - PDF questions are selected manually with PDF.js, Konva, and React-Konva.
 - The student application is isolated from theme styles.
-- `PaperToQuiz`, `PTQ_*`, `ptq_`, `ptq/v1`, and `[paper_to_quiz]` are permanent
+- `PaperToQuiz`, `PAPER_TO_QUIZ_*`, `paper_to_quiz_`, `paper-to-quiz/v1`, and `[paper_to_quiz]` are permanent
   public identities. Changing them requires a complete migration and backward-
   compatibility plan.
 
@@ -55,7 +55,7 @@ excluded because Plugin Check flags additional root Markdown files; tests,
 development dependencies, and repository metadata also stay out of the archive.
 
 GitHub Releases is the versioned binary distribution channel. After the
-version constants, package metadata, changelog, and catalogs are synchronized
+version constants, package metadata, changelog, and POT template are synchronized
 and the `main` quality workflow passes, push the matching `v*` tag. The
 `.github/workflows/release.yml` workflow rebuilds the production package,
 checks production dependencies and path portability, and creates or replaces
@@ -68,9 +68,9 @@ replaces only that fallback base with a portable URL, and
 `npm run check:build-portability` prevents workspace paths from reaching the
 compiled assets.
 
-Translation catalogs are generated after the production build. Keep the
-compiled-bundle references in `languages/paper-to-quiz.pot`, the Turkish PO/MO
-files, and the handle map synchronized.
+WordPress.org distributes locale files through translate.wordpress.org. Do not
+ship `.po`, `.mo`, locale `.json`, or translation `.php` files in the plugin
+archive. Keep only the source template at `languages/paper-to-quiz.pot`.
 
 The default flow uses the wp-env wp-cli (no external tools required). With
 `npm run env:start` running and after `npm run build`:
@@ -79,23 +79,13 @@ The default flow uses the wp-env wp-cli (no external tools required). With
 npm run i18n
 ```
 
-This runs the four steps in the cli container: `make-pot`, `update-po`,
-`make-mo`, and `make-json --use-map`. `make-pot` needs a raised PHP memory
-limit to parse the large bundled JS without fataling on the 128 MB default, so
-the script invokes it as `php -d memory_limit=512M ... wp i18n make-pot` and
-excludes `build/pdf.worker.min.js` (a vendored 1.19 MB worker with no
-translatable strings).
-
-`languages/paper-to-quiz-json-map.json` maps each lazy chunk (`build/0.js`,
-`build/115.js`, `build/244.js`) and entry bundle to its parent bundle. The
-values intentionally use the `.min.js` suffix: WP-CLI `make-json` strips
-`.min.js` to `.js` before naming each output `textdomain-locale-{md5}.json`, so
-`build/admin.min.js` produces the `md5("build/admin.js")` handle that WordPress
-loads. (With WP-CLI 2.12.0 the `.min`-strip regex has an unescaped dot, so a
-non-`.min` value like `build/admin.js` is corrupted to `build/a.js` — keep the
-`.min` suffix.) CI validates that every map key exists under `build/` after the
-build (`.github/workflows/quality.yml`); if Webpack changes chunk filenames,
-update the JSON map before regenerating the catalogs.
+This regenerates the POT template in the cli container. `make-pot` needs a
+raised PHP memory limit to parse the large bundled JS without fataling on the
+128 MB default, so the script invokes it as
+`php -d memory_limit=512M ... wp i18n make-pot` and excludes
+`build/pdf.worker.min.js` (a vendored worker with no translatable strings).
+Translations installed from WordPress.org are loaded through WordPress core;
+the plugin must not override `load_textdomain_mofile` with bundled catalogs.
 
 Integration gate (disposable local wp-env only):
 
@@ -104,7 +94,8 @@ npm run test:integration
 ```
 
 This starts a disposable local WordPress environment, runs both regression
-scripts with the required local guards, and stops the environment afterward.
+scripts plus the MySQL prefix-migration regression with the required local
+guards, and stops the environment afterward.
 Never run the regression scripts against production or against real data.
 
 The data regression script creates and then removes temporary plugin records:
@@ -117,7 +108,7 @@ wp eval-file wp-content/plugins/paper-to-quiz/tests/data-regression.php
 
 - Published revisions are immutable; edits use a separate working revision.
 - Started attempts remain tied to their original `revision_id`.
-- Administrator `ptq_*` capabilities are reconciled idempotently for existing active installations.
+- Administrator `paper_to_quiz_*` capabilities are reconciled idempotently for existing active installations.
 - Tests are public, timeless, unranked, and repeatable without limit.
 - Selecting an answer does not write to the server; submission is atomic and idempotent.
 - Access, schedule, and submission decisions use server UTC, never client time.
@@ -133,8 +124,12 @@ wp eval-file wp-content/plugins/paper-to-quiz/tests/data-regression.php
 
 ## Data and migrations
 
-- A schema change updates `PTQ_DB_VERSION`, install/migration logic, uninstall
+- A schema change updates `PAPER_TO_QUIZ_DB_VERSION`, install/migration logic, uninstall
   coverage, types, and tests together.
+- `LegacyPrefixMigration` upgrades the pre-directory-review `ptq_` database,
+  option, capability, cron, and transient identifiers while preserving existing
+  assessment record contents. Keep this compatibility path while version
+  1.0.0 installations may still be upgraded.
 - Check every database write and use transactions for multi-table operations.
 - Convert unique-index conflicts into useful field-level REST errors; never leak
   raw database failures as a generic 500 response.

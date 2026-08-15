@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace PaperToQuiz\Infrastructure;
 
 final class Uninstaller {
+	private const LEGACY_PREFIX = 'ptq_';
+
 	private const TABLES = array(
 		'result_email_jobs',
 		'attempt_subject_scores',
@@ -20,16 +22,16 @@ final class Uninstaller {
 	);
 
 	private const OPTIONS = array(
-		'ptq_settings',
-		'ptq_db_version',
-		'ptq_storage_key',
+		'paper_to_quiz_settings',
+		'paper_to_quiz_db_version',
+		'paper_to_quiz_storage_key',
 	);
 
 	private const CAPABILITIES = array(
-		'ptq_manage_assessments',
-		'ptq_publish_assessments',
-		'ptq_view_results',
-		'ptq_manage_settings',
+		'paper_to_quiz_manage_assessments',
+		'paper_to_quiz_publish_assessments',
+		'paper_to_quiz_view_results',
+		'paper_to_quiz_manage_settings',
 	);
 
 	public static function purge(): void {
@@ -41,20 +43,24 @@ final class Uninstaller {
 	}
 
 	private static function clear_scheduled_tasks(): void {
-		wp_clear_scheduled_hook('ptq_daily_cleanup');
-		wp_clear_scheduled_hook('ptq_process_result_emails');
+		wp_clear_scheduled_hook('paper_to_quiz_daily_cleanup');
+		wp_clear_scheduled_hook('paper_to_quiz_process_result_emails');
+		wp_clear_scheduled_hook(self::LEGACY_PREFIX . 'daily_cleanup');
+		wp_clear_scheduled_hook(self::LEGACY_PREFIX . 'process_result_emails');
 	}
 
 	private static function drop_tables(): void {
 		global $wpdb;
 
-		$prefix = $wpdb->prefix . 'ptq_';
-		foreach (self::TABLES as $table) {
-			// phpcs:disable WordPress.DB.DirectDatabaseQuery.SchemaChange -- Explicit uninstall of plugin-owned tables.
-			$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-				$wpdb->prepare('DROP TABLE IF EXISTS %i', $prefix . $table)
-			);
-			// phpcs:enable WordPress.DB.DirectDatabaseQuery.SchemaChange
+		foreach (array(Database::TABLE_PREFIX, self::LEGACY_PREFIX) as $table_prefix) {
+			$prefix = $wpdb->prefix . $table_prefix;
+			foreach (self::TABLES as $table) {
+				// phpcs:disable WordPress.DB.DirectDatabaseQuery.SchemaChange -- Explicit uninstall of plugin-owned tables.
+				$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+					$wpdb->prepare('DROP TABLE IF EXISTS %i', $prefix . $table)
+				);
+				// phpcs:enable WordPress.DB.DirectDatabaseQuery.SchemaChange
+			}
 		}
 	}
 
@@ -64,15 +70,22 @@ final class Uninstaller {
 		foreach (self::OPTIONS as $option) {
 			delete_option($option);
 		}
+		foreach (array('settings', 'db_version', 'storage_key') as $suffix) {
+			delete_option(self::LEGACY_PREFIX . $suffix);
+		}
 
-		$transient_prefix = $wpdb->esc_like('_transient_ptq_') . '%';
-		$timeout_prefix   = $wpdb->esc_like('_transient_timeout_ptq_') . '%';
+		$transient_prefix        = $wpdb->esc_like('_transient_paper_to_quiz_') . '%';
+		$timeout_prefix          = $wpdb->esc_like('_transient_timeout_paper_to_quiz_') . '%';
+		$legacy_transient_prefix = $wpdb->esc_like('_transient_' . self::LEGACY_PREFIX) . '%';
+		$legacy_timeout_prefix   = $wpdb->esc_like('_transient_timeout_' . self::LEGACY_PREFIX) . '%';
 		$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.SchemaChange,WordPress.DB.DirectDatabaseQuery.NoCaching -- Removes only plugin-prefixed transient options during uninstall.
 			$wpdb->prepare(
-				"DELETE FROM %i WHERE option_name LIKE %s OR option_name LIKE %s",
+				'DELETE FROM %i WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s',
 				$wpdb->options,
 				$transient_prefix,
-				$timeout_prefix
+				$timeout_prefix,
+				$legacy_transient_prefix,
+				$legacy_timeout_prefix
 			)
 		);
 	}
@@ -86,6 +99,9 @@ final class Uninstaller {
 
 			foreach (self::CAPABILITIES as $capability) {
 				$role->remove_cap($capability);
+			}
+			foreach (array('manage_assessments', 'publish_assessments', 'view_results', 'manage_settings') as $suffix) {
+				$role->remove_cap(self::LEGACY_PREFIX . $suffix);
 			}
 		}
 	}

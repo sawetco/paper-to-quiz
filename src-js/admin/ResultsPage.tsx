@@ -205,7 +205,7 @@ export function ResultsPage() {
 	].filter( ( view ) => view.key === '' || view.count > 0 );
 
 	return (
-		<div className="ptq-page ptq-list-page ptq-results-page">
+		<div className="ptq-page ptq-list-page paper-to-quiz-results-page">
 			<h1 className="wp-heading-inline">
 				{ __( 'Results', 'paper-to-quiz' ) }
 			</h1>
@@ -754,7 +754,7 @@ function ResultDetail( {
 		<div className="ptq-page ptq-result-detail">
 			<button
 				type="button"
-				className="button button-secondary ptq-results-back"
+				className="button button-secondary paper-to-quiz-results-back"
 				onClick={ onClose }
 			>
 				← { __( 'Back to results', 'paper-to-quiz' ) }
@@ -990,7 +990,7 @@ function AuthenticatedThumbnail( { src, alt }: { src: string; alt: string } ) {
 		let objectUrl = '';
 		fetch( src, {
 			credentials: 'same-origin',
-			headers: { 'X-WP-Nonce': window.ptqAdmin.nonce },
+			headers: { 'X-WP-Nonce': window.paperToQuizAdmin.nonce },
 		} )
 			.then( ( response ) => {
 				if ( ! response.ok ) {

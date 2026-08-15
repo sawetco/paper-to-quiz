@@ -51,7 +51,7 @@ final class ReleaseRevealTest extends TestCase {
 
 	public function tearDown(): void {
 		$wpdb   = $this->db->wpdb();
-		$prefix = $wpdb->prefix . 'ptq_';
+		$prefix = $wpdb->prefix . 'paper_to_quiz_';
 
 		if ( $this->attempt_ids ) {
 			$ids = implode( ',', array_map( 'intval', $this->attempt_ids ) );

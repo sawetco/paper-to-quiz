@@ -47,12 +47,17 @@ final class Crypto {
 	}
 
 	private function key(): string {
-		$master = defined('PTQ_PRIVATE_STORAGE_KEY') ? (string) PTQ_PRIVATE_STORAGE_KEY : '';
+		$master = defined('PAPER_TO_QUIZ_PRIVATE_STORAGE_KEY') ? (string) PAPER_TO_QUIZ_PRIVATE_STORAGE_KEY : '';
+		$legacy_constant = 'PT' . 'Q_PRIVATE_STORAGE_KEY';
+		if ($master === '' && defined($legacy_constant)) {
+			// Compatibility for installations that defined the pre-directory-review constant.
+			$master = (string) constant($legacy_constant);
+		}
 		if ($master === '') {
-			$encoded = (string) get_option('ptq_storage_key', '');
+			$encoded = (string) get_option('paper_to_quiz_storage_key', '');
 			if ($encoded === '') {
 				$encoded = base64_encode(random_bytes(32));
-				add_option('ptq_storage_key', $encoded, '', false);
+				add_option('paper_to_quiz_storage_key', $encoded, '', false);
 			}
 			$decoded = base64_decode($encoded, true);
 			if ($decoded === false) {

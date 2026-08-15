@@ -46,27 +46,27 @@ final class Shortcode {
 		return sprintf(
 			'<div class="ptq-student-root" data-assessment-id="%1$d" data-rest-root="%2$s" data-nonce="%3$s" data-style-url="%4$s"><p class="ptq-loading-placeholder">%5$s</p></div>',
 			$assessment_id,
-			esc_attr(rest_url('ptq/v1/')),
+			esc_attr(rest_url('paper-to-quiz/v1/')),
 			esc_attr(is_user_logged_in() ? wp_create_nonce('wp_rest') : ''),
-			esc_attr(PTQ_URL . 'build/style-student.css?ver=' . PTQ_VERSION),
+			esc_attr(PAPER_TO_QUIZ_URL . 'build/style-student.css?ver=' . PAPER_TO_QUIZ_VERSION),
 			esc_html__('Preparing…', 'paper-to-quiz')
 		);
 	}
 
 	private function enqueue(): void {
-		$asset_file = PTQ_DIR . 'build/student.asset.php';
+		$asset_file = PAPER_TO_QUIZ_DIR . 'build/student.asset.php';
 		if (! file_exists($asset_file)) {
 			return;
 		}
 		$asset = require $asset_file;
 		wp_enqueue_script(
-			'ptq-student',
-			PTQ_URL . 'build/student.js',
+			'paper-to-quiz-student',
+			PAPER_TO_QUIZ_URL . 'build/student.js',
 			$asset['dependencies'],
 			$asset['version'],
 			true
 		);
-		wp_set_script_translations('ptq-student', 'paper-to-quiz', PTQ_DIR . 'languages');
+		wp_set_script_translations('paper-to-quiz-student', 'paper-to-quiz');
 	}
 
 	private function notice(string $message): string {

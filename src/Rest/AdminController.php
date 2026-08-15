@@ -31,7 +31,7 @@ final class AdminController {
 
 	public function register_routes(): void {
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/assessments',
 			array(
 				array(
@@ -49,7 +49,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/assessments/bulk',
 			array(
 				'methods'             => \WP_REST_Server::CREATABLE,
@@ -59,7 +59,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/assessments/(?P<id>\d+)',
 			array(
 				array(
@@ -85,7 +85,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/assessments/(?P<id>\d+)/delete-impact',
 			array(
 				'methods'             => \WP_REST_Server::READABLE,
@@ -95,7 +95,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/assessments/(?P<id>\d+)/publish',
 			array(
 				'methods'             => \WP_REST_Server::CREATABLE,
@@ -105,7 +105,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/assessments/(?P<id>\d+)/duplicate',
 			array(
 				'methods'             => \WP_REST_Server::CREATABLE,
@@ -115,7 +115,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/assessments/(?P<id>\d+)/source-media',
 			array(
 				'methods'             => \WP_REST_Server::CREATABLE,
@@ -129,7 +129,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/classes',
 			array(
 				array(
@@ -166,7 +166,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/classes/bulk',
 			array(
 				'methods'             => \WP_REST_Server::CREATABLE,
@@ -176,7 +176,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/classes/(?P<id>\d+)',
 			array(
 				'methods'             => \WP_REST_Server::DELETABLE,
@@ -189,7 +189,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/subjects',
 			array(
 				array(
@@ -215,7 +215,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/subjects/bulk',
 			array(
 				'methods'             => \WP_REST_Server::CREATABLE,
@@ -225,7 +225,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/subjects/(?P<id>\d+)',
 			array(
 				'methods'             => \WP_REST_Server::DELETABLE,
@@ -238,7 +238,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/uploads',
 			array(
 				'methods'             => \WP_REST_Server::CREATABLE,
@@ -252,7 +252,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/uploads/(?P<id>[a-f0-9-]+)/chunks/(?P<index>\d+)',
 			array(
 				'methods'             => 'PUT',
@@ -265,7 +265,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/uploads/(?P<id>[a-f0-9-]+)/complete',
 			array(
 				'methods'             => \WP_REST_Server::CREATABLE,
@@ -286,7 +286,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/assets/(?P<id>\d+)',
 			array(
 				'methods'             => \WP_REST_Server::READABLE,
@@ -296,7 +296,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/revisions/(?P<id>\d+)/questions',
 			array(
 				'methods'             => \WP_REST_Server::CREATABLE,
@@ -309,7 +309,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/revisions/(?P<id>\d+)/answer-key',
 			array(
 				'methods'             => \WP_REST_Server::EDITABLE,
@@ -337,7 +337,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/questions/(?P<id>\d+)',
 			array(
 				'methods'             => \WP_REST_Server::DELETABLE,
@@ -347,7 +347,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/results',
 			array(
 				'methods'             => \WP_REST_Server::READABLE,
@@ -366,7 +366,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/results/(?P<id>\d+)',
 			array(
 				'methods'             => \WP_REST_Server::READABLE,
@@ -376,7 +376,7 @@ final class AdminController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/admin/settings',
 			array(
 				array(
@@ -395,19 +395,19 @@ final class AdminController {
 	}
 
 	public function can_manage(): bool {
-		return current_user_can('ptq_manage_assessments');
+		return current_user_can('paper_to_quiz_manage_assessments');
 	}
 
 	public function can_publish(): bool {
-		return current_user_can('ptq_publish_assessments');
+		return current_user_can('paper_to_quiz_publish_assessments');
 	}
 
 	public function can_view_results(): bool {
-		return current_user_can('ptq_view_results');
+		return current_user_can('paper_to_quiz_view_results');
 	}
 
 	public function can_settings(): bool {
-		return current_user_can('ptq_manage_settings');
+		return current_user_can('paper_to_quiz_manage_settings');
 	}
 
 	public function list_assessments(\WP_REST_Request $request): \WP_REST_Response {
@@ -450,7 +450,7 @@ final class AdminController {
 		$record = $this->assessments->get((int) $request['id']);
 		return $record
 			? rest_ensure_response($this->decorate_assessment($record))
-			: new \WP_Error('ptq_not_found', __('Record not found.', 'paper-to-quiz'), array('status' => 404));
+			: new \WP_Error('paper_to_quiz_not_found', __('Record not found.', 'paper-to-quiz'), array('status' => 404));
 	}
 
 	public function save_assessment(\WP_REST_Request $request): \WP_REST_Response|\WP_Error {
@@ -476,18 +476,18 @@ final class AdminController {
 		$attachment_id = (int) $request->get_param('attachment_id');
 		$attachment    = get_post($attachment_id);
 		if (! $attachment || $attachment->post_type !== 'attachment') {
-			return new \WP_Error('ptq_media_not_found', __('The selected PDF could not be found.', 'paper-to-quiz'), array('status' => 404));
+			return new \WP_Error('paper_to_quiz_media_not_found', __('The selected PDF could not be found.', 'paper-to-quiz'), array('status' => 404));
 		}
 		if (! current_user_can('edit_post', $attachment_id)) {
-			return new \WP_Error('ptq_media_forbidden', __('You do not have permission to use this PDF.', 'paper-to-quiz'), array('status' => 403));
+			return new \WP_Error('paper_to_quiz_media_forbidden', __('You do not have permission to use this PDF.', 'paper-to-quiz'), array('status' => 403));
 		}
 		if (get_post_mime_type($attachment_id) !== 'application/pdf') {
-			return new \WP_Error('ptq_pdf_only', __('Only PDF files can be selected.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_pdf_only', __('Only PDF files can be selected.', 'paper-to-quiz'), array('status' => 400));
 		}
 
 		$path = get_attached_file($attachment_id, true);
 		if (! is_string($path) || ! is_file($path) || ! is_readable($path)) {
-			return new \WP_Error('ptq_media_unavailable', __('The PDF could not be accessed.', 'paper-to-quiz'), array('status' => 404));
+			return new \WP_Error('paper_to_quiz_media_unavailable', __('The PDF could not be accessed.', 'paper-to-quiz'), array('status' => 404));
 		}
 
 		$size     = filesize($path); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_filesize -- Local media is copied as a bounded encrypted stream.
@@ -495,7 +495,7 @@ final class AdminController {
 		$limit    = max(1, (int) ($settings['max_pdf_mb'] ?? 50)) * MB_IN_BYTES;
 		if (! is_int($size) || $size < 1 || $size > $limit) {
 			/* translators: %d: Maximum PDF file size in megabytes. */
-			return new \WP_Error('ptq_pdf_size', sprintf(__('The PDF can be at most %d MB.', 'paper-to-quiz'), $limit / MB_IN_BYTES), array('status' => 413));
+			return new \WP_Error('paper_to_quiz_pdf_size', sprintf(__('The PDF can be at most %d MB.', 'paper-to-quiz'), $limit / MB_IN_BYTES), array('status' => 413));
 		}
 
 		$handle = fopen($path, 'rb'); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Only the PDF signature is read here.
@@ -504,7 +504,7 @@ final class AdminController {
 			fclose($handle); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 		}
 		if ($prefix !== '%PDF-') {
-			return new \WP_Error('ptq_invalid_pdf', __('The file is not a valid PDF.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_invalid_pdf', __('The file is not a valid PDF.', 'paper-to-quiz'), array('status' => 400));
 		}
 
 		try {
@@ -654,14 +654,14 @@ final class AdminController {
 		$limit = max(1, (int) ($settings['max_pdf_mb'] ?? 50)) * MB_IN_BYTES;
 
 		if (strtolower(pathinfo($name, PATHINFO_EXTENSION)) !== 'pdf') {
-			return new \WP_Error('ptq_pdf_only', __('Only PDF files can be uploaded.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_pdf_only', __('Only PDF files can be uploaded.', 'paper-to-quiz'), array('status' => 400));
 		}
 		if ($size <= 0 || $size > $limit) {
 			/* translators: %d: Maximum PDF file size in megabytes. */
-			return new \WP_Error('ptq_pdf_size', sprintf(__('The PDF can be at most %d MB.', 'paper-to-quiz'), $limit / MB_IN_BYTES), array('status' => 413));
+			return new \WP_Error('paper_to_quiz_pdf_size', sprintf(__('The PDF can be at most %d MB.', 'paper-to-quiz'), $limit / MB_IN_BYTES), array('status' => 413));
 		}
 		if ($count !== (int) ceil($size / self::CHUNK_SIZE)) {
-			return new \WP_Error('ptq_chunk_count', __('The upload chunk count is invalid.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_chunk_count', __('The upload chunk count is invalid.', 'paper-to-quiz'), array('status' => 400));
 		}
 
 		$id = wp_generate_uuid4();
@@ -698,16 +698,16 @@ final class AdminController {
 		}
 		$index = (int) $request['index'];
 		if ($index < 0 || $index >= (int) $session['chunk_count']) {
-			return new \WP_Error('ptq_chunk_index', __('The chunk number is invalid.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_chunk_index', __('The chunk number is invalid.', 'paper-to-quiz'), array('status' => 400));
 		}
 		$body = $request->get_body();
 		if ($body === '' || strlen($body) > self::CHUNK_SIZE) {
-			return new \WP_Error('ptq_chunk_size', __('The upload chunk is invalid.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_chunk_size', __('The upload chunk is invalid.', 'paper-to-quiz'), array('status' => 400));
 		}
 		$sha = hash('sha256', $body);
-		$expected_sha = strtolower((string) $request->get_header('x-ptq-chunk-sha256'));
+		$expected_sha = strtolower((string) $request->get_header('x-paper-to-quiz-chunk-sha256'));
 		if ($expected_sha !== '' && ! hash_equals($expected_sha, $sha)) {
-			return new \WP_Error('ptq_chunk_hash', __('The upload chunk is corrupted.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_chunk_hash', __('The upload chunk is corrupted.', 'paper-to-quiz'), array('status' => 400));
 		}
 
 		$manifest = json_decode((string) $session['manifest_json'], true) ?: array();
@@ -753,7 +753,7 @@ final class AdminController {
 		}
 		$manifest = json_decode((string) $session['manifest_json'], true) ?: array();
 		if (count($manifest) !== (int) $session['chunk_count'] || array_sum(array_column($manifest, 'size')) !== (int) $session['expected_size']) {
-			return new \WP_Error('ptq_upload_incomplete', __('The PDF upload is not complete yet.', 'paper-to-quiz'), array('status' => 409));
+			return new \WP_Error('paper_to_quiz_upload_incomplete', __('The PDF upload is not complete yet.', 'paper-to-quiz'), array('status' => 409));
 		}
 		ksort($manifest);
 		$keys   = array_column($manifest, 'storage_key');
@@ -765,13 +765,13 @@ final class AdminController {
 		}
 		if ($prefix !== '%PDF-') {
 			$this->storage->delete($stored['storage_key']);
-			return new \WP_Error('ptq_invalid_pdf', __('The file is not a valid PDF.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_invalid_pdf', __('The file is not a valid PDF.', 'paper-to-quiz'), array('status' => 400));
 		}
 
 		$whole_sha = strtolower((string) $request->get_param('sha256'));
 		if ($whole_sha !== '' && ! hash_equals($whole_sha, $stored['sha256'])) {
 			$this->storage->delete($stored['storage_key']);
-			return new \WP_Error('ptq_pdf_hash', __('The PDF was corrupted during upload.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_pdf_hash', __('The PDF was corrupted during upload.', 'paper-to-quiz'), array('status' => 400));
 		}
 
 		try {
@@ -803,7 +803,7 @@ final class AdminController {
 	public function asset(\WP_REST_Request $request): BinaryResponse|\WP_Error {
 		$asset = $this->assets->get((int) $request['id']);
 		if (! $asset) {
-			return new \WP_Error('ptq_asset_not_found', __('File not found.', 'paper-to-quiz'), array('status' => 404));
+			return new \WP_Error('paper_to_quiz_asset_not_found', __('File not found.', 'paper-to-quiz'), array('status' => 404));
 		}
 		return new BinaryResponse(
 			(string) $asset['storage_key'],
@@ -818,7 +818,7 @@ final class AdminController {
 		$params   = $request->get_body_params();
 		$metadata = json_decode((string) ($params['metadata'] ?? '{}'), true);
 		if (! is_array($metadata)) {
-			return new \WP_Error('ptq_question_metadata', __('Question metadata is invalid.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_question_metadata', __('Question metadata is invalid.', 'paper-to-quiz'), array('status' => 400));
 		}
 		$files = $request->get_file_params();
 		$main  = isset($files['main']) ? $this->store_image($files['main'], 'question_image') : null;
@@ -876,7 +876,7 @@ final class AdminController {
 		$result = $this->attempts->admin_result((int) $request['id']);
 		return $result
 			? rest_ensure_response($result)
-			: new \WP_Error('ptq_result_not_found', __('Result not found.', 'paper-to-quiz'), array('status' => 404));
+			: new \WP_Error('paper_to_quiz_result_not_found', __('Result not found.', 'paper-to-quiz'), array('status' => 404));
 	}
 
 	public function settings(): \WP_REST_Response {
@@ -903,22 +903,22 @@ final class AdminController {
 			ARRAY_A
 		);
 		if (! $row || $row['status'] !== 'pending' || strtotime($row['expires_at'] . ' UTC') < time()) {
-			return new \WP_Error('ptq_upload_session', __('The upload session was not found or has expired.', 'paper-to-quiz'), array('status' => 404));
+			return new \WP_Error('paper_to_quiz_upload_session', __('The upload session was not found or has expired.', 'paper-to-quiz'), array('status' => 404));
 		}
 		return $row;
 	}
 
 	private function store_image(array $file, string $type): int|\WP_Error {
 		if (! empty($file['error']) || empty($file['tmp_name']) || ! is_uploaded_file($file['tmp_name'])) {
-			return new \WP_Error('ptq_image_upload', __('The question image could not be uploaded.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_image_upload', __('The question image could not be uploaded.', 'paper-to-quiz'), array('status' => 400));
 		}
 		$mime = wp_get_image_mime($file['tmp_name']);
 		if (! in_array($mime, array('image/png', 'image/webp'), true)) {
-			return new \WP_Error('ptq_image_type', __('The question image must be PNG or WebP.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_image_type', __('The question image must be PNG or WebP.', 'paper-to-quiz'), array('status' => 400));
 		}
 		$dimensions = getimagesize($file['tmp_name']);
 		if (! $dimensions || $dimensions[0] < 1 || $dimensions[1] < 1 || $dimensions[0] > 6000 || $dimensions[1] > 6000) {
-			return new \WP_Error('ptq_image_dimensions', __('The question image dimensions are invalid.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_image_dimensions', __('The question image dimensions are invalid.', 'paper-to-quiz'), array('status' => 400));
 		}
 		return $this->assets->create_from_file($file['tmp_name'], $type, $mime, (int) $dimensions[0], (int) $dimensions[1]);
 	}
@@ -928,7 +928,7 @@ final class AdminController {
 			$record['assessment']['created_at_display'] = $this->format_site_date((string) $record['assessment']['created_at']);
 		}
 		if (! empty($record['revision']['source_asset_id'])) {
-			$record['revision']['pdf_url'] = rest_url('ptq/v1/admin/assets/' . $record['revision']['source_asset_id']);
+			$record['revision']['pdf_url'] = rest_url('paper-to-quiz/v1/admin/assets/' . $record['revision']['source_asset_id']);
 		}
 		$record['questions'] = array_map(array($this, 'decorate_question'), $record['questions']);
 		return $record;
@@ -951,10 +951,10 @@ final class AdminController {
 
 	public function decorate_question(array $question): array {
 		if (! empty($question['main_asset_id'])) {
-			$question['image_url'] = rest_url('ptq/v1/admin/assets/' . $question['main_asset_id']);
+			$question['image_url'] = rest_url('paper-to-quiz/v1/admin/assets/' . $question['main_asset_id']);
 		}
 		if (! empty($question['thumb_asset_id'])) {
-			$question['thumb_url'] = rest_url('ptq/v1/admin/assets/' . $question['thumb_asset_id']);
+			$question['thumb_url'] = rest_url('paper-to-quiz/v1/admin/assets/' . $question['thumb_asset_id']);
 		}
 		return $question;
 	}
@@ -1023,7 +1023,7 @@ final class AdminController {
 			$message = __('The file could not be processed. Please try again.', 'paper-to-quiz');
 		}
 		return OperationalErrorReporter::report(
-			'ptq_storage_failed',
+			'paper_to_quiz_storage_failed',
 			$exception,
 			$message,
 			500

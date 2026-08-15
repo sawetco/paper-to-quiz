@@ -71,12 +71,12 @@ final class ResultEmailServiceTest extends TestCase {
 
 		// Clear any cron events our attempts may have scheduled.
 		foreach ( $this->attempt_ids as $attempt_id ) {
-			wp_clear_scheduled_hook( 'ptq_process_result_emails', array( $attempt_id ) );
+			wp_clear_scheduled_hook( 'paper_to_quiz_process_result_emails', array( $attempt_id ) );
 		}
 
 		if ( $this->attempt_ids ) {
 			$ids = implode( ',', array_map( 'intval', $this->attempt_ids ) );
-			$prefix = $wpdb->prefix . 'ptq_';
+			$prefix = $wpdb->prefix . 'paper_to_quiz_';
 			// phpcs:disable WordPress.DB -- Direct cleanup of test fixtures by collected IDs.
 			$wpdb->query( "DELETE FROM {$prefix}result_email_jobs WHERE attempt_id IN ({$ids})" );
 			$wpdb->query( "DELETE FROM {$prefix}attempt_subject_scores WHERE attempt_id IN ({$ids})" );
@@ -87,11 +87,11 @@ final class ResultEmailServiceTest extends TestCase {
 		}
 
 		foreach ( $this->revision_ids as $revision_id ) {
-			$wpdb->delete( $wpdb->prefix . 'ptq_questions', array( 'revision_id' => $revision_id ), array( '%d' ) );
-			$wpdb->delete( $wpdb->prefix . 'ptq_revisions', array( 'id' => $revision_id ), array( '%d' ) );
+			$wpdb->delete( $wpdb->prefix . 'paper_to_quiz_questions', array( 'revision_id' => $revision_id ), array( '%d' ) );
+			$wpdb->delete( $wpdb->prefix . 'paper_to_quiz_revisions', array( 'id' => $revision_id ), array( '%d' ) );
 		}
 		foreach ( $this->assessment_ids as $assessment_id ) {
-			$wpdb->delete( $wpdb->prefix . 'ptq_assessments', array( 'id' => $assessment_id ), array( '%d' ) );
+			$wpdb->delete( $wpdb->prefix . 'paper_to_quiz_assessments', array( 'id' => $assessment_id ), array( '%d' ) );
 		}
 
 		parent::tearDown();
@@ -324,7 +324,7 @@ final class ResultEmailServiceTest extends TestCase {
 			if ( str_contains( $query, "SET status = 'processing', claimed_at" ) ) {
 				remove_filter( 'query', $query_handler, 10 );
 				$wpdb->update(
-					$wpdb->prefix . 'ptq_result_email_jobs',
+					$wpdb->prefix . 'paper_to_quiz_result_email_jobs',
 					array(
 						'status'     => 'processing',
 						'claimed_at' => current_time( 'mysql', true ),

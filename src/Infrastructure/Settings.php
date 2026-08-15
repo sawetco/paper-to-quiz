@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace PaperToQuiz\Infrastructure;
 
 final class Settings {
-	public const OPTION = 'ptq_settings';
+	public const OPTION = 'paper_to_quiz_settings';
+	public const GROUP  = 'paper_to_quiz_settings';
 
 	public function register(): void {
 		register_setting(
-			'ptq_settings',
+			self::GROUP,
 			self::OPTION,
 			array(
 				'type'              => 'object',

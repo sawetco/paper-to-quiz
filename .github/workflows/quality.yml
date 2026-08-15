@@ -24,9 +24,6 @@ jobs:
             - run: npm run test:unit -- --runInBand
             - run: npm run build
             - run: npm run check:build-portability
-            - name: Validate i18n json-map
-              run: |
-                  node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('languages/paper-to-quiz-json-map.json','utf8'));const missing=Object.keys(m).filter(k=>!fs.existsSync(k));if(missing.length){console.error('Stale json-map entries (not in build/):',missing);process.exit(1);}"
             - run: npm run plugin-zip
             - name: Extract distribution
               run: unzip paper-to-quiz.zip -d plugin-check-build

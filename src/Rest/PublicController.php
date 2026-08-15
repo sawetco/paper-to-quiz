@@ -12,7 +12,7 @@ final class PublicController {
 
 	public function register_routes(): void {
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/assessments/(?P<id>\d+)/bootstrap',
 			array(
 				'methods'             => \WP_REST_Server::READABLE,
@@ -22,7 +22,7 @@ final class PublicController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/assessments/(?P<id>\d+)/attempts',
 			array(
 				'methods'             => \WP_REST_Server::CREATABLE,
@@ -36,7 +36,7 @@ final class PublicController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/attempts/(?P<public_id>[a-f0-9-]+)',
 			array(
 				'methods'             => \WP_REST_Server::READABLE,
@@ -46,7 +46,7 @@ final class PublicController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/attempts/(?P<public_id>[a-f0-9-]+)/answers',
 			array(
 				'methods'             => 'PUT',
@@ -77,7 +77,7 @@ final class PublicController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/attempts/(?P<public_id>[a-f0-9-]+)/answers/(?P<question_id>\d+)',
 			array(
 				'methods'             => 'PUT',
@@ -95,7 +95,7 @@ final class PublicController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/attempts/(?P<public_id>[a-f0-9-]+)/submit',
 			array(
 				'methods'             => \WP_REST_Server::CREATABLE,
@@ -126,7 +126,7 @@ final class PublicController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/attempts/(?P<public_id>[a-f0-9-]+)/result',
 			array(
 				'methods'             => \WP_REST_Server::READABLE,
@@ -136,7 +136,7 @@ final class PublicController {
 			)
 		);
 		register_rest_route(
-			'ptq/v1',
+			'paper-to-quiz/v1',
 			'/attempts/(?P<public_id>[a-f0-9-]+)/questions/(?P<question_id>\d+)/image',
 			array(
 				'methods'             => \WP_REST_Server::READABLE,
@@ -329,10 +329,10 @@ final class PublicController {
 
 	private function rate_limit(int $assessment_id): bool|\WP_Error {
 		$ip   = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'unknown';
-		$key  = 'ptq_rate_' . substr(hash_hmac('sha256', $assessment_id . '|' . $ip, wp_salt('nonce')), 0, 40);
+		$key  = 'paper_to_quiz_rate_' . substr(hash_hmac('sha256', $assessment_id . '|' . $ip, wp_salt('nonce')), 0, 40);
 		$hits = (int) get_transient($key);
 		if ($hits >= 60) {
-			return new \WP_Error('ptq_rate_limited', __('Too many participation requests were sent. Please wait a moment.', 'paper-to-quiz'), array('status' => 429));
+			return new \WP_Error('paper_to_quiz_rate_limited', __('Too many participation requests were sent. Please wait a moment.', 'paper-to-quiz'), array('status' => 429));
 		}
 		set_transient($key, $hits + 1, 10 * MINUTE_IN_SECONDS);
 		return true;

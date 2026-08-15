@@ -108,13 +108,13 @@ function PrerequisiteNotice( {
 			<p>{ message }</p>
 			<p>
 				{ ! hasClasses && (
-					<a href="?page=ptq-classes">
+					<a href="?page=paper-to-quiz-classes">
 						{ __( 'Classes', 'paper-to-quiz' ) }
 					</a>
 				) }
 				{ ! hasClasses && ! hasSubjects && ' · ' }
 				{ ! hasSubjects && (
-					<a href="?page=ptq-subjects">
+					<a href="?page=paper-to-quiz-subjects">
 						{ __( 'Subjects', 'paper-to-quiz' ) }
 					</a>
 				) }
@@ -185,10 +185,11 @@ async function copyText( value: string ): Promise< void > {
 }
 
 export function App() {
-	const config = window.ptqAdmin;
-	const isAssessmentPage = [ 'ptq-exams', 'ptq-tests' ].includes(
-		config.page
-	);
+	const config = window.paperToQuizAdmin;
+	const isAssessmentPage = [
+		'paper-to-quiz-exams',
+		'paper-to-quiz-tests',
+	].includes( config.page );
 	const [ editing, setEditing ] = useState< number | 'new' | null >(
 		config.assessmentId ||
 			new URLSearchParams( location.search ).get( 'action' ) === 'new'
@@ -219,7 +220,8 @@ export function App() {
 		} )
 	);
 
-	const type: AssessmentType = config.page === 'ptq-exams' ? 'exam' : 'test';
+	const type: AssessmentType =
+		config.page === 'paper-to-quiz-exams' ? 'exam' : 'test';
 	const canCreate = prerequisites.hasClasses && prerequisites.hasSubjects;
 
 	const loadPrerequisites = useCallback( async () => {
@@ -264,7 +266,9 @@ export function App() {
 
 	const loadList = useCallback( async () => {
 		if (
-			! [ 'ptq-exams', 'ptq-tests' ].includes( config.page ) ||
+			! [ 'paper-to-quiz-exams', 'paper-to-quiz-tests' ].includes(
+				config.page
+			) ||
 			editing
 		) {
 			return;
@@ -310,16 +314,16 @@ export function App() {
 		void loadPrerequisites();
 	}, [ loadPrerequisites ] );
 
-	if ( config.page === 'ptq-classes' ) {
+	if ( config.page === 'paper-to-quiz-classes' ) {
 		return <ClassesPage />;
 	}
-	if ( config.page === 'ptq-subjects' ) {
+	if ( config.page === 'paper-to-quiz-subjects' ) {
 		return <SubjectsPage />;
 	}
-	if ( config.page === 'ptq-results' ) {
+	if ( config.page === 'paper-to-quiz-results' ) {
 		return <ResultsPage />;
 	}
-	if ( config.page === 'ptq-settings' ) {
+	if ( config.page === 'paper-to-quiz-settings' ) {
 		return <SettingsPage />;
 	}
 	if (
@@ -1054,7 +1058,7 @@ export function App() {
 													</span>
 													<span>
 														<a
-															href={ `admin.php?page=ptq-results&assessment_id=${ id }` }
+															href={ `admin.php?page=paper-to-quiz-results&assessment_id=${ id }` }
 														>
 															{ __(
 																'Results',

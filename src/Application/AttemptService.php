@@ -69,13 +69,13 @@ final class AttemptService {
 	public function bootstrap(int $assessment_id): array|\WP_Error {
 		$record = $this->assessments->get($assessment_id, true);
 		if (! $record || $record['assessment']['status'] !== 'published' || ! $record['revision']) {
-			return new \WP_Error('ptq_not_available', __('This item is currently unavailable.', 'paper-to-quiz'), array('status' => 404));
+			return new \WP_Error('paper_to_quiz_not_available', __('This item is currently unavailable.', 'paper-to-quiz'), array('status' => 404));
 		}
 
 		$revision = $record['revision'];
 		if ($revision['access_mode'] === 'login_required' && (! is_user_logged_in() || ! current_user_can('read'))) {
 			return new \WP_Error(
-				'ptq_login_required',
+				'paper_to_quiz_login_required',
 				__('You must log in to your account to participate.', 'paper-to-quiz'),
 				array(
 					'status'       => 401,
@@ -85,9 +85,9 @@ final class AttemptService {
 			);
 		}
 
-		$allowed = apply_filters('ptq_can_access_assessment', true, $assessment_id, get_current_user_id(), $record); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public API required by the plugin contract.
+		$allowed = apply_filters('paper_to_quiz_can_access_assessment', true, $assessment_id, get_current_user_id(), $record); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public API required by the plugin contract.
 		if (! $allowed) {
-			return new \WP_Error('ptq_access_denied', __('You do not have permission to participate in this item.', 'paper-to-quiz'), array('status' => 403));
+			return new \WP_Error('paper_to_quiz_access_denied', __('You do not have permission to participate in this item.', 'paper-to-quiz'), array('status' => 403));
 		}
 
 		$latest_attempt_public_id = null;
@@ -102,7 +102,7 @@ final class AttemptService {
 		} else {
 			$token_hashes = array();
 			foreach ($_COOKIE as $name => $value) {
-				if (! str_starts_with((string) $name, 'ptq_attempt_') || ! is_string($value)) {
+				if (! str_starts_with((string) $name, 'paper_to_quiz_attempt_') || ! is_string($value)) {
 					continue;
 				}
 				$token = sanitize_text_field(wp_unslash($value));
@@ -144,7 +144,7 @@ final class AttemptService {
 	public function start(int $assessment_id, array $participant): array|\WP_Error {
 		$record = $this->assessments->get($assessment_id, true);
 		if (! $record || ! $record['revision']) {
-			return new \WP_Error('ptq_not_available', __('This item could not be found.', 'paper-to-quiz'), array('status' => 404));
+			return new \WP_Error('paper_to_quiz_not_available', __('This item could not be found.', 'paper-to-quiz'), array('status' => 404));
 		}
 		$availability = $this->availability($record);
 		if (is_wp_error($availability)) {
@@ -155,7 +155,7 @@ final class AttemptService {
 		$is_member = $revision['access_mode'] === 'login_required';
 		$user_id   = get_current_user_id();
 		if ($is_member && (! $user_id || ! current_user_can('read'))) {
-			return new \WP_Error('ptq_login_required', __('You must log in.', 'paper-to-quiz'), array('status' => 401));
+			return new \WP_Error('paper_to_quiz_login_required', __('You must log in.', 'paper-to-quiz'), array('status' => 401));
 		}
 
 		$participant_data = $this->validate_participant($revision, $participant, $is_member);
@@ -173,7 +173,7 @@ final class AttemptService {
 			);
 			if ($existing) {
 				if ($existing['status'] !== 'in_progress') {
-					return new \WP_Error('ptq_repeat_not_allowed', __('This item can only be completed once.', 'paper-to-quiz'), array('status' => 409));
+					return new \WP_Error('paper_to_quiz_repeat_not_allowed', __('This item can only be completed once.', 'paper-to-quiz'), array('status' => 409));
 				}
 				return $this->rotate_and_state($existing);
 			}
@@ -209,11 +209,11 @@ final class AttemptService {
 			)
 		);
 		if (! $inserted) {
-			return new \WP_Error('ptq_attempt_failed', __('Could not start. Please try again.', 'paper-to-quiz'), array('status' => 500));
+			return new \WP_Error('paper_to_quiz_attempt_failed', __('Could not start. Please try again.', 'paper-to-quiz'), array('status' => 500));
 		}
 
 		$attempt_id = (int) $this->db->wpdb()->insert_id;
-		do_action('ptq_attempt_started', $attempt_id, $assessment_id, $user_id ?: null); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public API required by the plugin contract.
+		do_action('paper_to_quiz_attempt_started', $attempt_id, $assessment_id, $user_id ?: null); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public API required by the plugin contract.
 
 		$attempt = $this->attempt_by_id($attempt_id);
 		return $this->state_payload($attempt, $token);
@@ -261,7 +261,7 @@ final class AttemptService {
 			$latest[(int) $item['question_id']] = $item;
 		}
 		if (! $latest) {
-			return new \WP_Error('ptq_answers_required', __('No answers to save were found.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_answers_required', __('No answers to save were found.', 'paper-to-quiz'), array('status' => 400));
 		}
 
 		$responses = array();
@@ -285,7 +285,7 @@ final class AttemptService {
 			$this->db->commit();
 		} catch (\Throwable $error) {
 			$this->db->rollback();
-			return new \WP_Error('ptq_answers_failed', __('Answers could not be saved. Please try again.', 'paper-to-quiz'), array('status' => 500));
+			return new \WP_Error('paper_to_quiz_answers_failed', __('Answers could not be saved. Please try again.', 'paper-to-quiz'), array('status' => 500));
 		}
 
 		return array('saved' => true, 'answers' => $responses);
@@ -293,11 +293,11 @@ final class AttemptService {
 
 	private function validate_open_attempt(array $attempt): bool|\WP_Error {
 		if ($attempt['status'] !== 'in_progress') {
-			return new \WP_Error('ptq_attempt_closed', __('This item has already been completed.', 'paper-to-quiz'), array('status' => 409));
+			return new \WP_Error('paper_to_quiz_attempt_closed', __('This item has already been completed.', 'paper-to-quiz'), array('status' => 409));
 		}
 		if ($this->is_past_grace($attempt)) {
 			$this->finalize($attempt, true);
-			return new \WP_Error('ptq_time_expired', __('The answer could not be saved because time expired.', 'paper-to-quiz'), array('status' => 409));
+			return new \WP_Error('paper_to_quiz_time_expired', __('The answer could not be saved because time expired.', 'paper-to-quiz'), array('status' => 409));
 		}
 		return true;
 	}
@@ -314,13 +314,13 @@ final class AttemptService {
 			ARRAY_A
 		);
 		if (! $question) {
-			return new \WP_Error('ptq_question_not_found', __('Question not found.', 'paper-to-quiz'), array('status' => 404));
+			return new \WP_Error('paper_to_quiz_question_not_found', __('Question not found.', 'paper-to-quiz'), array('status' => 404));
 		}
 
 		$options = json_decode((string) $question['options_json'], true) ?: array();
 		$option  = $option !== null && $option !== '' ? strtoupper(sanitize_key($option)) : null;
 		if ($option !== null && ! in_array($option, $options, true)) {
-			return new \WP_Error('ptq_invalid_option', __('Invalid answer option.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_invalid_option', __('Invalid answer option.', 'paper-to-quiz'), array('status' => 400));
 		}
 
 		if ($mutation_id !== '') {
@@ -386,7 +386,7 @@ final class AttemptService {
 			return $this->result_payload($attempt);
 		}
 		if (! wp_is_uuid($submission_id)) {
-			return new \WP_Error('ptq_submission_id', __('The submission ID is invalid.', 'paper-to-quiz'), array('status' => 400));
+			return new \WP_Error('paper_to_quiz_submission_id', __('The submission ID is invalid.', 'paper-to-quiz'), array('status' => 400));
 		}
 		$duplicate = $this->db->wpdb()->get_row(
 			$this->db->wpdb()->prepare(
@@ -397,7 +397,7 @@ final class AttemptService {
 		);
 		if ($duplicate) {
 			if ((int) $duplicate['id'] !== (int) $attempt['id']) {
-				return new \WP_Error('ptq_submission_conflict', __('The submission ID has been used in another attempt.', 'paper-to-quiz'), array('status' => 409));
+				return new \WP_Error('paper_to_quiz_submission_conflict', __('The submission ID has been used in another attempt.', 'paper-to-quiz'), array('status' => 409));
 			}
 			return $this->result_payload($duplicate);
 		}
@@ -415,7 +415,7 @@ final class AttemptService {
 			return $attempt;
 		}
 		if ($attempt['status'] === 'in_progress') {
-			return new \WP_Error('ptq_not_submitted', __('This item has not been completed yet.', 'paper-to-quiz'), array('status' => 409));
+			return new \WP_Error('paper_to_quiz_not_submitted', __('This item has not been completed yet.', 'paper-to-quiz'), array('status' => 409));
 		}
 		return $this->result_payload($attempt);
 	}
@@ -458,7 +458,7 @@ final class AttemptService {
 			ARRAY_A
 		);
 		if (! $question) {
-			return new \WP_Error('ptq_image_not_found', __('Question image not found.', 'paper-to-quiz'), array('status' => 404));
+			return new \WP_Error('paper_to_quiz_image_not_found', __('Question image not found.', 'paper-to-quiz'), array('status' => 404));
 		}
 		return $question;
 	}
@@ -591,7 +591,7 @@ final class AttemptService {
 		) ?: array();
 		foreach ($answers as &$answer) {
 			$answer['thumbnail_url'] = ! empty($answer['thumb_asset_id'])
-				? rest_url('ptq/v1/admin/assets/' . (int) $answer['thumb_asset_id'])
+				? rest_url('paper-to-quiz/v1/admin/assets/' . (int) $answer['thumb_asset_id'])
 				: null;
 		}
 		unset($attempt['token_hash']);
@@ -769,10 +769,10 @@ final class AttemptService {
 		$now      = time();
 		if ($record['assessment']['type'] === 'exam') {
 			if ($revision['window_start_utc'] && $now < strtotime((string) $revision['window_start_utc'] . ' UTC')) {
-				return new \WP_Error('ptq_not_started', __('The exam has not started yet.', 'paper-to-quiz'), array('status' => 403));
+				return new \WP_Error('paper_to_quiz_not_started', __('The exam has not started yet.', 'paper-to-quiz'), array('status' => 403));
 			}
 			if ($revision['window_end_utc'] && $now >= strtotime((string) $revision['window_end_utc'] . ' UTC')) {
-				return new \WP_Error('ptq_ended', __('The exam has ended.', 'paper-to-quiz'), array('status' => 403));
+				return new \WP_Error('paper_to_quiz_ended', __('The exam has ended.', 'paper-to-quiz'), array('status' => 403));
 			}
 		}
 		return true;
@@ -836,14 +836,14 @@ final class AttemptService {
 			$value = $key === 'email' ? sanitize_email($value) : sanitize_text_field($value);
 			if (! empty($config['required']) && $value === '') {
 				return new \WP_Error(
-					'ptq_participant_required',
+					'paper_to_quiz_participant_required',
 					/* translators: %s: Participant field label. */
 					sprintf(__('%s is required.', 'paper-to-quiz'), $this->field_label($key)),
 					array('status' => 400, 'field' => $key)
 				);
 			}
 			if ($key === 'email' && $value !== '' && ! is_email($value)) {
-				return new \WP_Error('ptq_invalid_email', __('Enter a valid email address.', 'paper-to-quiz'), array('status' => 400, 'field' => $key));
+				return new \WP_Error('paper_to_quiz_invalid_email', __('Enter a valid email address.', 'paper-to-quiz'), array('status' => 400, 'field' => $key));
 			}
 			if ($key === 'phone' && $value !== '') {
 				$digits = preg_replace('/\D+/', '', $value);
@@ -853,7 +853,7 @@ final class AttemptService {
 					$digits = substr($digits, 1);
 				}
 				if (! preg_match('/^5\d{9}$/', $digits)) {
-					return new \WP_Error('ptq_invalid_phone', __('Enter a valid Turkish mobile phone number.', 'paper-to-quiz'), array('status' => 400, 'field' => $key));
+					return new \WP_Error('paper_to_quiz_invalid_phone', __('Enter a valid Turkish mobile phone number.', 'paper-to-quiz'), array('status' => 400, 'field' => $key));
 				}
 				$value = $digits;
 			}
@@ -895,7 +895,7 @@ final class AttemptService {
 				'type'     => $key === 'email' ? 'email' : ($key === 'phone' ? 'tel' : 'text'),
 			);
 		}
-		return apply_filters('ptq_participant_fields', $result, $revision); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public API required by the plugin contract.
+		return apply_filters('paper_to_quiz_participant_fields', $result, $revision); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public API required by the plugin contract.
 	}
 
 	private function current_user_data(array $revision): ?array {
@@ -925,14 +925,14 @@ final class AttemptService {
 			ARRAY_A
 		);
 		if (! $attempt || ! hash_equals((string) $attempt['token_hash'], $this->token_hash($token))) {
-			return new \WP_Error('ptq_invalid_attempt', __('Could not open the item. Please restart.', 'paper-to-quiz'), array('status' => 401));
+			return new \WP_Error('paper_to_quiz_invalid_attempt', __('Could not open the item. Please restart.', 'paper-to-quiz'), array('status' => 401));
 		}
 		if ($attempt['participant_type'] === 'member') {
 			if (! is_user_logged_in()) {
-				return new \WP_Error('ptq_session_expired', __('Your login session has expired. Please log in again.', 'paper-to-quiz'), array('status' => 401));
+				return new \WP_Error('paper_to_quiz_session_expired', __('Your login session has expired. Please log in again.', 'paper-to-quiz'), array('status' => 401));
 			}
 			if ((int) $attempt['wp_user_id'] !== get_current_user_id()) {
-				return new \WP_Error('ptq_attempt_owner', __('This item belongs to another user.', 'paper-to-quiz'), array('status' => 403));
+				return new \WP_Error('paper_to_quiz_attempt_owner', __('This item belongs to another user.', 'paper-to-quiz'), array('status' => 403));
 			}
 		}
 		return $attempt;
@@ -946,23 +946,23 @@ final class AttemptService {
 		$seen = array();
 		foreach ($answers as $item) {
 			if (! is_array($item) || empty($item['question_id'])) {
-				return new \WP_Error('ptq_invalid_answer', __('The submission contains an invalid answer.', 'paper-to-quiz'), array('status' => 400));
+				return new \WP_Error('paper_to_quiz_invalid_answer', __('The submission contains an invalid answer.', 'paper-to-quiz'), array('status' => 400));
 			}
 			$question_id = (int) $item['question_id'];
 			if (! in_array($question_id, $ids, true) || isset($seen[$question_id])) {
-				return new \WP_Error('ptq_invalid_answer', __('The submission contains an invalid or duplicate question.', 'paper-to-quiz'), array('status' => 400));
+				return new \WP_Error('paper_to_quiz_invalid_answer', __('The submission contains an invalid or duplicate question.', 'paper-to-quiz'), array('status' => 400));
 			}
 			$seen[$question_id] = true;
 			$option = isset($item['option']) && $item['option'] !== '' ? strtoupper(sanitize_key((string) $item['option'])) : null;
 			if ($option !== null && ! in_array($option, $options, true)) {
-				return new \WP_Error('ptq_invalid_option', __('The submission contains an invalid answer option.', 'paper-to-quiz'), array('status' => 400));
+				return new \WP_Error('paper_to_quiz_invalid_option', __('The submission contains an invalid answer option.', 'paper-to-quiz'), array('status' => 400));
 			}
 		}
 		return true;
 	}
 
 	public static function cookie_name(string $public_id): string {
-		return 'ptq_attempt_' . substr(hash('sha256', strtolower($public_id)), 0, 20);
+		return 'paper_to_quiz_attempt_' . substr(hash('sha256', strtolower($public_id)), 0, 20);
 	}
 
 	private function rotate_and_state(array $attempt): array {
@@ -999,7 +999,7 @@ final class AttemptService {
 			$item = array(
 				'id'       => (int) $question['id'],
 				'ordinal'  => (int) $question['ordinal'],
-				'imageUrl' => rest_url('ptq/v1/attempts/' . $attempt['public_id'] . '/questions/' . $question['id'] . '/image'),
+				'imageUrl' => rest_url('paper-to-quiz/v1/attempts/' . $attempt['public_id'] . '/questions/' . $question['id'] . '/image'),
 			);
 			if ($immediate_feedback) {
 				$item['correctOption'] = (string) $question['correct_option'];
@@ -1155,7 +1155,7 @@ final class AttemptService {
 			if ($affected === 0) {
 				// A concurrent finalize already closed this attempt. Roll back the
 				// answer rewrite and return the existing row WITHOUT re-firing the
-				// ptq_attempt_completed hook or re-running subject/ranking writes.
+				// paper_to_quiz_attempt_completed hook or re-running subject/ranking writes.
 				$this->db->rollback();
 				return $this->attempt_by_id((int) $attempt['id']);
 			}
@@ -1211,7 +1211,7 @@ final class AttemptService {
 		}
 
 		$final = $this->attempt_by_id((int) $attempt['id']);
-		do_action('ptq_attempt_completed', (int) $attempt['id'], $final); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public API required by the plugin contract.
+		do_action('paper_to_quiz_attempt_completed', (int) $attempt['id'], $final); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public API required by the plugin contract.
 		return $final;
 	}
 

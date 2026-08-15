@@ -22,3 +22,6 @@ Thumbs.db
 
 /languages/json-*-test*/
 /languages/json-test/
+/languages/paper-to-quiz-*.json
+/languages/paper-to-quiz-*.mo
+/languages/paper-to-quiz-*.po
