@@ -48,11 +48,6 @@ final class Crypto {
 
 	private function key(): string {
 		$master = defined('PAPER_TO_QUIZ_PRIVATE_STORAGE_KEY') ? (string) PAPER_TO_QUIZ_PRIVATE_STORAGE_KEY : '';
-		$legacy_constant = 'PT' . 'Q_PRIVATE_STORAGE_KEY';
-		if ($master === '' && defined($legacy_constant)) {
-			// Compatibility for installations that defined the pre-directory-review constant.
-			$master = (string) constant($legacy_constant);
-		}
 		if ($master === '') {
 			$encoded = (string) get_option('paper_to_quiz_storage_key', '');
 			if ($encoded === '') {
