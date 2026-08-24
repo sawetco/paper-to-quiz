@@ -2,7 +2,7 @@
 Contributors: sawet
 Tags: quiz, exam, pdf, education, test
 Requires at least: 6.8
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 8.1
 Stable tag: 1.1.0
 License: GPL-2.0-or-later
@@ -89,6 +89,7 @@ instructions, the security policy, and contribution guidelines are included in
 * Updated all WordPress-global identifiers to the collision-safe
   `paper_to_quiz` prefix requested during the WordPress.org review.
 * Prepared a clean installation baseline for the first WordPress.org release.
+* Verified compatibility with WordPress 7.1.
 * Removed bundled locale files so translations are delivered through
   translate.wordpress.org.
 

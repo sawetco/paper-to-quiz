@@ -21,6 +21,9 @@
 		"CONTRIBUTING.md",
 		"SECURITY.md",
 		"languages",
+		"!languages/*.json",
+		"!languages/*.mo",
+		"!languages/*.po",
 		"tsconfig.json",
 		"webpack.config.js"
 	],

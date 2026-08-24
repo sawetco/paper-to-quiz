@@ -30,14 +30,22 @@ contracts, or release behavior changes.
 - `main` is the clean WordPress.org source. It installs only the current
   `paper_to_quiz_*` schema and must not contain compatibility code for the
   pre-directory `ptq_*` installation.
-- `codex/migration-support` is the migration-supported source for existing
+- `legacy-migration-support` is the migration-supported source for existing
   private/GitHub installations. It preserves the one-time prefix, option,
   capability, cron, private-storage, and schema/data migration paths.
 - Build `paper-to-quiz.zip` from the branch whose behavior is required. Never
-  upload a ZIP built from `codex/migration-support` to WordPress.org.
+  upload a ZIP built from `legacy-migration-support` to WordPress.org.
 - Shared product changes land on `main` first and are then cherry-picked or
-  reapplied deliberately to `codex/migration-support`. Do not merge `main`
+  reapplied deliberately to `legacy-migration-support`. Do not merge `main`
   wholesale over migration-specific compatibility code.
+
+WordPress.org SVN is a release repository, not a development mirror. Publish
+only verified `main` release contents at the root of `trunk/`, create the
+matching numeric `tags/X.Y.Z/` tag with `svn copy`, and keep directory artwork
+in the top-level `assets/` directory. Never commit ZIP archives, Git metadata,
+tests, development dependencies, bundled locale catalogs, or migration-support
+code to SVN. The `Stable tag:` in both trunk and tagged `readme.txt` must match
+the plugin header version before committing a release.
 
 ## Local development
 
@@ -146,7 +154,7 @@ wp eval-file wp-content/plugins/paper-to-quiz/tests/data-regression.php
   data migration. Add future migrations only for WordPress.org versions
   released after this baseline.
 - Historical migration requirements belong only to
-  `codex/migration-support`.
+  `legacy-migration-support`.
 - Check every database write and use transactions for multi-table operations.
 - Convert unique-index conflicts into useful field-level REST errors; never leak
   raw database failures as a generic 500 response.
