@@ -15,6 +15,7 @@ module.exports = {
 	output: {
 		...defaultConfig.output,
 		filename: '[name].js',
+		chunkFilename: '[name].js',
 		// Resolve async chunks and PDF worker assets from the enqueued plugin script.
 		publicPath: 'auto',
 	},

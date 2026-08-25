@@ -13,7 +13,7 @@ describe( 'admin authoring loading boundaries', () => {
 			/import\s+\{\s*Wizard\s*\}\s+from\s+['"]\.\/Wizard['"]/
 		);
 		expect( app ).toMatch(
-			/lazy\(\s*\(\)\s*=>\s*import\(\s*['"]\.\/Wizard['"]\s*\)/s
+			/lazy\(\s*\(\)\s*=>\s*import\([\s\S]*webpackChunkName:\s*["']admin-wizard["'][\s\S]*['"]\.\/Wizard['"]\s*\)/
 		);
 	} );
 
@@ -25,14 +25,42 @@ describe( 'admin authoring loading boundaries', () => {
 			/import\s+\{\s*PdfEditor\s*\}\s+from\s+['"]\.\/PdfEditor['"]/
 		);
 		expect( wizard ).toMatch(
-			/lazy\(\s*\(\)\s*=>\s*import\(\s*['"]\.\/PdfEditor['"]\s*\)/s
+			/lazy\(\s*\(\)\s*=>\s*import\([\s\S]*webpackChunkName:\s*["']admin-pdf-editor["'][\s\S]*['"]\.\/PdfEditor['"]\s*\)/
 		);
 		expect( editor ).toContain( "'pdfjs-dist/build/pdf.worker.min.mjs'" );
 	} );
 
 	it( 'uses the enqueued script URL for dynamic assets', () => {
-		expect( source( '../../webpack.config.js' ) ).toContain(
-			"publicPath: 'auto'"
+		const config = source( '../../webpack.config.js' );
+		expect( config ).toContain( "publicPath: 'auto'" );
+		expect( config ).toContain( "chunkFilename: '[name].js'" );
+	} );
+
+	it( 'registers translation-ready handles for translatable admin chunks', () => {
+		const adminMenu = source( '../../src/Admin/AdminMenu.php' );
+
+		expect( adminMenu ).toContain(
+			"'paper-to-quiz-admin-wizard'     => 'admin-wizard.js'"
+		);
+		expect( adminMenu ).toContain(
+			"'paper-to-quiz-admin-pdf-editor' => 'admin-pdf-editor.js'"
+		);
+		expect( adminMenu ).toContain(
+			"wp_set_script_translations($handle, 'paper-to-quiz')"
+		);
+		expect( adminMenu ).toContain( '$dependencies[] = $handle' );
+	} );
+
+	it( 'keeps generated translation catalogs out of nested package paths', () => {
+		const packageFiles = JSON.parse( source( '../../package.json' ) ).files;
+
+		expect( packageFiles ).toEqual(
+			expect.arrayContaining( [
+				'!languages/**/*.json',
+				'!languages/**/*.mo',
+				'!languages/**/*.po',
+				'!languages/**/*.php',
+			] )
 		);
 	} );
 

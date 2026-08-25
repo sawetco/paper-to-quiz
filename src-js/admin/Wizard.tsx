@@ -32,7 +32,10 @@ import { BusyLabel, LoadingRegion } from './BusyLabel';
 import { feedbackTimingForRelease, normalizeExamPolicy } from './policy';
 
 const LazyPdfEditor = lazy( () =>
-	import( './PdfEditor' ).then( ( module ) => ( {
+	import(
+		/* webpackChunkName: "admin-pdf-editor" */
+		'./PdfEditor'
+	).then( ( module ) => ( {
 		default: module.PdfEditor,
 	} ) )
 );

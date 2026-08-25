@@ -1,6 +1,6 @@
 {
 	"name": "paper-to-quiz",
-	"version": "1.1.1",
+	"version": "1.1.2",
 	"private": true,
 	"description": "Convert PDF exams and worksheets into secure, image-based WordPress quizzes.",
 	"license": "GPL-2.0-or-later",
@@ -22,8 +22,13 @@
 		"SECURITY.md",
 		"languages",
 		"!languages/*.json",
+		"!languages/**/*.json",
 		"!languages/*.mo",
+		"!languages/**/*.mo",
 		"!languages/*.po",
+		"!languages/**/*.po",
+		"!languages/*.php",
+		"!languages/**/*.php",
 		"tsconfig.json",
 		"webpack.config.js"
 	],

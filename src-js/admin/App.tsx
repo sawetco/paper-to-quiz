@@ -24,7 +24,10 @@ import { SettingsPage } from './SettingsPage';
 import { BusyLabel, LoadingRegion } from './BusyLabel';
 
 const LazyWizard = lazy( () =>
-	import( './Wizard' ).then( ( module ) => ( { default: module.Wizard } ) )
+	import(
+		/* webpackChunkName: "admin-wizard" */
+		'./Wizard'
+	).then( ( module ) => ( { default: module.Wizard } ) )
 );
 
 type AssessmentListItem = {

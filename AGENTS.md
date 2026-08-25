@@ -90,6 +90,13 @@ replaces only that fallback base with a portable URL, and
 `npm run check:build-portability` prevents workspace paths from reaching the
 compiled assets.
 
+The admin authoring UI is code-split into the stable
+`build/admin-wizard.js` and `build/admin-pdf-editor.js` chunks. Register both
+as dependencies of `paper-to-quiz-admin` and call `wp_set_script_translations()`
+for every translatable chunk so WordPress language-pack JSON is installed
+before a lazy module evaluates. Keep explicit `webpackChunkName` values and
+`chunkFilename: '[name].js'`; anonymous numeric chunk names break this contract.
+
 WordPress.org distributes locale files through translate.wordpress.org. Do not
 ship `.po`, `.mo`, locale `.json`, or translation `.php` files in the plugin
 archive. Keep only the source template at `languages/paper-to-quiz.pot`.

@@ -2,23 +2,23 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Paper to Quiz 1.1.1\n"
+"Project-Id-Version: Paper to Quiz 1.1.2\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/paper-to-quiz\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-08-24T09:16:02+00:00\n"
+"POT-Creation-Date: 2026-08-25T10:30:55+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: paper-to-quiz\n"
 
 #. Plugin Name of the plugin
 #: paper-to-quiz.php
-#: src/Admin/AdminMenu.php:21
-#: src/Admin/AdminMenu.php:22
-#: src/Admin/AdminMenu.php:104
+#: src/Admin/AdminMenu.php:25
+#: src/Admin/AdminMenu.php:26
+#: src/Admin/AdminMenu.php:124
 #: src/Privacy/PrivacyManager.php:112
 msgid "Paper to Quiz"
 msgstr ""
@@ -43,45 +43,45 @@ msgstr ""
 msgid "https://github.com/sawetco"
 msgstr ""
 
-#: src/Admin/AdminMenu.php:56
+#: src/Admin/AdminMenu.php:60
 msgid "The Paper to Quiz interface has not been built. Please rebuild the production package."
 msgstr ""
 
-#: src/Admin/AdminMenu.php:92
+#: src/Admin/AdminMenu.php:112
 msgid "Quiz management is loading…"
 msgstr ""
 
-#: src/Admin/AdminMenu.php:98
+#: src/Admin/AdminMenu.php:118
 #: build/admin.js:33
 #: build/admin.js:40
 msgid "Exams"
 msgstr ""
 
-#: src/Admin/AdminMenu.php:99
+#: src/Admin/AdminMenu.php:119
 #: build/admin.js:33
 #: build/admin.js:40
 msgid "Tests"
 msgstr ""
 
-#: src/Admin/AdminMenu.php:100
+#: src/Admin/AdminMenu.php:120
 #: build/admin.js:33
 msgid "Classes"
 msgstr ""
 
-#: src/Admin/AdminMenu.php:101
-#: build/0.js:10
+#: src/Admin/AdminMenu.php:121
+#: build/admin-wizard.js:10
 #: build/admin.js:2
 #: build/admin.js:33
 msgid "Subjects"
 msgstr ""
 
-#: src/Admin/AdminMenu.php:102
+#: src/Admin/AdminMenu.php:122
 #: build/admin.js:26
 #: build/admin.js:41
 msgid "Results"
 msgstr ""
 
-#: src/Admin/AdminMenu.php:103
+#: src/Admin/AdminMenu.php:123
 #: build/admin.js:32
 msgid "Settings"
 msgstr ""
@@ -224,7 +224,7 @@ msgid "The correct answer is not one of the available options."
 msgstr ""
 
 #: src/Application/AssessmentService.php:628
-#: build/0.js:8
+#: build/admin-wizard.js:8
 msgid "The answer key could not be saved."
 msgstr ""
 
@@ -292,7 +292,7 @@ msgstr ""
 
 #: src/Application/AssessmentService.php:992
 #: src/Application/AssessmentService.php:1144
-#: build/0.js:4
+#: build/admin-wizard.js:4
 msgid "Select at least one subject."
 msgstr ""
 
@@ -361,7 +361,7 @@ msgid "Repeatable exams cannot use a schedule or result release date."
 msgstr ""
 
 #: src/Application/AssessmentService.php:1064
-#: build/0.js:4
+#: build/admin-wizard.js:4
 msgid "Repeatable exams cannot use ranking."
 msgstr ""
 
@@ -370,7 +370,7 @@ msgid "Exam start and end dates are required."
 msgstr ""
 
 #: src/Application/AssessmentService.php:1070
-#: build/0.js:4
+#: build/admin-wizard.js:4
 msgid "The exam end date must be after the start date."
 msgstr ""
 
@@ -489,7 +489,7 @@ msgstr ""
 #: src/Application/AttemptService.php:642
 #: src/Application/AttemptService.php:1275
 #: src/Application/AttemptService.php:1337
-#: build/0.js:8
+#: build/admin-wizard.js:8
 msgid "Subject not specified"
 msgstr ""
 
@@ -537,41 +537,41 @@ msgstr ""
 
 #: src/Application/AttemptService.php:879
 #: src/Application/AttemptService.php:1480
-#: build/0.js:1
+#: build/admin-wizard.js:1
 #: build/admin.js:26
 msgid "First name"
 msgstr ""
 
 #: src/Application/AttemptService.php:880
 #: src/Application/AttemptService.php:1481
-#: build/0.js:1
+#: build/admin-wizard.js:1
 #: build/admin.js:26
 msgid "Last name"
 msgstr ""
 
 #: src/Application/AttemptService.php:881
 #: src/Application/AttemptService.php:1482
-#: build/0.js:1
+#: build/admin-wizard.js:1
 msgid "School name"
 msgstr ""
 
 #: src/Application/AttemptService.php:882
 #: src/Application/AttemptService.php:1483
-#: build/0.js:1
+#: build/admin-wizard.js:1
 #: build/admin.js:26
 msgid "Class and section"
 msgstr ""
 
 #: src/Application/AttemptService.php:883
 #: src/Application/AttemptService.php:1484
-#: build/0.js:1
+#: build/admin-wizard.js:1
 #: build/admin.js:26
 msgid "Email"
 msgstr ""
 
 #: src/Application/AttemptService.php:884
 #: src/Application/AttemptService.php:1485
-#: build/0.js:1
+#: build/admin-wizard.js:1
 #: build/admin.js:26
 msgid "Phone"
 msgstr ""
@@ -639,7 +639,7 @@ msgid "Exam result document"
 msgstr ""
 
 #: src/Application/ResultEmailService.php:230
-#: build/0.js:10
+#: build/admin-wizard.js:10
 #: build/admin.js:2
 #: build/student.js:11
 #: build/student.js:26
@@ -658,7 +658,7 @@ msgid "Submission date"
 msgstr ""
 
 #: src/Application/ResultEmailService.php:237
-#: build/0.js:10
+#: build/admin-wizard.js:10
 #: build/admin.js:2
 #: build/admin.js:29
 #: build/student.js:26
@@ -667,7 +667,7 @@ msgstr ""
 
 #: src/Application/ResultEmailService.php:241
 #: src/Application/ResultEmailService.php:284
-#: build/0.js:8
+#: build/admin-wizard.js:8
 msgid "Points"
 msgstr ""
 
@@ -718,7 +718,7 @@ msgstr ""
 
 #: src/Application/ResultEmailService.php:282
 #: src/Application/ResultEmailService.php:315
-#: build/115.js:7
+#: build/admin-pdf-editor.js:7
 #: build/admin.js:2
 #: build/admin.js:31
 #: build/student.js:26
@@ -778,7 +778,7 @@ msgstr[1] ""
 
 #. translators: %d: Number of minutes.
 #: src/Application/ResultEmailService.php:348
-#: build/0.js:9
+#: build/admin-wizard.js:9
 #: build/admin.js:5
 #: build/student.js:31
 #: build/student.js:32
@@ -856,7 +856,7 @@ msgid "Register"
 msgstr ""
 
 #: src/Frontend/Shortcode.php:52
-#: build/115.js:5
+#: build/admin-pdf-editor.js:5
 #: build/student.js:5
 msgid "Preparing…"
 msgstr ""
@@ -1106,584 +1106,53 @@ msgstr ""
 msgid "Too many participation requests were sent. Please wait a moment."
 msgstr ""
 
-#: build/0.js:1
-msgid "Information"
-msgstr ""
-
-#: build/0.js:1
-#: build/0.js:5
-msgid "PDF upload"
-msgstr ""
-
-#: build/0.js:1
-#: build/0.js:4
-msgid "Select questions"
-msgstr ""
-
-#: build/0.js:1
-#: build/0.js:7
-msgid "Answer key"
-msgstr ""
-
-#: build/0.js:1
-#: build/0.js:10
-msgid "Review and publish"
-msgstr ""
-
-#: build/0.js:1
-#: build/admin.js:33
-msgid "Back to list"
-msgstr ""
-
-#. translators: %s: Item type.
-#: build/0.js:2
-#: build/admin.js:17
-#, js-format
-msgid "Edit %s"
-msgstr ""
-
-#: build/0.js:2
-#: build/0.js:3
-#: build/0.js:4
-#: build/0.js:8
-#: build/admin.js:1
-#: build/admin.js:26
-#: build/student.js:5
-#: build/student.js:10
-msgid "Exam"
-msgstr ""
-
-#: build/0.js:2
-#: build/0.js:3
-#: build/0.js:4
-#: build/0.js:8
-#: build/admin.js:1
-#: build/admin.js:26
-#: build/student.js:5
-#: build/student.js:10
-msgid "Test"
-msgstr ""
-
-#. translators: %s: Assessment type.
-#: build/0.js:3
-#, js-format
-msgid "New %s"
-msgstr ""
-
-#: build/0.js:3
-msgid "Creation steps"
-msgstr ""
-
-#: build/0.js:3
-msgid "Loading question editor…"
-msgstr ""
-
-#: build/0.js:3
-msgid "Exam saved and published."
-msgstr ""
-
-#: build/0.js:3
-msgid "Test saved and published."
-msgstr ""
-
-#: build/0.js:3
-msgid "Back"
-msgstr ""
-
-#. translators: %s: Item type.
-#: build/0.js:4
-#: build/admin.js:20
-#, js-format
-msgid "Enter a %s name."
-msgstr ""
-
-#: build/0.js:4
-msgid "Select a class."
-msgstr ""
-
-#: build/0.js:4
-#: build/admin.js:3
-msgid "Total points must be at least 1."
-msgstr ""
-
-#: build/0.js:4
-msgid "Enter the exam start date."
-msgstr ""
-
-#: build/0.js:4
-msgid "Enter the exam end date."
-msgstr ""
-
-#: build/0.js:4
-msgid "Draft saved."
-msgstr ""
-
-#: build/0.js:4
-#: build/admin.js:19
-msgid "The record could not be saved."
-msgstr ""
-
-#: build/0.js:4
-#: build/0.js:8
-#: build/admin.js:21
-#: build/admin.js:33
-msgid "Saving…"
-msgstr ""
-
-#: build/0.js:4
-msgid "Save and continue"
-msgstr ""
-
-#: build/0.js:4
-msgid "Leave this screen?"
-msgstr ""
-
-#: build/0.js:4
-msgid "Unsaved changes will be lost. Leave this screen?"
-msgstr ""
-
-#: build/0.js:4
-msgid "Any edits made since the last save will be discarded."
-msgstr ""
-
-#: build/0.js:4
-msgid "Leave screen"
-msgstr ""
-
-#: build/0.js:4
-msgid "On the result release date"
-msgstr ""
-
-#: build/0.js:4
-msgid "Do not show correct answers"
-msgstr ""
-
-#: build/0.js:4
-msgid "After each answer"
-msgstr ""
-
-#: build/0.js:4
-msgid "At the end of the test"
-msgstr ""
-
-#: build/0.js:4
-msgid "After completing the exam"
-msgstr ""
-
-#: build/0.js:4
-msgid "Only members who submit on time are included in the ranking."
-msgstr ""
-
-#: build/0.js:4
-msgid "Set access to “Membership required” to use ranking."
-msgstr ""
-
-#: build/0.js:4
-msgid "Basic information"
-msgstr ""
-
-#. translators: %s: Assessment type.
-#: build/0.js:5
-#, js-format
-msgid "%s title *"
-msgstr ""
-
-#: build/0.js:5
-msgid "Class *"
-msgstr ""
-
-#: build/0.js:5
-#: build/student.js:11
-#: build/student.js:12
-msgid "Select"
-msgstr ""
-
-#: build/0.js:5
-msgid "Subjects *"
-msgstr ""
-
-#: build/0.js:5
-msgid "Description"
-msgstr ""
-
-#: build/0.js:5
-msgid "Created"
-msgstr ""
-
-#: build/0.js:5
-msgid "Application settings"
-msgstr ""
-
-#: build/0.js:5
-#: build/0.js:10
-msgid "Answer options"
-msgstr ""
-
-#: build/0.js:5
-#: build/0.js:10
-#: build/admin.js:2
-msgid "Total points"
-msgstr ""
-
-#: build/0.js:5
-msgid "Duration (minutes)"
-msgstr ""
-
-#: build/0.js:5
-msgid "Leave blank for no time limit."
-msgstr ""
-
-#: build/0.js:5
-#: build/0.js:10
-#: build/admin.js:2
-#: build/admin.js:40
-#: build/admin.js:41
-msgid "Access"
-msgstr ""
-
-#: build/0.js:5
-#: build/0.js:10
-#: build/admin.js:41
-msgid "Public"
-msgstr ""
-
-#: build/0.js:5
-#: build/0.js:10
-#: build/admin.js:41
-#: build/student.js:11
-msgid "Membership required"
-msgstr ""
-
-#: build/0.js:5
-#: build/student.js:11
-msgid "Exam schedule"
-msgstr ""
-
-#: build/0.js:5
-msgid "The schedule and ranking are unavailable while participants can retake this exam. Any time limit restarts with each attempt."
-msgstr ""
-
-#: build/0.js:5
-msgid "Start *"
-msgstr ""
-
-#: build/0.js:5
-msgid "End *"
-msgstr ""
-
-#: build/0.js:5
-#: build/student.js:11
-msgid "Result release"
-msgstr ""
-
-#: build/0.js:5
-msgid "Results and participation settings"
-msgstr ""
-
-#: build/0.js:5
-msgid "Show correct answers"
-msgstr ""
-
-#: build/0.js:5
-msgid "Correct answers will be available on the result release date. Clear that date to choose a different option."
-msgstr ""
-
-#: build/0.js:5
-msgid "Show in results"
-msgstr ""
-
-#: build/0.js:5
-msgid "Hide result"
-msgstr ""
-
-#: build/0.js:5
-msgid "Score only"
-msgstr ""
-
-#: build/0.js:5
-msgid "Summary"
-msgstr ""
-
-#: build/0.js:5
-msgid "With answers"
-msgstr ""
-
-#: build/0.js:5
-msgid "Allow repeat attempts"
-msgstr ""
-
-#: build/0.js:5
-msgid "Enable member ranking"
-msgstr ""
-
-#: build/0.js:5
-msgid "Showing correct answers immediately may give other participants an advantage."
-msgstr ""
-
-#: build/0.js:5
-msgid "Information requested from participants"
-msgstr ""
-
-#: build/0.js:5
-msgid "Required"
-msgstr ""
-
-#: build/0.js:5
-msgid "Allow participants to retake this exam?"
-msgstr ""
-
-#: build/0.js:5
-msgid "The current exam dates, result release date, and ranking setting will be cleared."
-msgstr ""
-
-#: build/0.js:5
-msgid "Participants will be able to start this exam again after completing it."
-msgstr ""
-
-#: build/0.js:5
-msgid "Allow retakes"
-msgstr ""
-
-#: build/0.js:5
-msgid "A PDF is already uploaded. Selecting a new PDF will replace the current source."
-msgstr ""
-
-#: build/0.js:5
-msgid "The PDF could not be uploaded."
-msgstr ""
-
-#: build/0.js:5
-msgid "Uploading PDF…"
-msgstr ""
-
-#: build/0.js:5
-msgid "Select a PDF or drop it here"
-msgstr ""
-
-#. translators: %d: Maximum PDF size in megabytes.
-#: build/0.js:6
-#, js-format
-msgid "Select a PDF file. You can upload up to %d MB."
-msgstr ""
-
-#: build/0.js:6
-msgid "or"
-msgstr ""
-
-#: build/0.js:6
-msgid "The Media Library could not be opened. Please try again."
-msgstr ""
-
-#: build/0.js:6
-msgid "Select a PDF"
-msgstr ""
-
-#: build/0.js:6
-msgid "Use this PDF"
-msgstr ""
-
-#: build/0.js:6
-msgid "Selected PDF"
-msgstr ""
-
-#: build/0.js:6
-msgid "The PDF could not be selected."
-msgstr ""
-
-#: build/0.js:6
-msgid "Select from Media Library"
-msgstr ""
-
-#: build/0.js:6
-msgid "Replace PDF?"
-msgstr ""
-
-#. translators: %s: Selected PDF filename.
-#: build/0.js:7
-#, js-format
-msgid "%s will replace the current PDF. How should the selected questions be handled?"
-msgstr ""
-
-#: build/0.js:7
-msgid "Keep selections and regenerate images"
-msgstr ""
-
-#: build/0.js:7
-msgid "Replace and clear questions"
-msgstr ""
-
-#. translators: 1: Current points. 2: Target points.
-#: build/0.js:8
-#, js-format
-msgid "Total: %1$s / %2$s"
-msgstr ""
-
-#: build/0.js:8
-msgid "Distribute points evenly"
-msgstr ""
-
-#: build/0.js:8
-msgid "The points total does not match the target."
-msgstr ""
-
-#: build/0.js:8
-msgid "No image"
-msgstr ""
-
-#: build/0.js:8
-#: build/admin.js:31
-msgid "Correct answer"
-msgstr ""
-
-#: build/0.js:8
-msgid "Save answer key"
-msgstr ""
-
-#: build/0.js:8
-msgid "PDF uploaded"
-msgstr ""
-
-#: build/0.js:8
-msgid "At least one question selected"
-msgstr ""
-
-#: build/0.js:8
-msgid "All question images are ready"
-msgstr ""
-
-#: build/0.js:8
-msgid "All questions have a valid subject"
-msgstr ""
-
-#: build/0.js:8
-msgid "All correct answers are entered"
-msgstr ""
-
-#: build/0.js:8
-msgid "Points total is correct"
-msgstr ""
-
-#: build/0.js:8
-msgid "Class and subject selected"
-msgstr ""
-
-#: build/0.js:8
-msgid "Exam schedule is disabled"
-msgstr ""
-
-#: build/0.js:8
-msgid "Ranking is disabled"
-msgstr ""
-
-#: build/0.js:8
-msgid "Exam dates are valid"
-msgstr ""
-
-#: build/0.js:8
-msgid "Result release date is consistent"
-msgstr ""
-
-#: build/0.js:8
-msgid "Correct-answer timing matches the result release date"
-msgstr ""
-
-#: build/0.js:8
-msgid "Ranking is single-attempt and membership-based"
-msgstr ""
-
-#: build/0.js:8
-msgid "Publish exam"
-msgstr ""
-
-#: build/0.js:8
-msgid "Publish test"
-msgstr ""
-
-#: build/0.js:8
-msgid "Publish new version"
-msgstr ""
-
-#: build/0.js:9
-#: build/student.js:32
-msgid "No time limit"
-msgstr ""
-
-#. translators: %s: Content type, such as Exam or Test.
-#: build/0.js:10
-#: build/admin.js:2
-#, js-format
-msgid "%s title"
-msgstr ""
-
-#: build/0.js:10
-msgid "Question count"
-msgstr ""
-
-#: build/0.js:10
-msgid "Review the information and preparation status before publishing."
-msgstr ""
-
-#. translators: %s: Assessment type.
-#: build/0.js:11
-#, js-format
-msgid "%s summary"
-msgstr ""
-
-#: build/0.js:11
-msgid "Publishing checks"
-msgstr ""
-
-#: build/0.js:11
-msgid "Publishing…"
-msgstr ""
-
-#: build/115.js:1
+#: build/admin-pdf-editor.js:1
 msgid "Subjects could not be loaded. Try again before saving questions."
 msgstr ""
 
-#: build/115.js:1
+#: build/admin-pdf-editor.js:1
 msgid "The unsaved selection draft was restored."
 msgstr ""
 
-#: build/115.js:1
+#: build/admin-pdf-editor.js:1
 msgid "This PDF has more than 200 pages. Performance may decrease while thumbnails are prepared."
 msgstr ""
 
-#: build/115.js:1
+#: build/admin-pdf-editor.js:1
 msgid "This area substantially overlaps an existing selection. Check it before saving."
 msgstr ""
 
-#: build/115.js:1
+#: build/admin-pdf-editor.js:1
 msgid "This selection is small; check its readability in the student preview."
 msgstr ""
 
-#: build/115.js:1
+#: build/admin-pdf-editor.js:1
 msgid "Selection tool"
 msgstr ""
 
-#: build/115.js:1
+#: build/admin-pdf-editor.js:1
 #: build/admin.js:8
 msgid "Previous page"
 msgstr ""
 
-#: build/115.js:1
+#: build/admin-pdf-editor.js:1
 #: build/admin.js:8
 msgid "Next page"
 msgstr ""
 
-#: build/115.js:1
+#: build/admin-pdf-editor.js:1
 msgid "Fit to screen"
 msgstr ""
 
 #. translators: %d: Page number.
-#: build/115.js:2
-#: build/115.js:7
+#: build/admin-pdf-editor.js:2
+#: build/admin-pdf-editor.js:7
 #, js-format
 msgid "Page %d"
 msgstr ""
 
 #. translators: %d: Number of questions.
-#: build/115.js:3
+#: build/admin-pdf-editor.js:3
 #: build/admin.js:37
 #: build/student.js:11
 #, js-format
@@ -1692,117 +1161,648 @@ msgid_plural "%d questions"
 msgstr[0] ""
 msgstr[1] ""
 
-#: build/115.js:3
+#: build/admin-pdf-editor.js:3
 msgid "Preparing questions…"
 msgstr ""
 
-#: build/115.js:3
+#: build/admin-pdf-editor.js:3
 msgid "Select a subject for every question."
 msgstr ""
 
 #. translators: %d: Question number.
-#: build/115.js:4
+#: build/admin-pdf-editor.js:4
 #, js-format
 msgid "Saving question %d…"
 msgstr ""
 
-#: build/115.js:4
+#: build/admin-pdf-editor.js:4
 msgid "Saving order and answer key…"
 msgstr ""
 
-#: build/115.js:4
+#: build/admin-pdf-editor.js:4
 msgid "The saved question order could not be created."
 msgstr ""
 
-#: build/115.js:4
+#: build/admin-pdf-editor.js:4
 msgid "The selections could not be saved."
 msgstr ""
 
 #. translators: 1: Number of saved questions. 2: Remaining error detail.
-#: build/115.js:5
+#: build/admin-pdf-editor.js:5
 #, js-format
 msgid "%1$d questions were saved successfully. You can try the remaining questions again. %2$s"
 msgstr ""
 
-#: build/115.js:5
+#: build/admin-pdf-editor.js:5
 msgid "Save selections"
 msgstr ""
 
-#: build/115.js:5
+#: build/admin-pdf-editor.js:5
 msgid "Regenerate all images at high quality"
 msgstr ""
 
-#: build/115.js:5
+#: build/admin-pdf-editor.js:5
 msgid "This regenerates all crops from the source PDF using the current high-quality settings. Use “Save selections” to complete the process."
 msgstr ""
 
-#: build/115.js:5
+#: build/admin-pdf-editor.js:5
 msgid "The question could not be deleted."
 msgstr ""
 
-#: build/115.js:5
+#: build/admin-pdf-editor.js:5
 msgid "Preparing PDF…"
 msgstr ""
 
-#: build/115.js:5
+#: build/admin-pdf-editor.js:5
 msgid "Reorder question"
 msgstr ""
 
 #. translators: %d: Question number.
-#: build/115.js:6
+#: build/admin-pdf-editor.js:6
 #: build/admin.js:32
 #: build/student.js:20
 #, js-format
 msgid "Question %d"
 msgstr ""
 
-#: build/115.js:7
+#: build/admin-pdf-editor.js:7
 msgid "Changed"
 msgstr ""
 
-#: build/115.js:7
+#: build/admin-pdf-editor.js:7
 #: build/admin.js:41
 msgid "Deleting…"
 msgstr ""
 
-#: build/115.js:7
+#: build/admin-pdf-editor.js:7
 msgid "Delete"
 msgstr ""
 
-#: build/115.js:7
+#: build/admin-pdf-editor.js:7
 msgid "Select a subject"
 msgstr ""
 
-#: build/115.js:7
+#: build/admin-pdf-editor.js:7
 msgid "The PDF canvas could not be created."
 msgstr ""
 
-#: build/115.js:7
+#: build/admin-pdf-editor.js:7
 msgid "The crop canvas could not be created."
 msgstr ""
 
-#: build/115.js:7
+#: build/admin-pdf-editor.js:7
 msgid "The thumbnail canvas could not be created."
 msgstr ""
 
-#: build/115.js:7
+#: build/admin-pdf-editor.js:7
 msgid "The image could not be generated."
 msgstr ""
 
-#: build/115.js:7
+#: build/admin-pdf-editor.js:7
 msgid "Encrypted PDF files are not supported. Remove the password and upload again."
 msgstr ""
 
-#: build/115.js:7
+#: build/admin-pdf-editor.js:7
 msgid "The PDF file is corrupt or invalid. Check the file and try again."
 msgstr ""
 
-#: build/115.js:7
+#: build/admin-pdf-editor.js:7
 msgid "The PDF file could not be reached. Refresh the page and try again."
 msgstr ""
 
-#: build/115.js:7
+#: build/admin-pdf-editor.js:7
 msgid "The PDF could not be opened. Check the file and try again."
+msgstr ""
+
+#: build/admin-wizard.js:1
+msgid "Information"
+msgstr ""
+
+#: build/admin-wizard.js:1
+#: build/admin-wizard.js:5
+msgid "PDF upload"
+msgstr ""
+
+#: build/admin-wizard.js:1
+#: build/admin-wizard.js:4
+msgid "Select questions"
+msgstr ""
+
+#: build/admin-wizard.js:1
+#: build/admin-wizard.js:7
+msgid "Answer key"
+msgstr ""
+
+#: build/admin-wizard.js:1
+#: build/admin-wizard.js:10
+msgid "Review and publish"
+msgstr ""
+
+#: build/admin-wizard.js:1
+#: build/admin.js:33
+msgid "Back to list"
+msgstr ""
+
+#. translators: %s: Item type.
+#: build/admin-wizard.js:2
+#: build/admin.js:17
+#, js-format
+msgid "Edit %s"
+msgstr ""
+
+#: build/admin-wizard.js:2
+#: build/admin-wizard.js:3
+#: build/admin-wizard.js:4
+#: build/admin-wizard.js:8
+#: build/admin.js:1
+#: build/admin.js:26
+#: build/student.js:5
+#: build/student.js:10
+msgid "Exam"
+msgstr ""
+
+#: build/admin-wizard.js:2
+#: build/admin-wizard.js:3
+#: build/admin-wizard.js:4
+#: build/admin-wizard.js:8
+#: build/admin.js:1
+#: build/admin.js:26
+#: build/student.js:5
+#: build/student.js:10
+msgid "Test"
+msgstr ""
+
+#. translators: %s: Assessment type.
+#: build/admin-wizard.js:3
+#, js-format
+msgid "New %s"
+msgstr ""
+
+#: build/admin-wizard.js:3
+msgid "Creation steps"
+msgstr ""
+
+#: build/admin-wizard.js:3
+msgid "Loading question editor…"
+msgstr ""
+
+#: build/admin-wizard.js:3
+msgid "Exam saved and published."
+msgstr ""
+
+#: build/admin-wizard.js:3
+msgid "Test saved and published."
+msgstr ""
+
+#: build/admin-wizard.js:3
+msgid "Back"
+msgstr ""
+
+#. translators: %s: Item type.
+#: build/admin-wizard.js:4
+#: build/admin.js:20
+#, js-format
+msgid "Enter a %s name."
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Select a class."
+msgstr ""
+
+#: build/admin-wizard.js:4
+#: build/admin.js:3
+msgid "Total points must be at least 1."
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Enter the exam start date."
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Enter the exam end date."
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Draft saved."
+msgstr ""
+
+#: build/admin-wizard.js:4
+#: build/admin.js:19
+msgid "The record could not be saved."
+msgstr ""
+
+#: build/admin-wizard.js:4
+#: build/admin-wizard.js:8
+#: build/admin.js:21
+#: build/admin.js:33
+msgid "Saving…"
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Save and continue"
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Leave this screen?"
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Unsaved changes will be lost. Leave this screen?"
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Any edits made since the last save will be discarded."
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Leave screen"
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "On the result release date"
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Do not show correct answers"
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "After each answer"
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "At the end of the test"
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "After completing the exam"
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Only members who submit on time are included in the ranking."
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Set access to “Membership required” to use ranking."
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Basic information"
+msgstr ""
+
+#. translators: %s: Assessment type.
+#: build/admin-wizard.js:5
+#, js-format
+msgid "%s title *"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Class *"
+msgstr ""
+
+#: build/admin-wizard.js:5
+#: build/student.js:11
+#: build/student.js:12
+msgid "Select"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Subjects *"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Description"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Created"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Application settings"
+msgstr ""
+
+#: build/admin-wizard.js:5
+#: build/admin-wizard.js:10
+msgid "Answer options"
+msgstr ""
+
+#: build/admin-wizard.js:5
+#: build/admin-wizard.js:10
+#: build/admin.js:2
+msgid "Total points"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Duration (minutes)"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Leave blank for no time limit."
+msgstr ""
+
+#: build/admin-wizard.js:5
+#: build/admin-wizard.js:10
+#: build/admin.js:2
+#: build/admin.js:40
+#: build/admin.js:41
+msgid "Access"
+msgstr ""
+
+#: build/admin-wizard.js:5
+#: build/admin-wizard.js:10
+#: build/admin.js:41
+msgid "Public"
+msgstr ""
+
+#: build/admin-wizard.js:5
+#: build/admin-wizard.js:10
+#: build/admin.js:41
+#: build/student.js:11
+msgid "Membership required"
+msgstr ""
+
+#: build/admin-wizard.js:5
+#: build/student.js:11
+msgid "Exam schedule"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "The schedule and ranking are unavailable while participants can retake this exam. Any time limit restarts with each attempt."
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Start *"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "End *"
+msgstr ""
+
+#: build/admin-wizard.js:5
+#: build/student.js:11
+msgid "Result release"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Results and participation settings"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Show correct answers"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Correct answers will be available on the result release date. Clear that date to choose a different option."
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Show in results"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Hide result"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Score only"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Summary"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "With answers"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Allow repeat attempts"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Enable member ranking"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Showing correct answers immediately may give other participants an advantage."
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Information requested from participants"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Required"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Allow participants to retake this exam?"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "The current exam dates, result release date, and ranking setting will be cleared."
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Participants will be able to start this exam again after completing it."
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Allow retakes"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "A PDF is already uploaded. Selecting a new PDF will replace the current source."
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "The PDF could not be uploaded."
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Uploading PDF…"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Select a PDF or drop it here"
+msgstr ""
+
+#. translators: %d: Maximum PDF size in megabytes.
+#: build/admin-wizard.js:6
+#, js-format
+msgid "Select a PDF file. You can upload up to %d MB."
+msgstr ""
+
+#: build/admin-wizard.js:6
+msgid "or"
+msgstr ""
+
+#: build/admin-wizard.js:6
+msgid "The Media Library could not be opened. Please try again."
+msgstr ""
+
+#: build/admin-wizard.js:6
+msgid "Select a PDF"
+msgstr ""
+
+#: build/admin-wizard.js:6
+msgid "Use this PDF"
+msgstr ""
+
+#: build/admin-wizard.js:6
+msgid "Selected PDF"
+msgstr ""
+
+#: build/admin-wizard.js:6
+msgid "The PDF could not be selected."
+msgstr ""
+
+#: build/admin-wizard.js:6
+msgid "Select from Media Library"
+msgstr ""
+
+#: build/admin-wizard.js:6
+msgid "Replace PDF?"
+msgstr ""
+
+#. translators: %s: Selected PDF filename.
+#: build/admin-wizard.js:7
+#, js-format
+msgid "%s will replace the current PDF. How should the selected questions be handled?"
+msgstr ""
+
+#: build/admin-wizard.js:7
+msgid "Keep selections and regenerate images"
+msgstr ""
+
+#: build/admin-wizard.js:7
+msgid "Replace and clear questions"
+msgstr ""
+
+#. translators: 1: Current points. 2: Target points.
+#: build/admin-wizard.js:8
+#, js-format
+msgid "Total: %1$s / %2$s"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "Distribute points evenly"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "The points total does not match the target."
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "No image"
+msgstr ""
+
+#: build/admin-wizard.js:8
+#: build/admin.js:31
+msgid "Correct answer"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "Save answer key"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "PDF uploaded"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "At least one question selected"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "All question images are ready"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "All questions have a valid subject"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "All correct answers are entered"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "Points total is correct"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "Class and subject selected"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "Exam schedule is disabled"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "Ranking is disabled"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "Exam dates are valid"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "Result release date is consistent"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "Correct-answer timing matches the result release date"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "Ranking is single-attempt and membership-based"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "Publish exam"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "Publish test"
+msgstr ""
+
+#: build/admin-wizard.js:8
+msgid "Publish new version"
+msgstr ""
+
+#: build/admin-wizard.js:9
+#: build/student.js:32
+msgid "No time limit"
+msgstr ""
+
+#. translators: %s: Content type, such as Exam or Test.
+#: build/admin-wizard.js:10
+#: build/admin.js:2
+#, js-format
+msgid "%s title"
+msgstr ""
+
+#: build/admin-wizard.js:10
+msgid "Question count"
+msgstr ""
+
+#: build/admin-wizard.js:10
+msgid "Review the information and preparation status before publishing."
+msgstr ""
+
+#. translators: %s: Assessment type.
+#: build/admin-wizard.js:11
+#, js-format
+msgid "%s summary"
+msgstr ""
+
+#: build/admin-wizard.js:11
+msgid "Publishing checks"
+msgstr ""
+
+#: build/admin-wizard.js:11
+msgid "Publishing…"
 msgstr ""
 
 #: build/admin.js:1

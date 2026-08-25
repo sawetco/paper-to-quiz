@@ -15,6 +15,10 @@ final class AdminMenu {
 		'paper-to-quiz-results',
 		'paper-to-quiz-settings',
 	);
+	private const TRANSLATABLE_CHUNKS = array(
+		'paper-to-quiz-admin-wizard'     => 'admin-wizard.js',
+		'paper-to-quiz-admin-pdf-editor' => 'admin-pdf-editor.js',
+	);
 
 	public function register(): void {
 		add_menu_page(
@@ -57,10 +61,26 @@ final class AdminMenu {
 			);
 		}
 		$asset = require $asset_file;
+		$dependencies = $asset['dependencies'];
+		foreach (self::TRANSLATABLE_CHUNKS as $handle => $filename) {
+			$chunk_file = PAPER_TO_QUIZ_DIR . 'build/' . $filename;
+			if (! file_exists($chunk_file)) {
+				continue;
+			}
+			wp_register_script(
+				$handle,
+				PAPER_TO_QUIZ_URL . 'build/' . $filename,
+				array('wp-i18n'),
+				$asset['version'],
+				true
+			);
+			wp_set_script_translations($handle, 'paper-to-quiz');
+			$dependencies[] = $handle;
+		}
 		wp_enqueue_script(
 			'paper-to-quiz-admin',
 			PAPER_TO_QUIZ_URL . 'build/admin.js',
-			$asset['dependencies'],
+			$dependencies,
 			$asset['version'],
 			true
 		);
