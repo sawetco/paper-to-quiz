@@ -5,6 +5,10 @@ const reactReconcilerRoot = path.join(
 	path.dirname( require.resolve( 'react-konva/package.json' ) ),
 	'node_modules/react-reconciler'
 );
+const stableTranslatableChunks = new Set( [
+	'admin-wizard',
+	'admin-pdf-editor',
+] );
 
 module.exports = {
 	...defaultConfig,
@@ -15,9 +19,27 @@ module.exports = {
 	output: {
 		...defaultConfig.output,
 		filename: '[name].js',
-		chunkFilename: '[name].js',
+		chunkFilename: ( pathData ) =>
+			stableTranslatableChunks.has( pathData.chunk?.name )
+				? '[name].js'
+				: '[name].[contenthash].js',
 		// Resolve async chunks and PDF worker assets from the enqueued plugin script.
 		publicPath: 'auto',
+	},
+	optimization: {
+		...defaultConfig.optimization,
+		splitChunks: {
+			...defaultConfig.optimization?.splitChunks,
+			cacheGroups: {
+				...defaultConfig.optimization?.splitChunks?.cacheGroups,
+				defaultVendors: {
+					test: /[\\/]node_modules[\\/]/,
+					priority: -10,
+					reuseExistingChunk: true,
+					name: 'admin-pdf-editor-vendors',
+				},
+			},
+		},
 	},
 	module: {
 		...defaultConfig.module,

@@ -308,8 +308,9 @@ export function Wizard( {
 		const loaded = await api< AssessmentRecord >(
 			`/admin/assessments/${ id }`
 		);
+		const loadedDraft = fromRecord( loaded );
 		setRecord( loaded );
-		setDraft( fromRecord( loaded ) );
+		setDraft( loadedDraft );
 	}
 
 	if ( loading ) {
@@ -1103,7 +1104,7 @@ function PdfStep( {
 }: {
 	record: AssessmentRecord | null;
 	assessmentId: number;
-	onUploaded: ( regenerate: boolean ) => void;
+	onUploaded: ( regenerate: boolean ) => Promise< void >;
 } ) {
 	const [ progress, setProgress ] = useState( 0 );
 	const [ error, setError ] = useState( '' );
@@ -1320,7 +1321,7 @@ function AnswerKey( {
 	onError,
 }: {
 	record: AssessmentRecord;
-	onSaved: () => void;
+	onSaved: () => Promise< void >;
 	onError: ( message: string ) => void;
 } ) {
 	const [ questions, setQuestions ] = useState(
@@ -1476,7 +1477,7 @@ function AnswerKey( {
 								},
 							}
 						);
-						onSaved();
+						await onSaved();
 					} catch ( caught ) {
 						onError(
 							caught instanceof Error

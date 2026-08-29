@@ -46,7 +46,7 @@ export function PdfEditor( {
 }: {
 	record: AssessmentRecord;
 	regenerateAll?: boolean;
-	onSaved: () => void;
+	onSaved: () => Promise< void >;
 	onError: ( message: string ) => void;
 } ) {
 	const [ pdf, setPdf ] = useState< PDFDocumentProxy | null >( null );
@@ -601,7 +601,7 @@ export function PdfEditor( {
 				},
 			} );
 			await clearRecovery( Number( record.revision.id ) );
-			onSaved();
+			await onSaved();
 		} catch ( caught ) {
 			const detail =
 				caught instanceof Error

@@ -95,7 +95,11 @@ The admin authoring UI is code-split into the stable
 as dependencies of `paper-to-quiz-admin` and call `wp_set_script_translations()`
 for every translatable chunk so WordPress language-pack JSON is installed
 before a lazy module evaluates. Keep explicit `webpackChunkName` values and
-`chunkFilename: '[name].js'`; anonymous numeric chunk names break this contract.
+stable `[name].js` filenames for those translatable chunks. Name the shared PDF
+editor vendor chunk `admin-pdf-editor-vendors` and include its content hash in
+the filename so a plugin update cannot reuse stale PDF.js/Konva code. Anonymous
+numeric chunk names break this contract. `npm run check:build-portability`
+enforces both the workspace-path and chunk-name rules.
 
 WordPress.org distributes locale files through translate.wordpress.org. Do not
 ship `.po`, `.mo`, locale `.json`, or translation `.php` files in the plugin

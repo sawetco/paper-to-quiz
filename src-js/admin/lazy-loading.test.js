@@ -33,7 +33,32 @@ describe( 'admin authoring loading boundaries', () => {
 	it( 'uses the enqueued script URL for dynamic assets', () => {
 		const config = source( '../../webpack.config.js' );
 		expect( config ).toContain( "publicPath: 'auto'" );
-		expect( config ).toContain( "chunkFilename: '[name].js'" );
+		expect( config ).toContain( 'stableTranslatableChunks' );
+		expect( config ).toContain( "? '[name].js'" );
+		expect( config ).toContain( ": '[name].[contenthash].js'" );
+		expect( config ).toContain( "name: 'admin-pdf-editor-vendors'" );
+	} );
+
+	it( 'keeps post-save navigation errors inside the visible workflow', () => {
+		const wizard = source( 'Wizard.tsx' );
+		const editor = source( 'PdfEditor.tsx' );
+
+		expect( wizard.match( /await onSaved\(\);/g ) ).toHaveLength( 1 );
+		expect( editor ).toContain( 'await onSaved();' );
+		expect( wizard ).toContain(
+			'onUploaded: ( regenerate: boolean ) => Promise< void >;'
+		);
+		expect( wizard ).toContain( 'onSaved: () => Promise< void >;' );
+		expect( editor ).toContain( 'onSaved: () => Promise< void >;' );
+	} );
+
+	it( 'wraps the administration app in a render error boundary', () => {
+		const entry = source( 'index.tsx' );
+
+		expect( entry ).toContain( 'import { AdminErrorBoundary }' );
+		expect( entry ).toMatch(
+			/<AdminErrorBoundary>[\s\S]*<App \/>[\s\S]*<\/AdminErrorBoundary>/
+		);
 	} );
 
 	it( 'registers translation-ready handles for translatable admin chunks', () => {
