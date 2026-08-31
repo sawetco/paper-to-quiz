@@ -2,6 +2,7 @@
 /** WP-CLI REST regression gate for Paper to Quiz. */
 
 use PaperToQuiz\Infrastructure\Database;
+use PaperToQuiz\Infrastructure\EncryptedStorage;
 
 if (! defined('WP_CLI') || ! WP_CLI) {
 	throw new RuntimeException('This regression script must be run with WP-CLI.');
@@ -42,6 +43,166 @@ function paper_to_quiz_rest_request(string $method, string $route, array $params
 	return $response;
 }
 
+/**
+ * Dispatch a raw request through the in-process REST server.
+ *
+ * @param array<string,string> $headers
+ */
+function paper_to_quiz_rest_binary_request(string $method, string $route, string $body, array $headers = array(), ?int $user_id = null): WP_REST_Response|WP_Error {
+	$previous = get_current_user_id();
+	wp_set_current_user(null === $user_id ? 0 : $user_id);
+	try {
+		$request = new WP_REST_Request($method, $route);
+		$request->set_body($body);
+		$request->set_header('Content-Type', 'application/octet-stream');
+		$request->set_header('X-WP-Nonce', wp_create_nonce('wp_rest'));
+		foreach ($headers as $name => $value) {
+			$request->set_header($name, $value);
+		}
+		return rest_do_request($request);
+	} finally {
+		wp_set_current_user($previous);
+	}
+}
+
+/**
+ * Build the internal HTTP URL used for a true multipart upload.
+ */
+function paper_to_quiz_rest_http_url(string $route): string {
+	$parsed = wp_parse_url(rest_url());
+	$host = (string) ($parsed['host'] ?? 'wordpress');
+	$port = isset($parsed['port']) ? ':' . (int) $parsed['port'] : '';
+	$override = getenv('PAPER_TO_QUIZ_REST_HOST');
+	if (is_string($override) && $override !== '') {
+		$host = $override;
+		$port = '';
+	} elseif (in_array($host, array('localhost', '127.0.0.1', '::1'), true)) {
+		/* wp-env's CLI container reaches the web container as `wordpress`. */
+		$host = 'wordpress';
+		$port = '';
+	}
+	$scheme = (string) ($parsed['scheme'] ?? 'http');
+	return $scheme . '://' . $host . $port . '/?rest_route=' . rawurlencode($route);
+}
+
+/**
+ * Dispatch a multipart question-image request through the web container.
+ *
+ * @param array<string,string>                $fields
+ * @param array<string,array{path:string,name:string,mime:string}> $files
+ */
+function paper_to_quiz_rest_multipart_request(string $route, array $fields, array $files, int $user_id): WP_REST_Response|WP_Error {
+	$boundary = '--------------------------' . strtolower(wp_generate_password(24, false, false));
+	$body     = '';
+	foreach ($fields as $name => $value) {
+		$body .= '--' . $boundary . "\r\n";
+		$body .= 'Content-Disposition: form-data; name="' . $name . "\"\r\n\r\n";
+		$body .= $value . "\r\n";
+	}
+	foreach ($files as $field => $file) {
+		$contents = file_get_contents($file['path']);
+		if (! is_string($contents)) {
+			return new WP_Error('paper_to_quiz_test_file_read', 'The regression fixture could not be read.', array('status' => 500));
+		}
+		$body .= '--' . $boundary . "\r\n";
+		$body .= 'Content-Disposition: form-data; name="' . $field . '"; filename="' . sanitize_file_name($file['name']) . "\"\r\n";
+		$body .= 'Content-Type: ' . $file['mime'] . "\r\n\r\n";
+		$body .= $contents . "\r\n";
+	}
+	$body .= '--' . $boundary . "--\r\n";
+
+	$previous = get_current_user_id();
+	wp_set_current_user($user_id);
+	try {
+		$cookie = wp_generate_auth_cookie($user_id, time() + HOUR_IN_SECONDS, 'logged_in');
+		$cookie_was_set = array_key_exists(LOGGED_IN_COOKIE, $_COOKIE);
+		$previous_cookie = $_COOKIE[LOGGED_IN_COOKIE] ?? null;
+		$_COOKIE[LOGGED_IN_COOKIE] = $cookie;
+		try {
+			$nonce = wp_create_nonce('wp_rest');
+		} finally {
+			if ($cookie_was_set) {
+				$_COOKIE[LOGGED_IN_COOKIE] = $previous_cookie;
+			} else {
+				unset($_COOKIE[LOGGED_IN_COOKIE]);
+			}
+		}
+	} finally {
+		wp_set_current_user($previous);
+	}
+	if (! is_string($cookie) || $cookie === '') {
+		return new WP_Error('paper_to_quiz_test_auth_cookie', 'The regression manager cookie could not be created.', array('status' => 500));
+	}
+
+	$response = wp_remote_request(
+		paper_to_quiz_rest_http_url($route),
+		array(
+			'method'     => 'POST',
+			'headers'    => array(
+				'Content-Type'   => 'multipart/form-data; boundary=' . $boundary,
+				'Content-Length' => (string) strlen($body),
+				'X-WP-Nonce'    => $nonce,
+				'Cookie'        => LOGGED_IN_COOKIE . '=' . $cookie,
+			),
+			'body'       => $body,
+			'timeout'    => 30,
+			'redirection' => 0,
+		)
+	);
+	if (is_wp_error($response)) {
+		return $response;
+	}
+	$status = (int) wp_remote_retrieve_response_code($response);
+	$data   = json_decode((string) wp_remote_retrieve_body($response), true);
+	if (! is_array($data)) {
+		return new WP_Error('paper_to_quiz_test_http_response', 'The multipart regression response was not JSON.', array('status' => $status ?: 500));
+	}
+	return new WP_REST_Response($data, $status);
+}
+
+/**
+ * Return storage keys referenced by an upload session manifest.
+ *
+ * @return string[]
+ */
+function paper_to_quiz_rest_session_storage_keys(wpdb $wpdb, Database $db, string $session_id): array {
+	$manifest = $wpdb->get_var($wpdb->prepare('SELECT manifest_json FROM ' . $db->table('upload_sessions') . ' WHERE id=%s', $session_id));
+	$decoded  = json_decode((string) $manifest, true);
+	if (! is_array($decoded)) {
+		return array();
+	}
+	$keys = array();
+	foreach ($decoded as $chunk) {
+		if (is_array($chunk) && ! empty($chunk['storage_key'])) {
+			$keys[] = (string) $chunk['storage_key'];
+		}
+	}
+	return array_values(array_unique($keys));
+}
+
+/**
+ * Return relative private-storage files, excluding directory guards.
+ *
+ * @return string[]
+ */
+function paper_to_quiz_rest_storage_files(EncryptedStorage $storage): array {
+	$base = wp_normalize_path($storage->base_directory());
+	if (! is_dir($base)) {
+		return array();
+	}
+	$files = array();
+	$iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($base, FilesystemIterator::SKIP_DOTS));
+	foreach ($iterator as $file) {
+		if (! $file->isFile() || in_array($file->getFilename(), array('index.php', '.htaccess', 'web.config'), true)) {
+			continue;
+		}
+		$path = wp_normalize_path($file->getPathname());
+		$files[] = ltrim(substr($path, strlen($base)), '/');
+	}
+	sort($files);
+	return $files;
+}
+
 function paper_to_quiz_rest_cleanup_counts(wpdb $wpdb, Database $db, string $suffix): array {
 	$like = '%' . $wpdb->esc_like($suffix) . '%';
 	return array(
@@ -54,9 +215,11 @@ function paper_to_quiz_rest_cleanup_counts(wpdb $wpdb, Database $db, string $suf
 
 $db = new Database();
 $wpdb = $db->wpdb();
+$storage = new EncryptedStorage();
 $suffix = 'REST Regression ' . strtolower(wp_generate_password(10, false, false));
 $now = current_time('mysql', true);
 $manager = 0;
+$manager_password = '';
 $class = 0;
 $subject = 0;
 $assessment_draft = 0;
@@ -65,6 +228,14 @@ $assessment_other = 0;
 $revision_draft = 0;
 $question = 0;
 $attempt = 0;
+$workflow_assessment = 0;
+$workflow_revision = 0;
+$workflow_question = 0;
+$workflow_attempt = 0;
+$workflow_upload_sessions = array();
+$workflow_asset_ids = array();
+$workflow_storage_keys = array();
+$workflow_temp_files = array();
 $report = array();
 
 try {
@@ -98,11 +269,13 @@ try {
 	$settings_data = paper_to_quiz_rest_data($settings_response);
 	paper_to_quiz_rest_assert(array_key_exists('purge_on_uninstall', $settings_data), 'Settings did not expose the uninstall cleanup option.');
 	paper_to_quiz_rest_assert(true === ($settings_data['storage_writable'] ?? false), 'Private file storage was not prepared for the active plugin.');
-	$manager = wp_insert_user(array('user_login' => 'paper_to_quiz_reg_' . strtolower(wp_generate_password(8, false, false)), 'user_pass' => wp_generate_password(32), 'role' => 'subscriber'));
+	$manager_password = wp_generate_password(32);
+	$manager = wp_insert_user(array('user_login' => 'paper_to_quiz_reg_' . strtolower(wp_generate_password(8, false, false)), 'user_pass' => $manager_password, 'role' => 'subscriber'));
 	paper_to_quiz_rest_assert(! is_wp_error($manager), 'Synthetic manager could not be created.');
 	$manager = (int) $manager;
 	$user = new WP_User($manager);
 	$user->add_cap('paper_to_quiz_manage_assessments');
+	$user->add_cap('paper_to_quiz_publish_assessments');
 	$class_response = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/classes', array('name' => $suffix . ' Class', 'color' => '#123456'), $manager);
 	paper_to_quiz_rest_assert(201 === paper_to_quiz_rest_status($class_response) || 200 === paper_to_quiz_rest_status($class_response), 'Class REST creation failed.');
 	$class_data = $class_response->get_data();
@@ -113,6 +286,205 @@ try {
 
 	paper_to_quiz_rest_assert(1 === $wpdb->insert($db->table('terms'), array('type' => 'subject', 'name' => $suffix . ' Subject', 'slug' => sanitize_title($suffix . ' Subject'), 'status' => 'active', 'created_at' => $now, 'updated_at' => $now)), 'Subject insert failed.');
 	$subject = (int) $wpdb->insert_id;
+
+	/*
+	 * Exercise the complete authoring workflow through its REST contracts. The
+	 * upload branches deliberately run before the happy path so both failure
+	 * modes can prove that no source asset was attached to the draft.
+	 */
+	$workflow_create = paper_to_quiz_rest_request(
+		'POST',
+		'/paper-to-quiz/v1/admin/assessments',
+		array(
+			'type'             => 'test',
+			'title'            => $suffix . ' upload workflow',
+			'description'      => 'REST upload-to-publish workflow fixture.',
+			'class_id'         => $class,
+			'subject_ids'      => array($subject),
+			'access_mode'      => 'guest_allowed',
+			'options'          => array('A', 'B', 'C', 'D'),
+			'total_points'     => 10000,
+			'allow_repeat'     => true,
+			'feedback_timing'   => 'after_submit',
+			'result_visibility' => 'summary',
+		),
+		$manager
+	);
+	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($workflow_create) || 201 === paper_to_quiz_rest_status($workflow_create), 'Workflow assessment REST creation failed.');
+	$workflow_create_data = paper_to_quiz_rest_data($workflow_create);
+	$workflow_assessment = (int) ($workflow_create_data['assessment']['id'] ?? 0);
+	$workflow_revision    = (int) ($workflow_create_data['revision']['id'] ?? 0);
+	paper_to_quiz_rest_assert($workflow_assessment > 0 && $workflow_revision > 0, 'Workflow assessment IDs were not returned.');
+	paper_to_quiz_rest_assert('draft' === ($workflow_create_data['assessment']['status'] ?? '') && 'draft' === ($workflow_create_data['revision']['lifecycle'] ?? ''), 'Workflow assessment did not start as a draft.');
+
+	$chunk_size = 2 * 1024 * 1024;
+	$pdf_prefix = "%PDF-1.4\n";
+	$source_pdf = $pdf_prefix . str_repeat('0', $chunk_size - strlen($pdf_prefix) + 1) . "%%EOF\n";
+	$source_size = strlen($source_pdf);
+	$source_sha  = hash('sha256', $source_pdf);
+	$chunks      = array();
+	for ($offset = 0; $offset < $source_size; $offset += $chunk_size) {
+		$chunks[] = substr($source_pdf, $offset, $chunk_size);
+	}
+	$chunk_count = (int) ceil($source_size / $chunk_size);
+	paper_to_quiz_rest_assert(2 === $chunk_count && strlen($chunks[0]) === $chunk_size, 'The generated PDF fixture did not produce the expected exact chunks.');
+
+	$begin_upload = static function (string $name) use ($manager, $source_size, $chunk_count, &$workflow_upload_sessions): string {
+		$response = paper_to_quiz_rest_request(
+			'POST',
+			'/paper-to-quiz/v1/admin/uploads',
+			array('name' => $name, 'size' => $source_size, 'chunk_count' => $chunk_count),
+			$manager
+		);
+		paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($response) || 201 === paper_to_quiz_rest_status($response), 'PDF upload session could not be started.');
+		$data = paper_to_quiz_rest_data($response);
+		paper_to_quiz_rest_assert((int) ($data['chunk_size'] ?? 0) === 2 * 1024 * 1024, 'Upload session returned an unexpected chunk size.');
+		$id = (string) ($data['id'] ?? '');
+		paper_to_quiz_rest_assert(wp_is_uuid($id), 'Upload session did not return a UUID.');
+		$workflow_upload_sessions[] = $id;
+		return $id;
+	};
+	$send_chunk = static function (string $session_id, int $index, string $chunk) use ($manager, $wpdb, $db, &$workflow_storage_keys): void {
+		$response = paper_to_quiz_rest_binary_request(
+			'PUT',
+			'/paper-to-quiz/v1/admin/uploads/' . $session_id . '/chunks/' . $index,
+			$chunk,
+			array('X-Paper-To-Quiz-Chunk-SHA256' => hash('sha256', $chunk)),
+			$manager
+		);
+		paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($response), 'PDF upload chunk could not be saved.');
+		$data = paper_to_quiz_rest_data($response);
+		paper_to_quiz_rest_assert(true === ($data['received'] ?? false) && $index === (int) ($data['index'] ?? -1), 'PDF upload chunk response was invalid.');
+		$workflow_storage_keys = array_values(array_unique(array_merge($workflow_storage_keys, paper_to_quiz_rest_session_storage_keys($wpdb, $db, $session_id))));
+	};
+
+	$incomplete_session = $begin_upload($suffix . '-incomplete.pdf');
+	$send_chunk($incomplete_session, 0, $chunks[0]);
+	$incomplete_files_before = paper_to_quiz_rest_storage_files($storage);
+	$incomplete = paper_to_quiz_rest_request(
+		'POST',
+		'/paper-to-quiz/v1/admin/uploads/' . $incomplete_session . '/complete',
+		array('assessment_id' => $workflow_assessment, 'sha256' => $source_sha),
+		$manager
+	);
+	paper_to_quiz_rest_assert(409 === paper_to_quiz_rest_status($incomplete), 'Incomplete PDF completion did not return 409.');
+	paper_to_quiz_rest_assert('paper_to_quiz_upload_incomplete' === (paper_to_quiz_rest_data($incomplete)['code'] ?? ''), 'Incomplete PDF completion changed its error code.');
+	paper_to_quiz_rest_assert(0 === (int) $wpdb->get_var($wpdb->prepare('SELECT source_asset_id FROM ' . $db->table('revisions') . ' WHERE id=%d', $workflow_revision)), 'Incomplete PDF completion attached a source asset.');
+	paper_to_quiz_rest_assert('pending' === (string) $wpdb->get_var($wpdb->prepare('SELECT status FROM ' . $db->table('upload_sessions') . ' WHERE id=%s', $incomplete_session)), 'Incomplete upload session was not retained as pending.');
+	paper_to_quiz_rest_assert($incomplete_files_before === paper_to_quiz_rest_storage_files($storage), 'Incomplete PDF completion left an unexpected combined file.');
+
+	$hash_session = $begin_upload($suffix . '-hash-mismatch.pdf');
+	foreach ($chunks as $index => $chunk) {
+		$send_chunk($hash_session, $index, $chunk);
+	}
+	$hash_files_before = paper_to_quiz_rest_storage_files($storage);
+	$hash_mismatch = paper_to_quiz_rest_request(
+		'POST',
+		'/paper-to-quiz/v1/admin/uploads/' . $hash_session . '/complete',
+		array('assessment_id' => $workflow_assessment, 'sha256' => str_repeat('0', 64)),
+		$manager
+	);
+	paper_to_quiz_rest_assert(400 === paper_to_quiz_rest_status($hash_mismatch), 'Whole-file hash mismatch did not return 400.');
+	paper_to_quiz_rest_assert('paper_to_quiz_pdf_hash' === (paper_to_quiz_rest_data($hash_mismatch)['code'] ?? ''), 'Whole-file hash mismatch changed its error code.');
+	paper_to_quiz_rest_assert(0 === (int) $wpdb->get_var($wpdb->prepare('SELECT source_asset_id FROM ' . $db->table('revisions') . ' WHERE id=%d', $workflow_revision)), 'Whole-file hash mismatch attached a source asset.');
+	paper_to_quiz_rest_assert($hash_files_before === paper_to_quiz_rest_storage_files($storage), 'Whole-file hash mismatch left a combined file behind.');
+
+	$complete_session = $begin_upload($suffix . '-source.pdf');
+	foreach ($chunks as $index => $chunk) {
+		$send_chunk($complete_session, $index, $chunk);
+	}
+	$complete = paper_to_quiz_rest_request(
+		'POST',
+		'/paper-to-quiz/v1/admin/uploads/' . $complete_session . '/complete',
+		array('assessment_id' => $workflow_assessment, 'sha256' => $source_sha),
+		$manager
+	);
+	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($complete), 'Complete PDF upload failed.');
+	$complete_data = paper_to_quiz_rest_data($complete);
+	$source_asset_id = (int) ($complete_data['asset_id'] ?? 0);
+	paper_to_quiz_rest_assert($source_asset_id > 0, 'Complete PDF upload did not return an asset ID.');
+	$workflow_asset_ids[] = $source_asset_id;
+	paper_to_quiz_rest_assert('completed' === (string) $wpdb->get_var($wpdb->prepare('SELECT status FROM ' . $db->table('upload_sessions') . ' WHERE id=%s', $complete_session)), 'Completed PDF upload session did not reach completed status.');
+	$source_asset = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $db->table('assets') . ' WHERE id=%d', $source_asset_id), ARRAY_A);
+	paper_to_quiz_rest_assert(is_array($source_asset), 'Stored source asset row was not found.');
+	paper_to_quiz_rest_assert((int) $source_asset['byte_size'] === $source_size && hash_equals($source_sha, (string) $source_asset['sha256']), 'Stored source asset metadata did not preserve the original PDF hash and size.');
+	$workflow_storage_keys[] = (string) $source_asset['storage_key'];
+	paper_to_quiz_rest_assert($storage->exists((string) $source_asset['storage_key']), 'Stored source asset file does not exist.');
+	/* The complete response nests the decorated assessment record. */
+	$workflow_record = $complete_data['assessment'] ?? array();
+	paper_to_quiz_rest_assert((int) ($workflow_record['revision']['source_asset_id'] ?? 0) === $source_asset_id, 'Complete PDF upload did not attach the source asset to the draft.');
+
+	$image_base64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAwAB/6GxX2cAAAAASUVORK5CYII=';
+	$image_bytes = base64_decode($image_base64, true);
+	paper_to_quiz_rest_assert(is_string($image_bytes) && $image_bytes !== '', 'Question image fixture could not be decoded.');
+	$image_files = array();
+	foreach (array('main', 'thumb') as $image_field) {
+		$image_path = tempnam(sys_get_temp_dir(), 'ptq-question-');
+		paper_to_quiz_rest_assert(is_string($image_path), 'Question image temporary file could not be created.');
+		paper_to_quiz_rest_assert(false !== file_put_contents($image_path, $image_bytes), 'Question image fixture could not be written.');
+		$workflow_temp_files[] = $image_path;
+		$image_files[$image_field] = array('path' => $image_path, 'name' => $image_field . '.png', 'mime' => 'image/png');
+	}
+	$question_metadata = array(
+		'page'       => 1,
+		'ordinal'    => 1,
+		'rotation'   => 0,
+		'client_key' => wp_generate_uuid4(),
+		'subject_id' => $subject,
+		'crop'       => array('x' => 0, 'y' => 0, 'width' => 1, 'height' => 1),
+	);
+	$question_response = paper_to_quiz_rest_multipart_request(
+		'/paper-to-quiz/v1/admin/revisions/' . $workflow_revision . '/questions',
+		array('metadata' => wp_json_encode($question_metadata)),
+		$image_files,
+		$manager
+	);
+	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($question_response), 'Question image REST upload failed.');
+	$question_data = paper_to_quiz_rest_data($question_response);
+	$workflow_question = (int) ($question_data['id'] ?? 0);
+	$main_asset_id = (int) ($question_data['main_asset_id'] ?? 0);
+	$thumb_asset_id = (int) ($question_data['thumb_asset_id'] ?? 0);
+	paper_to_quiz_rest_assert($workflow_question > 0 && $main_asset_id > 0 && $thumb_asset_id > 0, 'Question image REST upload did not return question assets.');
+	$workflow_asset_ids[] = $main_asset_id;
+	$workflow_asset_ids[] = $thumb_asset_id;
+	paper_to_quiz_rest_assert((int) ($question_data['subject_id'] ?? 0) === $subject && 1 === (int) ($question_data['ordinal'] ?? 0), 'Question metadata was not persisted through the REST upload.');
+	foreach (array($main_asset_id, $thumb_asset_id) as $question_asset_id) {
+		$question_asset = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $db->table('assets') . ' WHERE id=%d', $question_asset_id), ARRAY_A);
+		paper_to_quiz_rest_assert(is_array($question_asset) && $storage->exists((string) $question_asset['storage_key']), 'Question image asset storage was not created.');
+		$workflow_storage_keys[] = (string) $question_asset['storage_key'];
+	}
+
+	$answer_key = paper_to_quiz_rest_request(
+		'PUT',
+		'/paper-to-quiz/v1/admin/revisions/' . $workflow_revision . '/answer-key',
+		array('questions' => array(array('id' => $workflow_question, 'correct_option' => 'A', 'points' => 10000)), 'prune_missing' => false),
+		$manager
+	);
+	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($answer_key), 'Workflow answer-key REST update failed.');
+	$workflow_question_row = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $db->table('questions') . ' WHERE id=%d', $workflow_question), ARRAY_A);
+	paper_to_quiz_rest_assert(is_array($workflow_question_row) && 'A' === $workflow_question_row['correct_option'] && 10000 === (int) $workflow_question_row['points'] && 1 === (int) $workflow_question_row['ordinal'], 'Workflow answer key was not persisted.');
+
+	$published = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/assessments/' . $workflow_assessment . '/publish', array(), $manager);
+	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($published), 'Workflow assessment publish REST request failed.');
+	$published_data = paper_to_quiz_rest_data($published);
+	$published_row = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $db->table('assessments') . ' WHERE id=%d', $workflow_assessment), ARRAY_A);
+	$published_revision_row = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $db->table('revisions') . ' WHERE id=%d', $workflow_revision), ARRAY_A);
+	paper_to_quiz_rest_assert(is_array($published_row) && 'published' === $published_row['status'] && (int) $published_row['published_revision_id'] === $workflow_revision && empty($published_row['current_draft_revision_id']), 'Workflow publish did not update assessment lifecycle pointers.');
+	paper_to_quiz_rest_assert(is_array($published_revision_row) && 'published' === $published_revision_row['lifecycle'] && ! empty($published_revision_row['published_at']), 'Workflow publish did not publish the revision lifecycle.');
+	paper_to_quiz_rest_assert((int) ($published_data['revision']['id'] ?? 0) === $workflow_revision && 'published' === ($published_data['revision']['lifecycle'] ?? ''), 'Workflow publish response omitted the published revision.');
+
+	$workflow_bootstrap = paper_to_quiz_rest_request('GET', '/paper-to-quiz/v1/assessments/' . $workflow_assessment . '/bootstrap');
+	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($workflow_bootstrap), 'Published workflow bootstrap failed.');
+	$workflow_bootstrap_data = paper_to_quiz_rest_data($workflow_bootstrap);
+	paper_to_quiz_rest_assert((int) ($workflow_bootstrap_data['id'] ?? 0) === $workflow_assessment && 1 === (int) ($workflow_bootstrap_data['question_count'] ?? 0), 'Published workflow bootstrap did not expose the published question.');
+	$workflow_start = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/assessments/' . $workflow_assessment . '/attempts', array('participant' => array(), 'client' => array()));
+	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($workflow_start) || 201 === paper_to_quiz_rest_status($workflow_start), 'Published workflow attempt start failed.');
+	$workflow_start_data = paper_to_quiz_rest_data($workflow_start);
+	$workflow_public_id = (string) ($workflow_start_data['public_id'] ?? '');
+	paper_to_quiz_rest_assert(wp_is_uuid($workflow_public_id), 'Published workflow attempt did not return a public ID.');
+	$workflow_attempt = (int) $wpdb->get_var($wpdb->prepare('SELECT id FROM ' . $db->table('attempts') . ' WHERE public_id=%s', $workflow_public_id));
+	paper_to_quiz_rest_assert($workflow_attempt > 0, 'Published workflow attempt was not persisted.');
+	paper_to_quiz_rest_assert((int) $wpdb->get_var($wpdb->prepare('SELECT revision_id FROM ' . $db->table('attempts') . ' WHERE id=%d', $workflow_attempt)) === $workflow_revision, 'Published workflow attempt was not tied to the published revision.');
 	$insert_assessment = static function (string $type) use ($wpdb, $db, $now, $class, $subject, $suffix): array {
 		paper_to_quiz_rest_assert(1 === $wpdb->insert($db->table('assessments'), array('type' => $type, 'status' => 'draft', 'created_by' => 1, 'updated_by' => 1, 'created_at' => $now, 'updated_at' => $now)), 'Assessment insert failed.');
 		$id = (int) $wpdb->insert_id;
@@ -288,8 +660,71 @@ try {
 	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($purge), 'Assessment force delete failed.');
 	paper_to_quiz_rest_assert((int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('assessments') . ' WHERE id=%d', $assessment_other)) === 1, 'Unrelated assessment was deleted.');
 	paper_to_quiz_rest_assert((int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('terms') . ' WHERE id IN (%d,%d)', $class, $subject)) === 2, 'Shared terms were deleted.');
-	$report = array('admin_auth' => 'passed', 'admin_route_and_settings_health' => 'passed', 'class_color_and_duplicate' => 'passed', 'subject_selection_and_test_policy' => 'passed', 'public_attempt_access_gate' => 'passed', 'draft_revision_idempotency' => 'passed', 'attempt_submit_idempotency' => 'passed', 'finalize_single_flight' => 'passed', 'answer_key_validation' => 'passed', 'operational_error_sanitization' => 'passed', 'delete_isolation' => 'passed', 'route_permission_gates' => 'passed');
+	$report = array('admin_auth' => 'passed', 'admin_route_and_settings_health' => 'passed', 'class_color_and_duplicate' => 'passed', 'upload_to_publish_workflow' => 'passed', 'subject_selection_and_test_policy' => 'passed', 'public_attempt_access_gate' => 'passed', 'draft_revision_idempotency' => 'passed', 'attempt_submit_idempotency' => 'passed', 'finalize_single_flight' => 'passed', 'answer_key_validation' => 'passed', 'operational_error_sanitization' => 'passed', 'delete_isolation' => 'passed', 'route_permission_gates' => 'passed');
 } finally {
+	foreach ($workflow_upload_sessions as $session_id) {
+		$workflow_storage_keys = array_values(array_unique(array_merge($workflow_storage_keys, paper_to_quiz_rest_session_storage_keys($wpdb, $db, $session_id))));
+		paper_to_quiz_rest_assert(false !== $wpdb->delete($db->table('upload_sessions'), array('id' => $session_id), array('%s')), 'Workflow upload session cleanup failed.');
+	}
+
+	if ($workflow_assessment) {
+		$referenced_assets = $wpdb->get_col(
+			$wpdb->prepare(
+				'SELECT source_asset_id FROM ' . $db->table('revisions') . ' WHERE assessment_id=%d AND source_asset_id IS NOT NULL
+				UNION SELECT main_asset_id FROM ' . $db->table('questions') . ' q INNER JOIN ' . $db->table('revisions') . ' r ON r.id=q.revision_id WHERE r.assessment_id=%d AND main_asset_id IS NOT NULL
+				UNION SELECT thumb_asset_id FROM ' . $db->table('questions') . ' q INNER JOIN ' . $db->table('revisions') . ' r ON r.id=q.revision_id WHERE r.assessment_id=%d AND thumb_asset_id IS NOT NULL',
+				$workflow_assessment,
+				$workflow_assessment,
+				$workflow_assessment
+			)
+		) ?: array();
+		$workflow_asset_ids = array_values(array_unique(array_filter(array_map('intval', array_merge($workflow_asset_ids, $referenced_assets)))));
+		foreach ($workflow_asset_ids as $asset_id) {
+			$asset = $wpdb->get_row($wpdb->prepare('SELECT storage_key FROM ' . $db->table('assets') . ' WHERE id=%d', $asset_id), ARRAY_A);
+			if (is_array($asset) && ! empty($asset['storage_key'])) {
+				$workflow_storage_keys[] = (string) $asset['storage_key'];
+			}
+		}
+		paper_to_quiz_rest_assert(false !== $wpdb->query($wpdb->prepare('DELETE FROM ' . $db->table('answers') . ' WHERE attempt_id IN (SELECT id FROM ' . $db->table('attempts') . ' WHERE assessment_id=%d)', $workflow_assessment)), 'Workflow answers cleanup failed.');
+		paper_to_quiz_rest_assert(false !== $wpdb->query($wpdb->prepare('DELETE FROM ' . $db->table('result_email_jobs') . ' WHERE attempt_id IN (SELECT id FROM ' . $db->table('attempts') . ' WHERE assessment_id=%d)', $workflow_assessment)), 'Workflow result email jobs cleanup failed.');
+		paper_to_quiz_rest_assert(false !== $wpdb->delete($db->table('attempts'), array('assessment_id' => $workflow_assessment), array('%d')), 'Workflow attempts cleanup failed.');
+		paper_to_quiz_rest_assert(false !== $wpdb->query($wpdb->prepare('DELETE FROM ' . $db->table('questions') . ' WHERE revision_id IN (SELECT id FROM ' . $db->table('revisions') . ' WHERE assessment_id=%d)', $workflow_assessment)), 'Workflow questions cleanup failed.');
+		paper_to_quiz_rest_assert(false !== $wpdb->delete($db->table('revisions'), array('assessment_id' => $workflow_assessment), array('%d')), 'Workflow revisions cleanup failed.');
+		paper_to_quiz_rest_assert(false !== $wpdb->delete($db->table('assessments'), array('id' => $workflow_assessment), array('%d')), 'Workflow assessment cleanup failed.');
+	}
+	$workflow_assets = new PaperToQuiz\Application\AssetService($db, $storage);
+	foreach ($workflow_asset_ids as $asset_id) {
+		$workflow_assets->release((int) $asset_id);
+	}
+	foreach (array_values(array_unique($workflow_storage_keys)) as $storage_key) {
+		$storage->delete($storage_key);
+	}
+	foreach ($workflow_temp_files as $temp_file) {
+		if (is_file($temp_file)) {
+			wp_delete_file($temp_file);
+		}
+	}
+	$workflow_counts = array(
+		'assessments' => $workflow_assessment ? (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('assessments') . ' WHERE id=%d', $workflow_assessment)) : 0,
+		'revisions'   => $workflow_revision ? (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('revisions') . ' WHERE id=%d', $workflow_revision)) : 0,
+		'questions'   => $workflow_question ? (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('questions') . ' WHERE id=%d', $workflow_question)) : 0,
+		'attempts'    => $workflow_attempt ? (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('attempts') . ' WHERE id=%d', $workflow_attempt)) : 0,
+		'uploads'     => 0,
+		'assets'      => 0,
+	);
+	foreach ($workflow_upload_sessions as $session_id) {
+		$workflow_counts['uploads'] += (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('upload_sessions') . ' WHERE id=%s', $session_id));
+	}
+	foreach (array_values(array_unique($workflow_asset_ids)) as $asset_id) {
+		$workflow_counts['assets'] += (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('assets') . ' WHERE id=%d', $asset_id));
+	}
+	paper_to_quiz_rest_assert($workflow_counts === array('assessments' => 0, 'revisions' => 0, 'questions' => 0, 'attempts' => 0, 'uploads' => 0, 'assets' => 0), 'Workflow database rows remain after cleanup.');
+	foreach (array_values(array_unique($workflow_storage_keys)) as $storage_key) {
+		paper_to_quiz_rest_assert(! $storage->exists($storage_key), 'Workflow storage file remains after cleanup: ' . $storage_key);
+	}
+	foreach ($workflow_temp_files as $temp_file) {
+		paper_to_quiz_rest_assert(! is_file($temp_file), 'Workflow temporary file remains after cleanup.');
+	}
 	if ($attempt) {
 		paper_to_quiz_rest_assert(false !== $wpdb->delete($db->table('result_email_jobs'), array('attempt_id' => $attempt), array('%d')), 'Result email jobs cleanup failed.');
 		paper_to_quiz_rest_assert(false !== $wpdb->delete($db->table('answers'), array('attempt_id' => $attempt), array('%d')), 'Attempt answers cleanup failed.');
