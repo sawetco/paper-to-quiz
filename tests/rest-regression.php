@@ -1,6 +1,8 @@
 <?php
 /** WP-CLI REST regression gate for Paper to Quiz. */
 
+use PaperToQuiz\Application\AssetService;
+use PaperToQuiz\Application\AssessmentService;
 use PaperToQuiz\Infrastructure\Database;
 use PaperToQuiz\Infrastructure\EncryptedStorage;
 
@@ -645,6 +647,49 @@ try {
 		}
 	}
 
+	/*
+	 * A failed revision insert must roll back the assessment row created just
+	 * before it. The injected failure is scoped to this Database instance and
+	 * cannot affect production requests or the global wpdb object.
+	 */
+	$write_failure_title = $suffix . ' injected revision failure';
+	$write_failure_seen  = false;
+	$write_failure_db    = new Database(
+		$wpdb,
+		static function (string $operation, callable $write) use (&$write_failure_seen): mixed {
+			if ('revision_insert' === $operation) {
+				$write_failure_seen = true;
+				return false;
+			}
+			return $write();
+		}
+	);
+	$write_failure_assets      = new AssetService($write_failure_db, $storage);
+	$write_failure_assessments = new AssessmentService($write_failure_db, $write_failure_assets);
+	$write_failure_response    = $write_failure_assessments->save(
+		array(
+			'type'             => 'test',
+			'title'            => $write_failure_title,
+			'description'      => 'Injected write failure fixture.',
+			'class_id'         => $class,
+			'subject_ids'      => array($subject),
+			'access_mode'      => 'guest_allowed',
+			'options'          => array('A', 'B', 'C', 'D'),
+			'total_points'     => 10000,
+			'allow_repeat'     => true,
+			'feedback_timing'  => 'after_submit',
+			'result_visibility' => 'summary',
+		),
+		null,
+		$manager
+	);
+	paper_to_quiz_rest_assert($write_failure_seen, 'The injected revision write failure was not exercised.');
+	paper_to_quiz_rest_assert(is_wp_error($write_failure_response), 'A failed revision insert unexpectedly created an assessment.');
+	paper_to_quiz_rest_assert('paper_to_quiz_assessment_create_failed' === $write_failure_response->get_error_code(), 'The failed assessment write changed its error code.');
+	paper_to_quiz_rest_assert(500 === (int) ($write_failure_response->get_error_data()['status'] ?? 0), 'The failed assessment write did not return 500.');
+	paper_to_quiz_rest_assert(0 === (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('revisions') . ' WHERE title=%s', $write_failure_title)), 'A failed revision insert left a revision row behind.');
+	paper_to_quiz_rest_assert(0 === (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('assessments') . ' a LEFT JOIN ' . $db->table('revisions') . ' r ON r.assessment_id=a.id WHERE r.title=%s', $write_failure_title)), 'A failed revision insert left an assessment row behind.');
+
 	[$assessment_other, $other_revision, $other_question] = $insert_assessment('exam');
 	$attempt_count_before_trash = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('attempts') . ' WHERE assessment_id=%d', $assessment_public));
 	$trash = paper_to_quiz_rest_request('DELETE', '/paper-to-quiz/v1/admin/assessments/' . $assessment_public, array(), $manager);
@@ -660,7 +705,7 @@ try {
 	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($purge), 'Assessment force delete failed.');
 	paper_to_quiz_rest_assert((int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('assessments') . ' WHERE id=%d', $assessment_other)) === 1, 'Unrelated assessment was deleted.');
 	paper_to_quiz_rest_assert((int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('terms') . ' WHERE id IN (%d,%d)', $class, $subject)) === 2, 'Shared terms were deleted.');
-	$report = array('admin_auth' => 'passed', 'admin_route_and_settings_health' => 'passed', 'class_color_and_duplicate' => 'passed', 'upload_to_publish_workflow' => 'passed', 'subject_selection_and_test_policy' => 'passed', 'public_attempt_access_gate' => 'passed', 'draft_revision_idempotency' => 'passed', 'attempt_submit_idempotency' => 'passed', 'finalize_single_flight' => 'passed', 'answer_key_validation' => 'passed', 'operational_error_sanitization' => 'passed', 'delete_isolation' => 'passed', 'route_permission_gates' => 'passed');
+	$report = array('admin_auth' => 'passed', 'admin_route_and_settings_health' => 'passed', 'class_color_and_duplicate' => 'passed', 'upload_to_publish_workflow' => 'passed', 'subject_selection_and_test_policy' => 'passed', 'public_attempt_access_gate' => 'passed', 'draft_revision_idempotency' => 'passed', 'attempt_submit_idempotency' => 'passed', 'finalize_single_flight' => 'passed', 'answer_key_validation' => 'passed', 'operational_error_sanitization' => 'passed', 'critical_write_rollback' => 'passed', 'delete_isolation' => 'passed', 'route_permission_gates' => 'passed');
 } finally {
 	foreach ($workflow_upload_sessions as $session_id) {
 		$workflow_storage_keys = array_values(array_unique(array_merge($workflow_storage_keys, paper_to_quiz_rest_session_storage_keys($wpdb, $db, $session_id))));

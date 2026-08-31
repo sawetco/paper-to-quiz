@@ -265,27 +265,56 @@ final class AssessmentService {
 
 		$now = current_time('mysql', true);
 		if (! $assessment_id) {
-			$this->db->wpdb()->insert(
-				$this->db->table('assessments'),
-				array(
-					'type'       => $type,
-					'status'     => 'draft',
-					'created_by' => $user_id,
-					'updated_by' => $user_id,
-					'created_at' => $now,
-					'updated_at' => $now,
-				),
-				array('%s', '%s', '%d', '%d', '%s', '%s')
-			);
-			$assessment_id = (int) $this->db->wpdb()->insert_id;
-			$revision_id   = $this->insert_revision($assessment_id, 1, $payload, $now);
-			$this->db->wpdb()->update(
-				$this->db->table('assessments'),
-				array('current_draft_revision_id' => $revision_id),
-				array('id' => $assessment_id),
-				array('%d'),
-				array('%d')
-			);
+			$this->db->begin();
+			try {
+				$inserted = $this->db->write(
+					'assessment_insert',
+					fn (): int|false => $this->db->wpdb()->insert(
+						$this->db->table('assessments'),
+						array(
+							'type'       => $type,
+							'status'     => 'draft',
+							'created_by' => $user_id,
+							'updated_by' => $user_id,
+							'created_at' => $now,
+							'updated_at' => $now,
+						),
+						array('%s', '%s', '%d', '%d', '%s', '%s')
+					)
+				);
+				if (false === $inserted || 1 !== (int) $inserted) {
+					throw new \RuntimeException('Assessment insert failed.');
+				}
+
+				$assessment_id = (int) $this->db->wpdb()->insert_id;
+				if ($assessment_id < 1) {
+					throw new \RuntimeException('Assessment insert did not return an ID.');
+				}
+
+				$revision_id = $this->insert_revision($assessment_id, 1, $payload, $now);
+				$pointer     = $this->db->write(
+					'assessment_draft_pointer_update',
+					fn (): int|false => $this->db->wpdb()->update(
+						$this->db->table('assessments'),
+						array('current_draft_revision_id' => $revision_id),
+						array('id' => $assessment_id),
+						array('%d'),
+						array('%d')
+					)
+				);
+				if (1 !== $pointer) {
+					throw new \RuntimeException('Assessment draft pointer update failed.');
+				}
+				$this->db->commit();
+			} catch (\Throwable $error) {
+				$this->db->rollback();
+				return OperationalErrorReporter::report(
+					'paper_to_quiz_assessment_create_failed',
+					$error,
+					__('The record could not be created. Please try again.', 'paper-to-quiz'),
+					500
+				);
+			}
 		} else {
 			$record = $this->get($assessment_id);
 			if (! $record) {
@@ -826,7 +855,14 @@ final class AssessmentService {
 		$data['revision_no']   = $revision_no;
 		$data['lifecycle']     = 'draft';
 		$data['created_at']    = $now;
-		$this->db->wpdb()->insert($this->db->table('revisions'), $data);
+		$inserted = $this->db->write(
+			'revision_insert',
+			fn (): int|false => $this->db->wpdb()->insert($this->db->table('revisions'), $data)
+		);
+		if (false === $inserted || 1 !== (int) $inserted || (int) $this->db->wpdb()->insert_id < 1) {
+			throw new \RuntimeException('Revision insert failed.');
+		}
+
 		return (int) $this->db->wpdb()->insert_id;
 	}
 
