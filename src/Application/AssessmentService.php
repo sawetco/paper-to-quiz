@@ -1087,6 +1087,30 @@ final class AssessmentService {
 			$errors[] = __('Ranking can be used only for membership-required, non-repeatable exams.', 'paper-to-quiz');
 		}
 
+		$subject_ids_to_validate = array();
+		foreach ($questions as $question) {
+			$subject_id = (int) ($question['subject_id'] ?? 0);
+			if ($subject_id > 0) {
+				$subject_ids_to_validate[$subject_id] = true;
+			}
+		}
+
+		$valid_subject_ids = array();
+		if ($subject_ids_to_validate) {
+			$subject_ids = array_map('intval', array_keys($subject_ids_to_validate));
+			sort($subject_ids, SORT_NUMERIC);
+			$placeholders = implode(',', array_fill(0, count($subject_ids), '%d'));
+			$valid_rows   = $this->db->wpdb()->get_col(
+				$this->db->wpdb()->prepare(
+					"SELECT id FROM " . $this->db->table('terms') . " WHERE id IN ({$placeholders}) AND type = 'subject' AND status IN ('active','archived')",
+					...$subject_ids
+				)
+			) ?: array();
+			foreach ($valid_rows as $valid_id) {
+				$valid_subject_ids[(int) $valid_id] = true;
+			}
+		}
+
 		$total = 0;
 		foreach ($questions as $index => $question) {
 			$number = $index + 1;
@@ -1106,16 +1130,11 @@ final class AssessmentService {
 				/* translators: %d: Question number. */
 				$errors[] = sprintf(__('Select a subject for question %d.', 'paper-to-quiz'), $number);
 			} else {
-				$valid_subject = (int) $this->db->wpdb()->get_var(
-					$this->db->wpdb()->prepare(
-						"SELECT COUNT(*) FROM " . $this->db->table('terms') . " WHERE id = %d AND type = 'subject' AND status IN ('active','archived')",
-						(int) $question['subject_id']
-					)
-				);
-				if (! $valid_subject) {
+				$subject_id = (int) $question['subject_id'];
+				if (! isset($valid_subject_ids[$subject_id])) {
 					/* translators: %d: Question number. */
 					$errors[] = sprintf(__('The subject record for question %d is invalid.', 'paper-to-quiz'), $number);
-				} elseif (! in_array((int) $question['subject_id'], $selected_subject_ids, true)) {
+				} elseif (! in_array($subject_id, $selected_subject_ids, true)) {
 					/* translators: %d: Question number. */
 					$errors[] = sprintf(__('Question %d uses a subject that is not selected in Basic Information.', 'paper-to-quiz'), $number);
 				}
