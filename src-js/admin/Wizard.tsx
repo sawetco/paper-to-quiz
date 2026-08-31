@@ -2,6 +2,7 @@ import {
 	lazy,
 	Suspense,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
 } from '@wordpress/element';
@@ -30,6 +31,7 @@ import { api, ApiError, uploadPdf } from './api';
 import { ConfirmationDialog } from './ConfirmationDialog';
 import { BusyLabel, LoadingRegion } from './BusyLabel';
 import { feedbackTimingForRelease, normalizeExamPolicy } from './policy';
+import { useAuthenticatedBlobUrl } from '../shared/useAuthenticatedBlobUrl';
 
 const LazyPdfEditor = lazy( () =>
 	import(
@@ -1740,25 +1742,27 @@ function PublishStep( {
 }
 
 function AuthenticatedImage( { src, alt }: { src: string; alt: string } ) {
-	const [ url, setUrl ] = useState( '' );
-	useEffect( () => {
-		let objectUrl = '';
-		fetch( src, {
-			credentials: 'same-origin',
-			headers: { 'X-WP-Nonce': window.paperToQuizAdmin.nonce },
-		} )
-			.then( ( response ) => response.blob() )
-			.then( ( blob ) => {
-				objectUrl = URL.createObjectURL( blob );
-				setUrl( objectUrl );
-			} );
-		return () => {
-			if ( objectUrl ) {
-				URL.revokeObjectURL( objectUrl );
-			}
-		};
-	}, [ src ] );
-	return url ? <img src={ url } alt={ alt } /> : <Spinner />;
+	const nonce = window.paperToQuizAdmin.nonce;
+	const options = useMemo(
+		() => ( {
+			credentials: 'same-origin' as const,
+			headers: { 'X-WP-Nonce': nonce },
+		} ),
+		[ nonce ]
+	);
+	const { url, loading, error } = useAuthenticatedBlobUrl( src, options );
+
+	if ( error ) {
+		return (
+			<span className="ptq-image-error" role="alert">
+				{ __(
+					'The image could not be loaded. Refresh the page and try again.',
+					'paper-to-quiz'
+				) }
+			</span>
+		);
+	}
+	return loading || ! url ? <Spinner /> : <img src={ url } alt={ alt } />;
 }
 
 function fromRecord( record: AssessmentRecord ): Draft {

@@ -299,6 +299,26 @@ describe( 'StudentApp offline recovery lifecycle', () => {
 		consoleError.mockRestore();
 	} );
 
+	it( 'loads question images with the attempt and page authentication', async () => {
+		const view = renderStudentApp();
+		await startAttempt();
+
+		await waitFor( () =>
+			expect( globalThis.fetch ).toHaveBeenCalledWith(
+				'/question-one.png',
+				expect.objectContaining( {
+					credentials: 'same-origin',
+					headers: {
+						Authorization: 'Bearer attempt-token',
+						'X-WP-Nonce': 'test-nonce',
+					},
+				} )
+			)
+		);
+
+		view.unmount();
+	} );
+
 	it( 'persists active answers and finish intent before submitting one stable snapshot', async () => {
 		const view = renderStudentApp();
 		await startAttempt();

@@ -312,6 +312,7 @@ describe( 'admin results response contracts', () => {
 				'/wp-json/paper-to-quiz/v1/admin/assets/9',
 				expect.objectContaining( {
 					credentials: 'same-origin',
+					headers: { 'X-WP-Nonce': 'test-nonce' },
 				} )
 			)
 		);

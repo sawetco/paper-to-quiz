@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from '@wordpress/element';
+import { useEffect, useMemo, useRef, useState } from '@wordpress/element';
 import { Notice, Spinner } from '@wordpress/components';
 import { __, _n, _x, sprintf } from '@wordpress/i18n';
 import { api } from './api';
@@ -6,6 +6,7 @@ import { attemptStatusLabels, formatDuration } from './labels';
 import { formatScore } from '../shared/format';
 import { ListPagination } from './ListPagination';
 import { BusyLabel } from './BusyLabel';
+import { useAuthenticatedBlobUrl } from '../shared/useAuthenticatedBlobUrl';
 import type {
 	AdminResultDetail,
 	AdminResultsResponse,
@@ -987,33 +988,29 @@ function DetailList( {
 }
 
 function AuthenticatedThumbnail( { src, alt }: { src: string; alt: string } ) {
-	const [ url, setUrl ] = useState( '' );
-	useEffect( () => {
-		let objectUrl = '';
-		fetch( src, {
-			credentials: 'same-origin',
-			headers: { 'X-WP-Nonce': window.paperToQuizAdmin.nonce },
-		} )
-			.then( ( response ) => {
-				if ( ! response.ok ) {
-					throw new Error();
-				}
-				return response.blob();
-			} )
-			.then( ( blob ) => {
-				objectUrl = URL.createObjectURL( blob );
-				setUrl( objectUrl );
-			} )
-			.catch( () => undefined );
-		return () => {
-			if ( objectUrl ) {
-				URL.revokeObjectURL( objectUrl );
-			}
-		};
-	}, [ src ] );
-	return url ? (
-		<img className="ptq-result-thumb" src={ url } alt={ alt } />
-	) : null;
+	const nonce = window.paperToQuizAdmin.nonce;
+	const options = useMemo(
+		() => ( {
+			credentials: 'same-origin' as const,
+			headers: { 'X-WP-Nonce': nonce },
+		} ),
+		[ nonce ]
+	);
+	const { url, loading, error } = useAuthenticatedBlobUrl( src, options );
+
+	if ( url ) {
+		return <img className="ptq-result-thumb" src={ url } alt={ alt } />;
+	}
+	if ( loading ) {
+		return <Spinner />;
+	}
+	return (
+		<span className="ptq-result-thumb-placeholder">
+			{ error
+				? __( 'Image unavailable', 'paper-to-quiz' )
+				: __( 'No image', 'paper-to-quiz' ) }
+		</span>
+	);
 }
 
 // formatScore is imported from ../shared/format (plan 017).

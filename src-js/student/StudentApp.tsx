@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from '@wordpress/element';
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from '@wordpress/element';
 import { __, _n, sprintf } from '@wordpress/i18n';
 import { studentApi, StudentApiError } from './api';
 import {
@@ -21,6 +27,7 @@ import {
 	formatCountdown,
 	formatDuration as formatResultDuration,
 } from '../shared/format';
+import { useAuthenticatedBlobUrl } from '../shared/useAuthenticatedBlobUrl';
 
 type Field = { key: string; label: string; required: boolean; type: string };
 type Schedule = {
@@ -1604,36 +1611,21 @@ function QuestionImage( {
 	token: string;
 	nonce: string;
 } ) {
-	const [ url, setUrl ] = useState( '' );
-	const [ error, setError ] = useState( false );
-	useEffect( () => {
-		let objectUrl = '';
-		setUrl( '' );
-		setError( false );
-		fetch( question.imageUrl, {
-			credentials: 'same-origin',
-			headers: {
-				...( token ? { Authorization: `Bearer ${ token }` } : {} ),
-				...( nonce ? { 'X-WP-Nonce': nonce } : {} ),
-			},
-		} )
-			.then( ( response ) => {
-				if ( ! response.ok ) {
-					throw new Error();
-				}
-				return response.blob();
-			} )
-			.then( ( blob ) => {
-				objectUrl = URL.createObjectURL( blob );
-				setUrl( objectUrl );
-			} )
-			.catch( () => setError( true ) );
-		return () => {
-			if ( objectUrl ) {
-				URL.revokeObjectURL( objectUrl );
-			}
-		};
-	}, [ question.imageUrl, token, nonce ] );
+	const headers = useMemo(
+		() => ( {
+			...( token ? { Authorization: `Bearer ${ token }` } : {} ),
+			...( nonce ? { 'X-WP-Nonce': nonce } : {} ),
+		} ),
+		[ token, nonce ]
+	);
+	const options = useMemo(
+		() => ( { credentials: 'same-origin' as const, headers } ),
+		[ headers ]
+	);
+	const { url, loading, error } = useAuthenticatedBlobUrl(
+		question.imageUrl,
+		options
+	);
 	if ( error ) {
 		return (
 			<span className="ptq-image-error">
@@ -1644,7 +1636,7 @@ function QuestionImage( {
 			</span>
 		);
 	}
-	if ( ! url ) {
+	if ( loading || ! url ) {
 		return (
 			<span className="ptq-image-loading">
 				<span className="ptq-spinner" />
