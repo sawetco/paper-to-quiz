@@ -222,11 +222,13 @@ final class EncryptedStorage {
 		);
 	}
 
-	public function delete(string $storage_key): void {
+	public function delete(string $storage_key): bool {
 		$path = $this->path($storage_key);
-		if (is_file($path)) {
-			wp_delete_file($path);
+		if (! is_file($path)) {
+			return true;
 		}
+
+		return wp_delete_file($path);
 	}
 
 	public function exists(string $storage_key): bool {

@@ -518,13 +518,13 @@ final class AdminController {
 			);
 		} catch (\Throwable $exception) {
 			if (isset($asset_id)) {
-				$this->assets->release($asset_id);
+				$this->release_asset_safely($asset_id);
 			}
 			return $this->storage_error($exception);
 		}
 
 		if (is_wp_error($attached)) {
-			$this->assets->release($asset_id);
+			$this->release_asset_safely($asset_id);
 			return $attached;
 		}
 
@@ -785,14 +785,14 @@ final class AdminController {
 			);
 		} catch (\Throwable $exception) {
 			if (isset($asset_id)) {
-				$this->assets->release($asset_id);
+				$this->release_asset_safely($asset_id);
 			} else {
 				$this->storage->delete($stored['storage_key']);
 			}
 			return $this->storage_error($exception);
 		}
 		if (is_wp_error($attached)) {
-			$this->assets->release($asset_id);
+			$this->release_asset_safely($asset_id);
 			return $attached;
 		}
 		foreach ($keys as $key) {
@@ -830,7 +830,7 @@ final class AdminController {
 		$thumb = isset($files['thumb']) ? $this->store_image($files['thumb'], 'question_thumb') : null;
 		if (is_wp_error($thumb)) {
 			if ($main) {
-				$this->assets->release($main);
+				$this->release_asset_safely($main);
 			}
 			return $thumb;
 		}
@@ -844,10 +844,10 @@ final class AdminController {
 		);
 		if (is_wp_error($result)) {
 			if ($main) {
-				$this->assets->release($main);
+				$this->release_asset_safely($main);
 			}
 			if ($thumb) {
-				$this->assets->release($thumb);
+				$this->release_asset_safely($thumb);
 			}
 			return $result;
 		}
@@ -886,9 +886,13 @@ final class AdminController {
 		$settings['storage_writable'] = $this->storage->is_available();
 		$settings['openssl']          = extension_loaded('openssl');
 		$settings['max_upload_bytes'] = wp_max_upload_size();
-		$settings['encryption_migration'] = $this->encryption_migration
+		$migration = $this->encryption_migration
 			? $this->encryption_migration->status()
-			: array('status' => 'complete', 'participant_cursor' => 0, 'asset_cursor' => 0, 'failures' => 0);
+			: array('status' => 'complete', 'failures' => 0);
+		$settings['encryption_migration'] = array(
+			'status'   => $migration['status'],
+			'failures' => $migration['failures'],
+		);
 		return rest_ensure_response($settings);
 	}
 
@@ -1033,6 +1037,19 @@ final class AdminController {
 			$message,
 			500
 		);
+	}
+
+	private function release_asset_safely(?int $asset_id): void {
+		try {
+			$this->assets->release($asset_id);
+		} catch (\Throwable $exception) {
+			OperationalErrorReporter::report(
+				'paper_to_quiz_asset_cleanup_failed',
+				$exception,
+				__('A superseded private file could not be cleaned up.', 'paper-to-quiz'),
+				500
+			);
+		}
 	}
 
 	private function assessment_args(bool $creating): array {

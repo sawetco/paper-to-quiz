@@ -6,6 +6,7 @@ jest.mock( '@wordpress/i18n', () => ( {
 
 jest.mock( '@noble/hashes/sha2.js', () => {
 	const { createHash } =
+		// @ts-expect-error Jest runs in Node, while the browser-only TS config deliberately excludes Node globals.
 		jest.requireActual< typeof import('node:crypto') >( 'node:crypto' );
 	return {
 		sha256: {
@@ -117,6 +118,7 @@ beforeEach( () => {
 		Parameters< FetchImplementation >
 	>();
 	const { createHash } =
+		// @ts-expect-error Jest runs in Node, while the browser-only TS config deliberately excludes Node globals.
 		jest.requireActual< typeof import('node:crypto') >( 'node:crypto' );
 	const webCrypto = {
 		subtle: {

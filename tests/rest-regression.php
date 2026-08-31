@@ -441,12 +441,18 @@ try {
 		$image_files,
 		$manager
 	);
-	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($question_response), 'Question image REST upload failed.');
+	paper_to_quiz_rest_assert(
+		200 === paper_to_quiz_rest_status($question_response),
+		'Question image REST upload failed. Status: ' . paper_to_quiz_rest_status($question_response) . '; response: ' . wp_json_encode(paper_to_quiz_rest_data($question_response))
+	);
 	$question_data = paper_to_quiz_rest_data($question_response);
 	$workflow_question = (int) ($question_data['id'] ?? 0);
 	$main_asset_id = (int) ($question_data['main_asset_id'] ?? 0);
 	$thumb_asset_id = (int) ($question_data['thumb_asset_id'] ?? 0);
-	paper_to_quiz_rest_assert($workflow_question > 0 && $main_asset_id > 0 && $thumb_asset_id > 0, 'Question image REST upload did not return question assets.');
+	paper_to_quiz_rest_assert(
+		$workflow_question > 0 && $main_asset_id > 0 && $thumb_asset_id > 0,
+		'Question image REST upload did not return question assets. Response: ' . wp_json_encode($question_data)
+	);
 	$workflow_asset_ids[] = $main_asset_id;
 	$workflow_asset_ids[] = $thumb_asset_id;
 	paper_to_quiz_rest_assert((int) ($question_data['subject_id'] ?? 0) === $subject && 1 === (int) ($question_data['ordinal'] ?? 0), 'Question metadata was not persisted through the REST upload.');

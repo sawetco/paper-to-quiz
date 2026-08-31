@@ -28,8 +28,8 @@ final class PrivateKeyProvider {
 			});
 		$this->option_writer = $option_writer instanceof \Closure
 			? $option_writer
-			: (null !== $option_writer ? \Closure::fromCallable($option_writer) : static function (string $option, string $value, string $deprecated = '', bool $autoload = false): mixed {
-				return add_option($option, $value, $deprecated, $autoload);
+			: (null !== $option_writer ? \Closure::fromCallable($option_writer) : static function (string $option, string $value, string $_deprecated = '', bool $autoload = false): mixed {
+				return add_option($option, $value, '', $autoload);
 			});
 	}
 

@@ -221,6 +221,54 @@ final class EncryptionMigrationTest extends TestCase {
 		$this->assertSame($good_id, (int) get_option(EncryptionMigration::PARTICIPANT_CURSOR_OPTION, 0));
 	}
 
+	public function test_retry_queue_eventually_revisits_a_later_repaired_failure(): void {
+		$failure_ids = array();
+		for ($index = 0; $index < 6; ++$index) {
+			$failure_ids[] = $this->insert_attempt('PTQ3:retry-' . $index);
+		}
+		$this->migration->run();
+
+		$repaired_id = $failure_ids[5];
+		$this->db->wpdb()->update(
+			$this->db->table('attempts'),
+			array('participant_data' => $this->legacy_participant(array('value' => 'repaired'))),
+			array('id' => $repaired_id),
+			array('%s'),
+			array('%d')
+		);
+
+		$this->migration->run();
+		$this->assertFalse(
+			str_starts_with((string) $this->participant($repaired_id), Crypto::MAGIC),
+			'The fixed retry slice should remain bounded to the first five queued failures.'
+		);
+		$status = $this->migration->run();
+		$this->assertSame(5, $status['failures']);
+		$this->assertSame(
+			array('value' => 'repaired'),
+			$this->crypto->decrypt_array((string) $this->participant($repaired_id)),
+			'Retrying failures must rotate fairly instead of starving later repaired records.'
+		);
+	}
+
+	public function test_failure_queue_overflow_forces_a_safe_full_rescan_before_completion(): void {
+		$this->set_option(EncryptionMigration::PARTICIPANT_CURSOR_OPTION, 900);
+		$this->set_option(EncryptionMigration::ASSET_CURSOR_OPTION, 900);
+		$this->set_option(
+			EncryptionMigration::FAILURES_OPTION,
+			array('participant' => array(), 'asset' => array(), 'overflow' => true)
+		);
+
+		$status = $this->migration->run();
+
+		$this->assertSame('pending', $status['status']);
+		$this->assertSame(0, (int) get_option(EncryptionMigration::PARTICIPANT_CURSOR_OPTION, -1));
+		$this->assertSame(0, (int) get_option(EncryptionMigration::ASSET_CURSOR_OPTION, -1));
+		$failures = get_option(EncryptionMigration::FAILURES_OPTION, array());
+		$this->assertFalse((bool) ($failures['overflow'] ?? true));
+		$this->assertSame('complete', $this->migration->run()['status']);
+	}
+
 	public function test_corrupt_asset_remains_ptq1_and_is_reported_without_plaintext_details(): void {
 		$plain      = "legacy asset\n";
 		$legacy_key = $this->write_legacy_file($plain, 'question_image');

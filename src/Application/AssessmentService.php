@@ -495,7 +495,7 @@ final class AssessmentService {
 			);
 		}
 		foreach ($assets_to_release as $released_asset_id) {
-			$this->assets->release($released_asset_id);
+			$this->release_asset_safely($released_asset_id);
 		}
 		return $this->get($assessment_id) ?: array();
 	}
@@ -575,10 +575,10 @@ final class AssessmentService {
 				return new \WP_Error('paper_to_quiz_question_save', __('Question could not be saved.', 'paper-to-quiz'), array('status' => 500));
 			}
 			if ($main_asset_id && (int) $existing['main_asset_id'] !== $main_asset_id) {
-				$this->assets->release((int) $existing['main_asset_id']);
+				$this->release_asset_safely((int) $existing['main_asset_id']);
 			}
 			if ($thumb_asset_id && (int) $existing['thumb_asset_id'] !== $thumb_asset_id) {
-				$this->assets->release((int) $existing['thumb_asset_id']);
+				$this->release_asset_safely((int) $existing['thumb_asset_id']);
 			}
 		} else {
 			$data['ordinal']    = $this->next_temporary_ordinal($revision_id);
@@ -731,8 +731,8 @@ final class AssessmentService {
 		}
 
 		foreach ($pruned_assets as $asset_pair) {
-			$this->assets->release($asset_pair[0]);
-			$this->assets->release($asset_pair[1]);
+			$this->release_asset_safely($asset_pair[0]);
+			$this->release_asset_safely($asset_pair[1]);
 		}
 
 		return $this->questions($revision_id, true);
@@ -749,8 +749,8 @@ final class AssessmentService {
 		}
 
 		$this->db->wpdb()->delete($this->db->table('questions'), array('id' => $question_id), array('%d'));
-		$this->assets->release((int) $question['main_asset_id']);
-		$this->assets->release((int) $question['thumb_asset_id']);
+		$this->release_asset_safely((int) $question['main_asset_id']);
+		$this->release_asset_safely((int) $question['thumb_asset_id']);
 
 		$remaining = $this->questions((int) $question['revision_id'], true);
 		foreach ($remaining as $index => $item) {
@@ -1057,6 +1057,20 @@ final class AssessmentService {
 
 	private function retain_asset_or_throw(int $asset_id): void {
 		$this->assets->retain($asset_id);
+	}
+
+	private function release_asset_safely(?int $asset_id): void {
+		try {
+			$this->assets->release($asset_id);
+		} catch (\Throwable $exception) {
+			/* The primary database mutation already succeeded; report cleanup without making a retry duplicate it. */
+			OperationalErrorReporter::report(
+				'paper_to_quiz_asset_cleanup_failed',
+				$exception,
+				__('A superseded private file could not be cleaned up.', 'paper-to-quiz'),
+				500
+			);
+		}
 	}
 
 	private function validate_publish(array $record): array {

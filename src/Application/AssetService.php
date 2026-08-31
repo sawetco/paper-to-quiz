@@ -66,9 +66,10 @@ final class AssetService {
 		$wpdb   = $this->db->wpdb();
 		$updated = $this->db->write(
 			'asset_retain',
-			fn (): int|false => $wpdb->query(
+			fn (): int|false => $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic reference counters must observe current durable state.
 				$wpdb->prepare(
-					'UPDATE ' . $this->db->table('assets') . ' SET ref_count = ref_count + 1 WHERE id = %d AND ref_count > 0',
+					'UPDATE %i SET ref_count = ref_count + 1 WHERE id = %d AND ref_count > 0',
+					$this->db->table('assets'),
 					$asset_id
 				)
 			)
@@ -106,9 +107,10 @@ final class AssetService {
 		for ($attempt = 0; $attempt < self::MAX_RELEASE_ATTEMPTS; $attempt++) {
 			$decremented = $this->db->write(
 				'asset_release_decrement',
-				fn (): int|false => $wpdb->query(
+				fn (): int|false => $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic reference counters must observe current durable state.
 					$wpdb->prepare(
-						'UPDATE ' . $this->db->table('assets') . ' SET ref_count = ref_count - 1 WHERE id = %d AND ref_count > 1',
+						'UPDATE %i SET ref_count = ref_count - 1 WHERE id = %d AND ref_count > 1',
+						$this->db->table('assets'),
 						$asset_id
 					)
 				)
@@ -145,9 +147,10 @@ final class AssetService {
 
 			$deleted = $this->db->write(
 				'asset_release_delete',
-				fn (): int|false => $wpdb->query(
+				fn (): int|false => $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Conditional deletion is the final atomic reference release.
 					$wpdb->prepare(
-						'DELETE FROM ' . $this->db->table('assets') . ' WHERE id = %d AND ref_count = 1',
+						'DELETE FROM %i WHERE id = %d AND ref_count = 1',
+						$this->db->table('assets'),
 						$asset_id
 					)
 				)
@@ -160,7 +163,9 @@ final class AssetService {
 			}
 
 			try {
-				$this->storage->delete($storage_key);
+				if (! $this->storage->delete($storage_key)) {
+					throw new \RuntimeException('Private storage deletion returned false.');
+				}
 			} catch (\Throwable) {
 				/* The row is already gone: failed cleanup leaves only recoverable bytes. */
 				throw new StorageException(

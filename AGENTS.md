@@ -124,7 +124,9 @@ Encrypted data format and upgrade behavior:
   initialize as `complete`; interrupted upgrades are restartable and idempotent.
 - Each worker retries only a small fixed slice of recorded failures and reserves
   the rest of the bounded batch for fresh IDs, so persistent corrupt records
-  cannot starve healthy records behind them.
+  cannot starve healthy records behind them. The persisted failure queue is
+  capped; an overflow flag forces a full cursor rescan before completion so an
+  evicted failure can never be mistaken for migrated data.
 
 WordPress.org distributes locale files through translate.wordpress.org. Do not
 ship `.po`, `.mo`, locale `.json`, or translation `.php` files in the plugin
