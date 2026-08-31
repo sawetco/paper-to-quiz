@@ -6,9 +6,12 @@ namespace PaperToQuiz\Application;
 
 use PaperToQuiz\Infrastructure\Crypto;
 use PaperToQuiz\Infrastructure\Database;
+use PaperToQuiz\Infrastructure\OperationalErrorReporter;
 use PaperToQuiz\Infrastructure\Settings;
 
 final class AttemptService {
+	private const RETENTION_CLEANUP_BATCH_SIZE = 100;
+
 	/**
 	 * Request-scoped memo for AssessmentService::get_revision() results.
 	 *
@@ -655,20 +658,21 @@ final class AttemptService {
 	}
 
 	public function anonymize_expired(): int {
-		$rows = $this->db->wpdb()->get_results(
-			'SELECT t.id, t.submitted_at FROM ' . $this->db->table('attempts') . " t
-			WHERE t.anonymized_at IS NULL AND t.submitted_at IS NOT NULL",
-			ARRAY_A
-		) ?: array();
 		$settings       = Settings::get();
 		$retention_days = max(1, min(3650, (int) ($settings['retention_days'] ?? 365)));
+		$cutoff         = gmdate('Y-m-d H:i:s', time() - ($retention_days * DAY_IN_SECONDS));
+		$attempt_ids    = $this->db->wpdb()->get_col(
+			$this->db->wpdb()->prepare(
+				'SELECT id FROM ' . $this->db->table('attempts') . "
+				WHERE anonymized_at IS NULL AND submitted_at IS NOT NULL AND submitted_at <= %s
+				ORDER BY submitted_at ASC, id ASC LIMIT %d",
+				$cutoff,
+				self::RETENTION_CLEANUP_BATCH_SIZE
+			)
+		) ?: array();
 		$count = 0;
-		foreach ($rows as $row) {
-			$expires = strtotime((string) $row['submitted_at'] . ' UTC') + ($retention_days * DAY_IN_SECONDS);
-			if ($expires > time()) {
-				continue;
-			}
-			if ($this->anonymize_attempt((int) $row['id'])) {
+		foreach ($attempt_ids as $attempt_id) {
+			if ($this->anonymize_attempt((int) $attempt_id)) {
 				++$count;
 			}
 		}
@@ -728,8 +732,14 @@ final class AttemptService {
 			}
 			$this->db->commit();
 			return true;
-		} catch (\Throwable) {
+		} catch (\Throwable $error) {
 			$this->db->rollback();
+			OperationalErrorReporter::report(
+				'paper_to_quiz_attempt_anonymization_failed',
+				$error,
+				__('Attempt data could not be anonymized.', 'paper-to-quiz'),
+				500
+			);
 			return false;
 		}
 	}
