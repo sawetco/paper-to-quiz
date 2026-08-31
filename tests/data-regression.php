@@ -12,6 +12,7 @@ use PaperToQuiz\Application\AttemptService;
 use PaperToQuiz\Infrastructure\Crypto;
 use PaperToQuiz\Infrastructure\Database;
 use PaperToQuiz\Infrastructure\EncryptedStorage;
+use PaperToQuiz\Infrastructure\Settings;
 
 if (! defined('WP_CLI') || ! WP_CLI) {
 	throw new RuntimeException('This regression script must be run with WP-CLI.');
@@ -63,14 +64,46 @@ function paper_to_quiz_cleanup_counts(wpdb $wpdb, Database $database, string $su
 	);
 }
 
-$database = new Database();
-$wpdb     = $database->wpdb();
-$service  = new AssessmentService(
-	$database,
-	new AssetService($database, new EncryptedStorage())
-);
-$suffix   = strtolower(wp_generate_password(10, false, false));
-$now      = current_time('mysql', true);
+/**
+ * Insert a submitted-attempt fixture for the disposable retention checks.
+ *
+ * @param int[] $attempt_ids
+ */
+function paper_to_quiz_insert_retention_attempt(wpdb $wpdb, Database $database, Crypto $crypto, string $status, ?string $submitted_at, bool $anonymized, array &$attempt_ids): int {
+	$now = gmdate('Y-m-d H:i:s');
+	$inserted = $wpdb->insert(
+		$database->table('attempts'),
+		array(
+			'public_id'        => wp_generate_uuid4(),
+			'token_hash'       => hash('sha256', wp_generate_uuid4()),
+			'assessment_id'    => 1,
+			'revision_id'      => 1,
+			'wp_user_id'       => 1,
+			'participant_type' => 'member',
+			'participant_data' => $crypto->encrypt_array(array('email' => 'retention-regression@example.com')),
+			'status'           => $status,
+			'submission_id'    => wp_generate_uuid4(),
+			'integrity_status' => 'on_time',
+			'ranking_eligible' => 1,
+			'started_at'       => $now,
+			'last_activity_at' => $now,
+			'submitted_at'     => $submitted_at,
+			'anonymized_at'    => $anonymized ? $now : null,
+		)
+	);
+	paper_to_quiz_assert(1 === $inserted, 'Retention attempt fixture could not be inserted.');
+	$attempt_id    = (int) $wpdb->insert_id;
+	$attempt_ids[] = $attempt_id;
+	return $attempt_id;
+}
+
+$database      = new Database();
+$wpdb          = $database->wpdb();
+$asset_storage = new EncryptedStorage();
+$asset_service = new AssetService($database, $asset_storage);
+$service       = new AssessmentService($database, $asset_service);
+$suffix        = strtolower(wp_generate_password(10, false, false));
+$now           = current_time('mysql', true);
 
 $class_id      = 0;
 $subject_id    = 0;
@@ -80,6 +113,10 @@ $revision_a    = 0;
 $revision_b    = 0;
 $report        = array();
 $cleanup_counts = array();
+$retention_attempt_ids = array();
+$retention_settings_before = get_option(Settings::OPTION, false);
+$asset_ids     = array();
+$asset_storage_keys = array();
 
 try {
 	$administrator = get_role('administrator');
@@ -87,6 +124,41 @@ try {
 	foreach (array('paper_to_quiz_manage_assessments', 'paper_to_quiz_publish_assessments', 'paper_to_quiz_view_results', 'paper_to_quiz_manage_settings') as $capability) {
 		paper_to_quiz_assert($administrator->has_cap($capability), 'Administrator role is missing ' . $capability . '.');
 	}
+
+	/*
+	 * A live reference must keep its encrypted file, while the final release
+	 * must remove both records. Releasing the already-removed ID is idempotent.
+	 */
+	$atomic_asset_id = $asset_service->create_from_string(
+		'Atomic asset reference regression ' . $suffix,
+		'question_image',
+		'image/png'
+	);
+	$asset_ids[] = $atomic_asset_id;
+	$atomic_asset = $asset_service->get($atomic_asset_id);
+	paper_to_quiz_assert(is_array($atomic_asset) && ! empty($atomic_asset['storage_key']), 'Atomic asset fixture was not persisted.');
+	$atomic_storage_key = (string) $atomic_asset['storage_key'];
+	$asset_storage_keys[] = $atomic_storage_key;
+	paper_to_quiz_assert($asset_storage->exists($atomic_storage_key), 'Atomic asset fixture file was not written.');
+	$asset_service->retain($atomic_asset_id);
+	paper_to_quiz_assert(
+		2 === (int) $wpdb->get_var($wpdb->prepare('SELECT ref_count FROM ' . $database->table('assets') . ' WHERE id=%d', $atomic_asset_id)),
+		'Retaining a live asset did not increment its reference count.'
+	);
+	$asset_service->release($atomic_asset_id);
+	paper_to_quiz_assert(
+		1 === (int) $wpdb->get_var($wpdb->prepare('SELECT ref_count FROM ' . $database->table('assets') . ' WHERE id=%d', $atomic_asset_id)),
+		'Releasing one live asset reference changed the final count.'
+	);
+	paper_to_quiz_assert($asset_storage->exists($atomic_storage_key), 'Releasing one live asset reference deleted its file.');
+	$asset_service->release($atomic_asset_id);
+	paper_to_quiz_assert(
+		0 === (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $database->table('assets') . ' WHERE id=%d', $atomic_asset_id)),
+		'Releasing the final asset reference left a database row.'
+	);
+	paper_to_quiz_assert(! $asset_storage->exists($atomic_storage_key), 'Releasing the final asset reference left a storage file.');
+	$asset_service->release($atomic_asset_id);
+	$report['asset_reference_atomicity'] = 'passed';
 
 	$created_class = $service->save_class('Regression Class ' . $suffix, null, '#2f6fed');
 	paper_to_quiz_assert(! is_wp_error($created_class), 'Class could not be created.');
@@ -250,6 +322,95 @@ try {
 	paper_to_quiz_assert(! is_wp_error($repeated_purge), 'Repeating a completed permanent deletion returned an error.');
 	paper_to_quiz_assert(! empty($repeated_purge['already_deleted']), 'Repeated permanent deletion was not reported as idempotent.');
 
+	$retention_settings = Settings::get();
+	$retention_settings['retention_days'] = 1;
+	update_option(Settings::OPTION, $retention_settings);
+	$retention_crypto = new Crypto();
+	$retention_service = new AttemptService($database, $service, $retention_crypto);
+	$retention_now = time();
+	$retention_old_submitted = paper_to_quiz_insert_retention_attempt(
+		$wpdb,
+		$database,
+		$retention_crypto,
+		'submitted',
+		gmdate('Y-m-d H:i:s', $retention_now - DAY_IN_SECONDS - 5),
+		false,
+		$retention_attempt_ids
+	);
+	$retention_old_auto = paper_to_quiz_insert_retention_attempt(
+		$wpdb,
+		$database,
+		$retention_crypto,
+		'auto_submitted',
+		gmdate('Y-m-d H:i:s', $retention_now - DAY_IN_SECONDS - 4),
+		false,
+		$retention_attempt_ids
+	);
+	$retention_new = paper_to_quiz_insert_retention_attempt(
+		$wpdb,
+		$database,
+		$retention_crypto,
+		'submitted',
+		gmdate('Y-m-d H:i:s', $retention_now - DAY_IN_SECONDS + 5),
+		false,
+		$retention_attempt_ids
+	);
+	$retention_in_progress = paper_to_quiz_insert_retention_attempt(
+		$wpdb,
+		$database,
+		$retention_crypto,
+		'in_progress',
+		null,
+		false,
+		$retention_attempt_ids
+	);
+	$retention_already_anonymized = paper_to_quiz_insert_retention_attempt(
+		$wpdb,
+		$database,
+		$retention_crypto,
+		'submitted',
+		gmdate('Y-m-d H:i:s', $retention_now - DAY_IN_SECONDS - 3),
+		true,
+		$retention_attempt_ids
+	);
+	paper_to_quiz_assert(
+		1 === $wpdb->insert(
+			$database->table('ranking_entries'),
+			array(
+				'revision_id'      => 1,
+				'wp_user_id'       => 1,
+				'attempt_id'       => $retention_old_submitted,
+				'score'            => 100,
+				'duration_seconds' => 60,
+				'submitted_at'     => gmdate('Y-m-d H:i:s', $retention_now - 2 * DAY_IN_SECONDS),
+			)
+		),
+		'Retention ranking fixture could not be inserted.'
+	);
+	paper_to_quiz_assert(2 === $retention_service->anonymize_expired(), 'Retention cleanup did not process all due submitted attempts.');
+	$old_row = $wpdb->get_row(
+		$wpdb->prepare('SELECT wp_user_id,participant_data,anonymized_at FROM ' . $database->table('attempts') . ' WHERE id = %d', $retention_old_submitted),
+		ARRAY_A
+	);
+	paper_to_quiz_assert(null === $old_row['wp_user_id'] && null === $old_row['participant_data'] && null !== $old_row['anonymized_at'], 'Retention cleanup did not remove the expired attempt identity.');
+	paper_to_quiz_assert(
+		0 === (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $database->table('ranking_entries') . ' WHERE attempt_id = %d', $retention_old_submitted)),
+		'Retention cleanup left a ranking identity behind.'
+	);
+	paper_to_quiz_assert(
+		null !== $wpdb->get_var($wpdb->prepare('SELECT participant_data FROM ' . $database->table('attempts') . ' WHERE id = %d', $retention_new)),
+		'Retention cleanup anonymized a newer submission.'
+	);
+	paper_to_quiz_assert(
+		null === $wpdb->get_var($wpdb->prepare('SELECT anonymized_at FROM ' . $database->table('attempts') . ' WHERE id = %d', $retention_in_progress)),
+		'Retention cleanup anonymized an in-progress attempt.'
+	);
+	paper_to_quiz_assert(
+		null !== $wpdb->get_var($wpdb->prepare('SELECT anonymized_at FROM ' . $database->table('attempts') . ' WHERE id = %d', $retention_already_anonymized)),
+		'Retention cleanup changed an already anonymized attempt.'
+	);
+	paper_to_quiz_assert(0 === $retention_service->anonymize_expired(), 'Retention cleanup was not idempotent after due rows drained.');
+
 	$report = array(
 		'admin_capabilities'  => 'passed',
 		'class_restore'       => 'passed',
@@ -258,8 +419,35 @@ try {
 		'student_class_color' => 'passed',
 		'delete_isolation'    => 'passed',
 		'idempotent_delete'   => 'passed',
+		'retention_cleanup'   => 'passed',
+		'asset_reference_atomicity' => 'passed',
 	);
 } finally {
+	if (false === $retention_settings_before) {
+		delete_option(Settings::OPTION);
+	} else {
+		update_option(Settings::OPTION, $retention_settings_before);
+	}
+	if ($retention_attempt_ids) {
+		$ids = implode(',', array_map('intval', $retention_attempt_ids));
+		// phpcs:disable WordPress.DB -- Direct cleanup of disposable retention fixtures by collected IDs.
+		$wpdb->query('DELETE FROM ' . $database->table('ranking_entries') . " WHERE attempt_id IN ({$ids})");
+		$wpdb->query('DELETE FROM ' . $database->table('answers') . " WHERE attempt_id IN ({$ids})");
+		$wpdb->query('DELETE FROM ' . $database->table('attempt_subject_scores') . " WHERE attempt_id IN ({$ids})");
+		$wpdb->query('DELETE FROM ' . $database->table('result_email_jobs') . " WHERE attempt_id IN ({$ids})");
+		$wpdb->query('DELETE FROM ' . $database->table('attempts') . " WHERE id IN ({$ids})");
+		// phpcs:enable WordPress.DB
+	}
+	foreach (array_values(array_unique($asset_ids)) as $asset_id) {
+		$wpdb->delete($database->table('assets'), array('id' => $asset_id), array('%d'));
+	}
+	foreach (array_values(array_unique($asset_storage_keys)) as $storage_key) {
+		try {
+			$asset_storage->delete($storage_key);
+		} catch (Throwable $error) {
+			error_log('[Paper to Quiz regression cleanup] asset storage: ' . $error->getMessage());
+		}
+	}
 	foreach (array_filter(array($revision_a, $revision_b)) as $revision_id) {
 		paper_to_quiz_assert(false !== $wpdb->delete($database->table('questions'), array('revision_id' => $revision_id), array('%d')), 'Regression questions could not be cleaned up.');
 	}

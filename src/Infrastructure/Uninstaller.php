@@ -23,6 +23,10 @@ final class Uninstaller {
 		'paper_to_quiz_settings',
 		'paper_to_quiz_db_version',
 		'paper_to_quiz_storage_key',
+		EncryptionMigration::STATE_OPTION,
+		EncryptionMigration::PARTICIPANT_CURSOR_OPTION,
+		EncryptionMigration::ASSET_CURSOR_OPTION,
+		EncryptionMigration::FAILURES_OPTION,
 	);
 
 	private const CAPABILITIES = array(
@@ -43,6 +47,7 @@ final class Uninstaller {
 	private static function clear_scheduled_tasks(): void {
 		wp_clear_scheduled_hook('paper_to_quiz_daily_cleanup');
 		wp_clear_scheduled_hook('paper_to_quiz_process_result_emails');
+		wp_clear_scheduled_hook('paper_to_quiz_process_encryption_migration');
 	}
 
 	private static function drop_tables(): void {

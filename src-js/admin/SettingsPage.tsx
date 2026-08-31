@@ -15,6 +15,10 @@ type Settings = {
 	openssl?: boolean;
 	max_upload_bytes?: number;
 	purge_on_uninstall: boolean;
+	encryption_migration?: {
+		status: 'pending' | 'running' | 'complete';
+		failures: number;
+	};
 };
 
 const fields: Array< {
@@ -111,6 +115,32 @@ export function SettingsPage() {
 		);
 	}
 
+	let migrationMessage = '';
+	let migrationNoticeStatus: 'warning' | 'error' = 'warning';
+	if (
+		settings.encryption_migration &&
+		( settings.encryption_migration.status === 'pending' ||
+			settings.encryption_migration.status === 'running' )
+	) {
+		if ( settings.encryption_migration.failures > 0 ) {
+			migrationNoticeStatus = 'error';
+			migrationMessage = __(
+				'Some encrypted records need attention. Paper to Quiz will keep retrying the secure upgrade automatically. Do not rotate WordPress salts until the upgrade is complete.',
+				'paper-to-quiz'
+			);
+		} else if ( settings.encryption_migration.status === 'running' ) {
+			migrationMessage = __(
+				'Encryption upgrade is running in the background. Your existing data remains available. Do not rotate WordPress salts until the upgrade is complete.',
+				'paper-to-quiz'
+			);
+		} else {
+			migrationMessage = __(
+				'Encryption upgrade is queued and will continue automatically in the background. Do not rotate WordPress salts until the upgrade is complete.',
+				'paper-to-quiz'
+			);
+		}
+	}
+
 	return (
 		<div className="ptq-page paper-to-quiz-settings-page">
 			<h1>{ __( 'Settings', 'paper-to-quiz' ) }</h1>
@@ -138,6 +168,14 @@ export function SettingsPage() {
 						'File security is unavailable. Do not upload PDFs until the server configuration is fixed.',
 						'paper-to-quiz'
 					) }
+				</Notice>
+			) }
+			{ migrationMessage && (
+				<Notice
+					status={ migrationNoticeStatus }
+					isDismissible={ false }
+				>
+					{ migrationMessage }
 				</Notice>
 			) }
 			<form

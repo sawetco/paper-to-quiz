@@ -25,6 +25,7 @@ distributed under its own license (MIT / BSD / GPL, all GPL-compatible):
 
 - [`@wordpress/*`](https://github.com/WordPress/gutenberg) packages — GPL-2.0-or-later
 - [`@dnd-kit/*`](https://github.com/clauderic/dnd-kit) — MIT
+- [`@noble/hashes`](https://github.com/paulmillr/noble-hashes) — MIT
 - [`konva`](https://github.com/konvajs/konva) / [`react-konva`](https://github.com/konvajs/react-konva) — MIT
 - [`pdfjs-dist`](https://github.com/mozilla/pdf.js) — Apache-2.0 (see above)
 

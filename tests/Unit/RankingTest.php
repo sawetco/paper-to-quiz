@@ -40,6 +40,8 @@ final class RankingTest extends TestCase {
 	private array $assessment_ids = array();
 	/** @var int[] */
 	private array $user_ids = array();
+	/** @var int[] */
+	private array $subject_ids = array();
 
 	public function setUp(): void {
 		parent::setUp();
@@ -73,6 +75,9 @@ final class RankingTest extends TestCase {
 		}
 		foreach ( $this->assessment_ids as $assessment_id ) {
 			$wpdb->delete( $prefix . 'assessments', array( 'id' => $assessment_id ), array( '%d' ) );
+		}
+		foreach ( $this->subject_ids as $subject_id ) {
+			$wpdb->delete( $prefix . 'terms', array( 'id' => $subject_id ), array( '%d' ) );
 		}
 		foreach ( $this->user_ids as $user_id ) {
 			$wpdb->delete( $wpdb->usermeta, array( 'user_id' => $user_id ), array( '%d' ) );
@@ -196,6 +201,96 @@ final class RankingTest extends TestCase {
 		$this->assertSame( 1, $after, 'INSERT IGNORE must dedup a re-finalize: the row count must remain 1.' );
 	}
 
+	public function test_ranked_member_submit_closes_attempt_and_persists_subject_score_once(): void {
+		$suffix = 'rank-submit-' . wp_generate_password( 6, false, false );
+		list( $assessment_id, $revision_id, $subject_id, $question_id ) = $this->seed_ranked_exam_with_subject_question( $suffix );
+		$user_id = $this->create_member_user( $suffix );
+		wp_set_current_user( $user_id );
+
+		$started = $this->attempts->start( $assessment_id, array() );
+		$this->assertIsArray( $started, 'A logged-in member must be able to start the ranked exam.' );
+		$this->assertArrayHasKey( 'public_id', $started );
+		$this->assertArrayHasKey( 'token', $started );
+
+		$public_id  = (string) $started['public_id'];
+		$token      = (string) $started['token'];
+		$wpdb       = $this->db->wpdb();
+		$attempt_id = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT id FROM ' . $this->db->table( 'attempts' ) . ' WHERE public_id = %s',
+				$public_id
+			)
+		);
+		$this->assertGreaterThan( 0, $attempt_id, 'The started attempt must be persisted.' );
+		$this->attempt_ids[] = $attempt_id;
+
+		$submission_id = wp_generate_uuid4();
+		$answers       = array( array( 'question_id' => $question_id, 'option' => 'A' ) );
+		$result        = $this->attempts->submit( $public_id, $token, false, $submission_id, $answers );
+		$this->assertIsArray( $result, 'A valid ranked member submission must return a result array.' );
+		$this->assertSame( 'submitted', $result['status'] );
+
+		$attempt = $wpdb->get_row(
+			$wpdb->prepare(
+				'SELECT status,ranking_eligible FROM ' . $this->db->table( 'attempts' ) . ' WHERE id = %d',
+				$attempt_id
+			),
+			ARRAY_A
+		);
+		$this->assertIsArray( $attempt );
+		$this->assertSame( 'submitted', $attempt['status'] );
+		$this->assertSame( 1, (int) $attempt['ranking_eligible'] );
+		$this->assertSame(
+			1,
+			(int) $wpdb->get_var(
+				$wpdb->prepare(
+					'SELECT COUNT(*) FROM ' . $this->db->table( 'ranking_entries' ) . ' WHERE revision_id = %d AND attempt_id = %d',
+					$revision_id,
+					$attempt_id
+				)
+			),
+			'A completed eligible attempt must have one overall ranking entry.'
+		);
+		$this->assertSame(
+			1,
+			(int) $wpdb->get_var(
+				$wpdb->prepare(
+					'SELECT COUNT(*) FROM ' . $this->db->table( 'attempt_subject_scores' ) . ' WHERE revision_id = %d AND attempt_id = %d AND subject_id = %d',
+					$revision_id,
+					$attempt_id,
+					$subject_id
+				)
+			),
+			'A completed attempt must have one score row for its question subject.'
+		);
+
+		$repeated = $this->attempts->submit( $public_id, $token, false, $submission_id, $answers );
+		$this->assertIsArray( $repeated, 'A repeated submission must return the persisted result.' );
+		$this->assertSame( 'submitted', $repeated['status'] );
+		$this->assertSame(
+			1,
+			(int) $wpdb->get_var(
+				$wpdb->prepare(
+					'SELECT COUNT(*) FROM ' . $this->db->table( 'ranking_entries' ) . ' WHERE revision_id = %d AND attempt_id = %d',
+					$revision_id,
+					$attempt_id
+				)
+			),
+			'Repeating an idempotent submit must not duplicate the ranking entry.'
+		);
+		$this->assertSame(
+			1,
+			(int) $wpdb->get_var(
+				$wpdb->prepare(
+					'SELECT COUNT(*) FROM ' . $this->db->table( 'attempt_subject_scores' ) . ' WHERE revision_id = %d AND attempt_id = %d',
+					$revision_id,
+					$attempt_id
+				)
+			),
+			'Repeating an idempotent submit must not duplicate subject scores.'
+		);
+	}
+
 	/**
 	 * Build a published exam revision with ranking_enabled=1, login required,
 	 * detailed visibility, and no result release date (so the payload cannot
@@ -262,6 +357,69 @@ final class RankingTest extends TestCase {
 		);
 
 		return array( $assessment_id, $revision_id );
+	}
+
+	/**
+	 * Add one selected subject and one answer-keyed question to a ranked exam.
+	 *
+	 * @return array{0:int,1:int,2:int,3:int} [assessment_id, revision_id, subject_id, question_id]
+	 */
+	private function seed_ranked_exam_with_subject_question( string $suffix ): array {
+		list( $assessment_id, $revision_id ) = $this->seed_ranked_exam( $suffix );
+		$wpdb = $this->db->wpdb();
+		$now  = current_time( 'mysql', true );
+
+		$this->assertSame(
+			1,
+			$wpdb->insert(
+				$this->db->table( 'terms' ),
+				array(
+					'type'       => 'subject',
+					'name'       => 'PTQ Subject ' . $suffix,
+					'slug'       => sanitize_title( 'PTQ Subject ' . $suffix ),
+					'status'     => 'active',
+					'created_at' => $now,
+					'updated_at' => $now,
+				)
+			)
+		);
+		$subject_id         = (int) $wpdb->insert_id;
+		$this->subject_ids[] = $subject_id;
+		$this->assertSame(
+			1,
+			$wpdb->update(
+				$this->db->table( 'revisions' ),
+				array( 'subject_ids_json' => wp_json_encode( array( $subject_id ) ) ),
+				array( 'id' => $revision_id ),
+				array( '%s' ),
+				array( '%d' )
+			)
+		);
+
+		$this->assertSame(
+			1,
+			$wpdb->insert(
+				$this->db->table( 'questions' ),
+				array(
+					'revision_id' => $revision_id,
+					'client_key'  => wp_generate_uuid4(),
+					'ordinal'     => 1,
+					'source_page' => 1,
+					'crop_x'      => '0.1',
+					'crop_y'      => '0.1',
+					'crop_width'  => '0.8',
+					'crop_height' => '0.3',
+					'subject_id'     => $subject_id,
+					'correct_option' => 'A',
+					'points'         => 10000,
+					'created_at'     => $now,
+					'updated_at'     => $now,
+				)
+			)
+		);
+		$question_id = (int) $wpdb->insert_id;
+
+		return array( $assessment_id, $revision_id, $subject_id, $question_id );
 	}
 
 	private function create_member_user( string $suffix ): int {

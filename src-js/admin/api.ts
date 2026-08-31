@@ -1,4 +1,5 @@
 import { __, sprintf } from '@wordpress/i18n';
+import { sha256 } from '@noble/hashes/sha2.js';
 
 const config = window.paperToQuizAdmin;
 let currentContentName: string = __( 'Record', 'paper-to-quiz' );
@@ -178,13 +179,12 @@ export async function uploadPdf(
 		json: { name: file.name, size: file.size, chunk_count: chunkCount },
 	} );
 
-	const wholeHash = await crypto.subtle.digest(
-		'SHA-256',
-		await file.arrayBuffer()
-	);
-	const wholeHex = Array.from( new Uint8Array( wholeHash ) )
-		.map( ( byte ) => byte.toString( 16 ).padStart( 2, '0' ) )
-		.join( '' );
+	const wholeHasher = sha256.create();
+
+	const bytesToHex = ( bytes: Uint8Array ): string =>
+		Array.from( bytes )
+			.map( ( byte ) => byte.toString( 16 ).padStart( 2, '0' ) )
+			.join( '' );
 
 	for ( let index = 0; index < chunkCount; index += 1 ) {
 		const chunk = file.slice(
@@ -192,10 +192,9 @@ export async function uploadPdf(
 			Math.min( file.size, ( index + 1 ) * chunkSize )
 		);
 		const bytes = await chunk.arrayBuffer();
+		wholeHasher.update( new Uint8Array( bytes ) );
 		const digest = await crypto.subtle.digest( 'SHA-256', bytes );
-		const hex = Array.from( new Uint8Array( digest ) )
-			.map( ( byte ) => byte.toString( 16 ).padStart( 2, '0' ) )
-			.join( '' );
+		const hex = bytesToHex( new Uint8Array( digest ) );
 		let lastError: unknown;
 		for ( let attempt = 1; attempt <= 3; attempt += 1 ) {
 			try {
@@ -223,6 +222,7 @@ export async function uploadPdf(
 		}
 		onProgress( Math.round( ( ( index + 1 ) / chunkCount ) * 95 ) );
 	}
+	const wholeHex = bytesToHex( wholeHasher.digest() );
 
 	const result = await api( `/admin/uploads/${ session.id }/complete`, {
 		method: 'POST',

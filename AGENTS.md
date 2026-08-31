@@ -101,6 +101,33 @@ the filename so a plugin update cannot reuse stale PDF.js/Konva code. Anonymous
 numeric chunk names break this contract. `npm run check:build-portability`
 enforces both the workspace-path and chunk-name rules.
 
+Encrypted data format and upgrade behavior:
+
+- New participant ciphertext is prefixed with `PTQ2:` and new private files use
+  the `PTQ2` file magic. Their HKDF keys use fixed Paper to Quiz v2 domain and
+  purpose information derived from the master key, without `wp_salt()`.
+- Readers accept unprefixed participant ciphertext and `PTQ1:` participant
+  values, plus `PTQ1` files, through explicitly named legacy derivations
+  (`secure_auth` for participant data and `auth` for files). Unknown delimited
+  markers fail closed, while a legacy base64 value that merely begins with
+  `PTQ` remains legacy. A pending migration requires the original WordPress
+  salts; do not rotate salts until the Settings health state is complete. No
+  legacy writer may be introduced.
+- `EncryptionMigration` upgrades existing values through the non-blocking
+  `paper_to_quiz_process_encryption_migration` cron event in batches of 25
+  participant rows and 5 asset files. It writes and verifies a temporary PTQ2
+  file before the database pointer swap, streams every file in bounded chunks,
+  and advances its non-autoloaded cursors only after a successful item.
+- Migration failures leave PTQ1 data untouched and retain only the record ID,
+  record type, and a safe error class. The Settings health response exposes
+  only `pending`, `running`, or `complete` plus a failure count. Fresh installs
+  initialize as `complete`; interrupted upgrades are restartable and idempotent.
+- Each worker retries only a small fixed slice of recorded failures and reserves
+  the rest of the bounded batch for fresh IDs, so persistent corrupt records
+  cannot starve healthy records behind them. The persisted failure queue is
+  capped; an overflow flag forces a full cursor rescan before completion so an
+  evicted failure can never be mistaken for migrated data.
+
 WordPress.org distributes locale files through translate.wordpress.org. Do not
 ship `.po`, `.mo`, locale `.json`, or translation `.php` files in the plugin
 archive. Keep only the source template at `languages/paper-to-quiz.pot`.
@@ -161,11 +188,13 @@ wp eval-file wp-content/plugins/paper-to-quiz/tests/data-regression.php
 
 - A schema change updates `PAPER_TO_QUIZ_DB_VERSION`, installation/update logic,
   uninstall coverage, types, and tests together.
-- `main` starts from database schema version `1.0.0` and contains no historical
-  data migration. Add future migrations only for WordPress.org versions
-  released after this baseline.
-- Historical migration requirements belong only to
-  `legacy-migration-support`.
+- `main` remains at database schema version `1.0.0` for the PTQ2 encryption
+  format: the versioned encryption worker is a data-format migration and does
+  not change table shape. Add future schema migrations only for WordPress.org
+  versions released after this baseline.
+- Historical database-prefix migration requirements belong only to
+  `legacy-migration-support`; the clean source still performs the bounded PTQ1
+  to PTQ2 encryption upgrade described above.
 - Check every database write and use transactions for multi-table operations.
 - Convert unique-index conflicts into useful field-level REST errors; never leak
   raw database failures as a generic 500 response.

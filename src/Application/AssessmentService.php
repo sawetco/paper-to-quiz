@@ -104,21 +104,79 @@ final class AssessmentService {
 			WHERE ' . $where . ' ORDER BY ' . $order_column . ' ' . $order_direction . ', a.id DESC LIMIT %d OFFSET %d';
 		$args[] = $per_page;
 		$args[] = $offset;
-		$rows   = $this->db->wpdb()->get_results($this->db->wpdb()->prepare($sql, ...$args), ARRAY_A) ?: array();
-		foreach ($rows as &$row) {
-			$subject_ids = $this->sanitize_subject_ids(json_decode((string) ($row['subject_ids_json'] ?? ''), true));
-			if (! $subject_ids && ! empty($row['revision_id'])) {
-				$subject_ids = array_map(
-					'intval',
-					$this->db->wpdb()->get_col(
-						$this->db->wpdb()->prepare(
-							'SELECT DISTINCT subject_id FROM ' . $this->db->table('questions') . ' WHERE revision_id = %d AND subject_id IS NOT NULL ORDER BY subject_id ASC',
-							(int) $row['revision_id']
-						)
-					) ?: array()
-				);
+		$rows = $this->db->wpdb()->get_results($this->db->wpdb()->prepare($sql, ...$args), ARRAY_A) ?: array();
+
+		// Keep stored subject order for list responses while deferring all database enrichment until after the row scan.
+		$subject_ids_by_row    = array();
+		$fallback_revision_ids = array();
+		foreach ($rows as $index => $row) {
+			$subject_ids_by_row[$index] = $this->sanitize_subject_ids_in_order(
+				json_decode((string) ($row['subject_ids_json'] ?? ''), true)
+			);
+			if (! $subject_ids_by_row[$index] && ! empty($row['revision_id'])) {
+				$fallback_revision_ids[(int) $row['revision_id']] = true;
 			}
-			$row['subject_names'] = $this->subject_names($subject_ids);
+		}
+
+		if ($fallback_revision_ids) {
+			$revision_ids   = array_map('intval', array_keys($fallback_revision_ids));
+			$placeholders    = implode(',', array_fill(0, count($revision_ids), '%d'));
+			$fallback_rows   = $this->db->wpdb()->get_results(
+				$this->db->wpdb()->prepare(
+					'SELECT DISTINCT revision_id, subject_id FROM ' . $this->db->table('questions') . " WHERE revision_id IN ({$placeholders}) AND subject_id IS NOT NULL ORDER BY revision_id ASC, subject_id ASC",
+					...$revision_ids
+				),
+				ARRAY_A
+			) ?: array();
+			$fallback_subject_ids = array();
+			foreach ($fallback_rows as $fallback_row) {
+				$revision_id = (int) ($fallback_row['revision_id'] ?? 0);
+				$subject_id  = (int) ($fallback_row['subject_id'] ?? 0);
+				if ($revision_id > 0 && $subject_id > 0) {
+					$fallback_subject_ids[$revision_id][] = $subject_id;
+				}
+			}
+			foreach ($subject_ids_by_row as $index => $subject_ids) {
+				if ($subject_ids || empty($rows[$index]['revision_id'])) {
+					continue;
+				}
+				$revision_id              = (int) $rows[$index]['revision_id'];
+				$subject_ids_by_row[$index] = $this->sanitize_subject_ids($fallback_subject_ids[$revision_id] ?? array());
+			}
+		}
+
+		$all_subject_ids = array();
+		foreach ($subject_ids_by_row as $subject_ids) {
+			foreach ($subject_ids as $subject_id) {
+				$all_subject_ids[$subject_id] = true;
+			}
+		}
+		$all_subject_ids = array_keys($all_subject_ids);
+		sort($all_subject_ids, SORT_NUMERIC);
+		$subject_names_by_id = array();
+		if ($all_subject_ids) {
+			$placeholders = implode(',', array_fill(0, count($all_subject_ids), '%d'));
+			$name_rows    = $this->db->wpdb()->get_results(
+				$this->db->wpdb()->prepare(
+					"SELECT id,name FROM " . $this->db->table('terms') . " WHERE type = 'subject' AND id IN ({$placeholders})",
+					...$all_subject_ids
+				),
+				ARRAY_A
+			) ?: array();
+			foreach ($name_rows as $name_row) {
+				$subject_names_by_id[(int) ($name_row['id'] ?? 0)] = (string) ($name_row['name'] ?? '');
+			}
+		}
+
+		foreach ($rows as $index => &$row) {
+			$row['subject_names'] = array_values(
+				array_filter(
+					array_map(
+						static fn (int $id): string => (string) ($subject_names_by_id[$id] ?? ''),
+						$subject_ids_by_row[$index] ?? array()
+					)
+				)
+			);
 			unset($row['subject_ids_json'], $row['subject_sort']);
 		}
 		unset($row);
@@ -265,27 +323,56 @@ final class AssessmentService {
 
 		$now = current_time('mysql', true);
 		if (! $assessment_id) {
-			$this->db->wpdb()->insert(
-				$this->db->table('assessments'),
-				array(
-					'type'       => $type,
-					'status'     => 'draft',
-					'created_by' => $user_id,
-					'updated_by' => $user_id,
-					'created_at' => $now,
-					'updated_at' => $now,
-				),
-				array('%s', '%s', '%d', '%d', '%s', '%s')
-			);
-			$assessment_id = (int) $this->db->wpdb()->insert_id;
-			$revision_id   = $this->insert_revision($assessment_id, 1, $payload, $now);
-			$this->db->wpdb()->update(
-				$this->db->table('assessments'),
-				array('current_draft_revision_id' => $revision_id),
-				array('id' => $assessment_id),
-				array('%d'),
-				array('%d')
-			);
+			$this->db->begin();
+			try {
+				$inserted = $this->db->write(
+					'assessment_insert',
+					fn (): int|false => $this->db->wpdb()->insert(
+						$this->db->table('assessments'),
+						array(
+							'type'       => $type,
+							'status'     => 'draft',
+							'created_by' => $user_id,
+							'updated_by' => $user_id,
+							'created_at' => $now,
+							'updated_at' => $now,
+						),
+						array('%s', '%s', '%d', '%d', '%s', '%s')
+					)
+				);
+				if (false === $inserted || 1 !== (int) $inserted) {
+					throw new \RuntimeException('Assessment insert failed.');
+				}
+
+				$assessment_id = (int) $this->db->wpdb()->insert_id;
+				if ($assessment_id < 1) {
+					throw new \RuntimeException('Assessment insert did not return an ID.');
+				}
+
+				$revision_id = $this->insert_revision($assessment_id, 1, $payload, $now);
+				$pointer     = $this->db->write(
+					'assessment_draft_pointer_update',
+					fn (): int|false => $this->db->wpdb()->update(
+						$this->db->table('assessments'),
+						array('current_draft_revision_id' => $revision_id),
+						array('id' => $assessment_id),
+						array('%d'),
+						array('%d')
+					)
+				);
+				if (1 !== $pointer) {
+					throw new \RuntimeException('Assessment draft pointer update failed.');
+				}
+				$this->db->commit();
+			} catch (\Throwable $error) {
+				$this->db->rollback();
+				return OperationalErrorReporter::report(
+					'paper_to_quiz_assessment_create_failed',
+					$error,
+					__('The record could not be created. Please try again.', 'paper-to-quiz'),
+					500
+				);
+			}
 		} else {
 			$record = $this->get($assessment_id);
 			if (! $record) {
@@ -408,7 +495,7 @@ final class AssessmentService {
 			);
 		}
 		foreach ($assets_to_release as $released_asset_id) {
-			$this->assets->release($released_asset_id);
+			$this->release_asset_safely($released_asset_id);
 		}
 		return $this->get($assessment_id) ?: array();
 	}
@@ -488,10 +575,10 @@ final class AssessmentService {
 				return new \WP_Error('paper_to_quiz_question_save', __('Question could not be saved.', 'paper-to-quiz'), array('status' => 500));
 			}
 			if ($main_asset_id && (int) $existing['main_asset_id'] !== $main_asset_id) {
-				$this->assets->release((int) $existing['main_asset_id']);
+				$this->release_asset_safely((int) $existing['main_asset_id']);
 			}
 			if ($thumb_asset_id && (int) $existing['thumb_asset_id'] !== $thumb_asset_id) {
-				$this->assets->release((int) $existing['thumb_asset_id']);
+				$this->release_asset_safely((int) $existing['thumb_asset_id']);
 			}
 		} else {
 			$data['ordinal']    = $this->next_temporary_ordinal($revision_id);
@@ -644,8 +731,8 @@ final class AssessmentService {
 		}
 
 		foreach ($pruned_assets as $asset_pair) {
-			$this->assets->release($asset_pair[0]);
-			$this->assets->release($asset_pair[1]);
+			$this->release_asset_safely($asset_pair[0]);
+			$this->release_asset_safely($asset_pair[1]);
 		}
 
 		return $this->questions($revision_id, true);
@@ -662,8 +749,8 @@ final class AssessmentService {
 		}
 
 		$this->db->wpdb()->delete($this->db->table('questions'), array('id' => $question_id), array('%d'));
-		$this->assets->release((int) $question['main_asset_id']);
-		$this->assets->release((int) $question['thumb_asset_id']);
+		$this->release_asset_safely((int) $question['main_asset_id']);
+		$this->release_asset_safely((int) $question['thumb_asset_id']);
 
 		$remaining = $this->questions((int) $question['revision_id'], true);
 		foreach ($remaining as $index => $item) {
@@ -826,7 +913,14 @@ final class AssessmentService {
 		$data['revision_no']   = $revision_no;
 		$data['lifecycle']     = 'draft';
 		$data['created_at']    = $now;
-		$this->db->wpdb()->insert($this->db->table('revisions'), $data);
+		$inserted = $this->db->write(
+			'revision_insert',
+			fn (): int|false => $this->db->wpdb()->insert($this->db->table('revisions'), $data)
+		);
+		if (false === $inserted || 1 !== (int) $inserted || (int) $this->db->wpdb()->insert_id < 1) {
+			throw new \RuntimeException('Revision insert failed.');
+		}
+
 		return (int) $this->db->wpdb()->insert_id;
 	}
 
@@ -962,17 +1056,20 @@ final class AssessmentService {
 	}
 
 	private function retain_asset_or_throw(int $asset_id): void {
-		if (! $asset_id) {
-			return;
-		}
-		$updated = $this->db->wpdb()->query(
-			$this->db->wpdb()->prepare(
-				'UPDATE ' . $this->db->table('assets') . ' SET ref_count = ref_count + 1 WHERE id = %d',
-				$asset_id
-			)
-		);
-		if ($updated !== 1) {
-			throw new \RuntimeException(esc_html__('The question image reference could not be preserved.', 'paper-to-quiz'));
+		$this->assets->retain($asset_id);
+	}
+
+	private function release_asset_safely(?int $asset_id): void {
+		try {
+			$this->assets->release($asset_id);
+		} catch (\Throwable $exception) {
+			/* The primary database mutation already succeeded; report cleanup without making a retry duplicate it. */
+			OperationalErrorReporter::report(
+				'paper_to_quiz_asset_cleanup_failed',
+				$exception,
+				__('A superseded private file could not be cleaned up.', 'paper-to-quiz'),
+				500
+			);
 		}
 	}
 
@@ -1004,6 +1101,30 @@ final class AssessmentService {
 			$errors[] = __('Ranking can be used only for membership-required, non-repeatable exams.', 'paper-to-quiz');
 		}
 
+		$subject_ids_to_validate = array();
+		foreach ($questions as $question) {
+			$subject_id = (int) ($question['subject_id'] ?? 0);
+			if ($subject_id > 0) {
+				$subject_ids_to_validate[$subject_id] = true;
+			}
+		}
+
+		$valid_subject_ids = array();
+		if ($subject_ids_to_validate) {
+			$subject_ids = array_map('intval', array_keys($subject_ids_to_validate));
+			sort($subject_ids, SORT_NUMERIC);
+			$placeholders = implode(',', array_fill(0, count($subject_ids), '%d'));
+			$valid_rows   = $this->db->wpdb()->get_col(
+				$this->db->wpdb()->prepare(
+					"SELECT id FROM " . $this->db->table('terms') . " WHERE id IN ({$placeholders}) AND type = 'subject' AND status IN ('active','archived')",
+					...$subject_ids
+				)
+			) ?: array();
+			foreach ($valid_rows as $valid_id) {
+				$valid_subject_ids[(int) $valid_id] = true;
+			}
+		}
+
 		$total = 0;
 		foreach ($questions as $index => $question) {
 			$number = $index + 1;
@@ -1023,16 +1144,11 @@ final class AssessmentService {
 				/* translators: %d: Question number. */
 				$errors[] = sprintf(__('Select a subject for question %d.', 'paper-to-quiz'), $number);
 			} else {
-				$valid_subject = (int) $this->db->wpdb()->get_var(
-					$this->db->wpdb()->prepare(
-						"SELECT COUNT(*) FROM " . $this->db->table('terms') . " WHERE id = %d AND type = 'subject' AND status IN ('active','archived')",
-						(int) $question['subject_id']
-					)
-				);
-				if (! $valid_subject) {
+				$subject_id = (int) $question['subject_id'];
+				if (! isset($valid_subject_ids[$subject_id])) {
 					/* translators: %d: Question number. */
 					$errors[] = sprintf(__('The subject record for question %d is invalid.', 'paper-to-quiz'), $number);
-				} elseif (! in_array((int) $question['subject_id'], $selected_subject_ids, true)) {
+				} elseif (! in_array($subject_id, $selected_subject_ids, true)) {
 					/* translators: %d: Question number. */
 					$errors[] = sprintf(__('Question %d uses a subject that is not selected in Basic Information.', 'paper-to-quiz'), $number);
 				}
@@ -1174,6 +1290,22 @@ final class AssessmentService {
 		}
 		$ids = array_values(array_unique(array_filter(array_map('intval', $value), static fn (int $id): bool => $id > 0)));
 		sort($ids, SORT_NUMERIC);
+		return $ids;
+	}
+
+	private function sanitize_subject_ids_in_order(mixed $value): array {
+		if (! is_array($value)) {
+			return array();
+		}
+		$ids  = array();
+		$seen = array();
+		foreach ($value as $item) {
+			$id = (int) $item;
+			if ($id > 0 && ! isset($seen[$id])) {
+				$seen[$id] = true;
+				$ids[]     = $id;
+			}
+		}
 		return $ids;
 	}
 

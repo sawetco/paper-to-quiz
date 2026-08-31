@@ -28,6 +28,12 @@ Kaynak PDF'ler ve soru görselleri özel alanda şifreli olarak saklanır. Öğr
 ekranı da WordPress temasının stillerinden etkilenmeyecek şekilde yalıtılmıştır.
 Eklenti geliştiriciye kullanım verisi veya telemetri göndermez.
 
+Mevcut bir site güncellendiğinde eski şifreli katılımcı kayıtları ve dosyalar
+küçük arka plan paketleriyle otomatik olarak yeni biçime geçirilir. Yeni
+kayıtlar güncel PTQ2 biçimini kullanır; geçiş tamamlanana kadar eski biçim
+okunabilir kalır. Ayarlar sayfası yalnızca güvenli geçiş durumunu gösterir;
+anahtarlar veya katılımcı verileri gösterilmez.
+
 ## Nasıl kullanılır?
 
 1. Sınav veya çalışma kâğıdı PDF'ini yükleyin.
@@ -47,13 +53,15 @@ Eklenti geliştiriciye kullanım verisi veya telemetri göndermez.
 
 ## Kurulum
 
-[En güncel sürümden](https://github.com/sawetco/paper-to-quiz/releases/latest)
-`paper-to-quiz.zip` dosyasını indirin. WordPress yönetim panelinde **Eklentiler →
-Yeni Eklenti Ekle → Eklenti Yükle** yolunu izleyin, ZIP dosyasını yükleyin ve
-Paper to Quiz'i etkinleştirin.
+Paper to Quiz'i WordPress üzerinden kurup güncellemek için **Eklentiler → Yeni
+Eklenti Ekle** bölümünde **Paper to Quiz** araması yapın veya [resmî
+WordPress.org eklenti dizinini](https://wordpress.org/plugins/paper-to-quiz/)
+kullanın.
 
-Eklenti WordPress.org dizininde yayımlandığında doğrudan WordPress yönetim
-panelinden de kurulup güncellenebilecektir.
+Manuel kurulum için [en güncel GitHub sürümündeki](https://github.com/sawetco/paper-to-quiz/releases/latest)
+kurulabilir `paper-to-quiz.zip` dosyasını indirin. WordPress yönetim panelinde
+**Eklentiler → Yeni Eklenti Ekle → Eklenti Yükle** yolunu izleyin, ZIP dosyasını
+yükleyin ve Paper to Quiz'i etkinleştirin.
 
 ### Şifreleme anahtarı hakkında
 
@@ -73,6 +81,13 @@ Bu yöntem kullanılırsa değer güvenli bir yerde yedeklenmeli ve daha sonra
 değiştirilmemelidir. Otomatik anahtarla daha önce dosya oluşturulmuş bir sitede
 sonradan bu sabiti eklemek veya kullanılan anahtarı değiştirmek mevcut şifreli
 dosyaları okunamaz hâle getirebilir.
+
+WordPress salt değerlerinin değişmesi PTQ2 verilerini etkilemez. Güncelleme
+sırasında PTQ1 kayıtları açıkça sürümlendirilmiş eski türetme yöntemiyle okunur
+ve PTQ2 olarak yeniden yazılır. Geçiş arka planda çalışır ve kesinti sonrasında
+güvenle kaldığı yerden devam eder. Geçiş Ayarlar sayfasında tamamlandı olarak
+görünene kadar WordPress salt değerlerini değiştirmeyin; bekleyen PTQ1 kayıtları
+ilk salt değerine ihtiyaç duyar.
 
 Eklentiyi etkisizleştirmek verileri silmez. Kalıcı temizlik yalnızca yönetici,
 eklentiyi silmeden önce Tehlikeli Bölge'den açıkça izin verirse çalışır.

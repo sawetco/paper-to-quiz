@@ -10,13 +10,47 @@ final class Database {
 	/** @var \wpdb */
 	private $wpdb;
 
-	public function __construct() {
-		global $wpdb;
-		$this->wpdb = $wpdb;
+	/**
+	 * Optional test-only write interceptor.
+	 *
+	 * @var callable(string, callable): mixed|null
+	 */
+	private $write_interceptor;
+
+	/**
+	 * @param \wpdb|null                    $wpdb              Optional connection for tests.
+	 * @param callable(string, callable): mixed|null $write_interceptor Optional test seam.
+	 */
+	public function __construct(?\wpdb $wpdb = null, ?callable $write_interceptor = null) {
+		if (null === $wpdb) {
+			global $wpdb;
+		}
+		$this->wpdb              = $wpdb;
+		$this->write_interceptor = $write_interceptor;
 	}
 
 	public function wpdb(): \wpdb {
 		return $this->wpdb;
+	}
+
+	/**
+	 * Execute a named database write, optionally through the test interceptor.
+	 *
+	 * The normal production path delegates directly to the supplied callback. A
+	 * test may return false for one operation and delegate all other operations,
+	 * allowing failure paths to be exercised without a production flag or query
+	 * filter.
+	 *
+	 * @param string   $operation Stable operation name for diagnostics/tests.
+	 * @param callable $write     Database write callback.
+	 * @return mixed The callback/interceptor result.
+	 */
+	public function write(string $operation, callable $write): mixed {
+		if (null !== $this->write_interceptor) {
+			return ($this->write_interceptor)($operation, $write);
+		}
+
+		return $write();
 	}
 
 	public function table(string $name): string {

@@ -16,7 +16,9 @@ use PaperToQuiz\Infrastructure\Cleanup;
 use PaperToQuiz\Infrastructure\Crypto;
 use PaperToQuiz\Infrastructure\Database;
 use PaperToQuiz\Infrastructure\EncryptedStorage;
+use PaperToQuiz\Infrastructure\EncryptionMigration;
 use PaperToQuiz\Infrastructure\Installer;
+use PaperToQuiz\Infrastructure\PrivateKeyProvider;
 use PaperToQuiz\Infrastructure\Settings;
 use PaperToQuiz\Privacy\PrivacyManager;
 use PaperToQuiz\Rest\AdminController;
@@ -40,15 +42,17 @@ final class Plugin {
 		}
 
 		$db                  = new Database();
-		$this->storage       = new EncryptedStorage();
-		$crypto              = new Crypto();
+		$key_provider        = new PrivateKeyProvider();
+		$this->storage       = new EncryptedStorage($key_provider);
+		$crypto              = new Crypto($key_provider);
+		$encryption_migration = new EncryptionMigration($db, $crypto, $this->storage);
 		$assets              = new AssetService($db, $this->storage);
 		$terms               = new TermService($db);
 		$purge_service       = new AssessmentPurgeService($db, $assets);
 		$assessment_service  = new AssessmentService($db, $assets, $terms, $purge_service);
 		$attempt_service     = new AttemptService($db, $assessment_service, $crypto);
 		$email_service       = new ResultEmailService($db, $attempt_service);
-		$admin_controller    = new AdminController($db, $this->storage, $assets, $assessment_service, $attempt_service, $terms, $purge_service);
+		$admin_controller    = new AdminController($db, $this->storage, $assets, $assessment_service, $attempt_service, $terms, $purge_service, $encryption_migration);
 		$public_controller   = new PublicController($attempt_service);
 		$menu                = new AdminMenu();
 		$shortcode           = new Shortcode($assessment_service);
@@ -67,6 +71,7 @@ final class Plugin {
 		add_action('paper_to_quiz_daily_cleanup', array($cleanup, 'run'));
 		add_action('paper_to_quiz_attempt_completed', array($email_service, 'enqueue'));
 		add_action('paper_to_quiz_process_result_emails', array($email_service, 'process'));
+		add_action('paper_to_quiz_process_encryption_migration', array($encryption_migration, 'run'));
 
 		$shortcode->register();
 		$privacy->register();
