@@ -27,6 +27,12 @@ Source PDFs and question images are encrypted in private storage. The student
 screen is isolated from WordPress theme styles, so it keeps its intended layout.
 The plugin does not send usage data or telemetry to the developer.
 
+When an existing site is updated, older encrypted participant records and files
+are upgraded automatically in small background batches. New writes use the
+current PTQ2 format, while the previous format remains readable until the
+upgrade finishes. The Settings page shows only the safe migration health state;
+the migration never exposes keys or participant data.
+
 ## How does it work?
 
 1. Upload an exam or worksheet PDF.
@@ -71,6 +77,13 @@ define('PAPER_TO_QUIZ_PRIVATE_STORAGE_KEY', 'a-random-and-secret-value-of-at-lea
 If you use this method, keep the value in a secure backup and never change it.
 Adding the constant after files have already been created with the automatic
 key, or changing the key later, may make existing encrypted files unreadable.
+
+Changing WordPress salts does not affect PTQ2 data. During an upgrade, PTQ1
+records are read with their explicitly versioned legacy derivation and then
+rewritten to PTQ2. The migration runs in the background and can safely resume
+after an interruption. Do not rotate WordPress salts until the migration is
+shown as complete in the Settings page; old PTQ1 records still need the
+original salt while the upgrade is pending.
 
 Deactivating the plugin does not remove its data. Permanent cleanup runs only
 when an administrator explicitly enables it in the Danger Zone before deleting

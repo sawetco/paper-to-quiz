@@ -11,6 +11,7 @@ use PaperToQuiz\Application\AttemptService;
 use PaperToQuiz\Application\TermService;
 use PaperToQuiz\Infrastructure\Database;
 use PaperToQuiz\Infrastructure\EncryptedStorage;
+use PaperToQuiz\Infrastructure\EncryptionMigration;
 use PaperToQuiz\Infrastructure\OperationalErrorReporter;
 use PaperToQuiz\Infrastructure\Settings;
 use PaperToQuiz\Infrastructure\StorageException;
@@ -25,7 +26,8 @@ final class AdminController {
 		private readonly AssessmentService $assessments,
 		private readonly AttemptService $attempts,
 		private readonly TermService $terms,
-		private readonly AssessmentPurgeService $purge_service
+		private readonly AssessmentPurgeService $purge_service,
+		private readonly ?EncryptionMigration $encryption_migration = null
 	) {
 	}
 
@@ -884,6 +886,9 @@ final class AdminController {
 		$settings['storage_writable'] = $this->storage->is_available();
 		$settings['openssl']          = extension_loaded('openssl');
 		$settings['max_upload_bytes'] = wp_max_upload_size();
+		$settings['encryption_migration'] = $this->encryption_migration
+			? $this->encryption_migration->status()
+			: array('status' => 'complete', 'participant_cursor' => 0, 'asset_cursor' => 0, 'failures' => 0);
 		return rest_ensure_response($settings);
 	}
 

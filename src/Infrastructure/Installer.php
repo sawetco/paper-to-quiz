@@ -9,6 +9,7 @@ final class Installer {
 
 	public static function activate(): void {
 		add_filter('cron_schedules', array(self::class, 'cron_schedules'));
+		$existing_install = get_option('paper_to_quiz_db_version', null) !== null;
 		if (! self::install_schema()) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- WordPress displays activation exceptions in its own escaped error screen.
 			throw new \RuntimeException(__('Paper to Quiz could not create its database tables. Check the database permissions before activation.', 'paper-to-quiz'));
@@ -17,6 +18,7 @@ final class Installer {
 
 		$storage = new EncryptedStorage();
 		$storage->ensure_base_directory();
+		self::initialize_encryption_migration(! $existing_install, $storage);
 	}
 
 	public static function ensure_schedules(): void {
@@ -26,6 +28,9 @@ final class Installer {
 		$args = array('queue');
 		if (! wp_next_scheduled('paper_to_quiz_process_result_emails', $args)) {
 			wp_schedule_event(time() + 5 * MINUTE_IN_SECONDS, 'paper_to_quiz_five_minutes', 'paper_to_quiz_process_result_emails', $args);
+		}
+		if (! wp_next_scheduled('paper_to_quiz_process_encryption_migration')) {
+			wp_schedule_event(time() + 5 * MINUTE_IN_SECONDS, 'paper_to_quiz_five_minutes', 'paper_to_quiz_process_encryption_migration');
 		}
 	}
 
@@ -44,9 +49,11 @@ final class Installer {
 	public static function deactivate(): void {
 		wp_clear_scheduled_hook('paper_to_quiz_daily_cleanup');
 		wp_clear_scheduled_hook('paper_to_quiz_process_result_emails');
+		wp_clear_scheduled_hook('paper_to_quiz_process_encryption_migration');
 	}
 
 	public static function maybe_upgrade(): bool {
+		$existing_install = get_option('paper_to_quiz_db_version', null) !== null;
 		// Keep role capabilities current for sites that were already active before
 		// a capability was introduced or renamed. This is idempotent and must run
 		// even when the schema verification cache allows an early return below.
@@ -67,6 +74,7 @@ final class Installer {
 			get_option('paper_to_quiz_db_version') === PAPER_TO_QUIZ_DB_VERSION &&
 			get_transient($verified) === '1'
 		) {
+			self::initialize_encryption_migration(! $existing_install);
 			return true;
 		}
 
@@ -75,6 +83,7 @@ final class Installer {
 		}
 
 		if (self::install_schema()) {
+			self::initialize_encryption_migration(! $existing_install);
 			delete_transient($failed);
 			set_transient($verified, '1', 12 * HOUR_IN_SECONDS);
 			return true;
@@ -171,6 +180,13 @@ final class Installer {
 				$administrator->add_cap($capability);
 			}
 		}
+	}
+
+	private static function initialize_encryption_migration(bool $fresh_install, ?EncryptedStorage $storage = null): void {
+		$storage   = $storage ?? new EncryptedStorage();
+		$database  = new Database();
+		$migration = new EncryptionMigration($database, new Crypto(), $storage);
+		$migration->initialize($fresh_install);
 	}
 
 	private static function install_schema(): bool {
