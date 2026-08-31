@@ -54,9 +54,9 @@
 		"@dnd-kit/sortable": "^10.0.0",
 		"@dnd-kit/utilities": "^3.2.2",
 		"@noble/hashes": "^2.4.0",
-		"@wordpress/api-fetch": "^7.51.0",
-		"@wordpress/components": "^37.0.0",
-		"@wordpress/element": "^8.3.0",
+		"@wordpress/api-fetch": "^7.54.0",
+		"@wordpress/components": "^40.0.0",
+		"@wordpress/element": "^8.6.0",
 		"@wordpress/i18n": "^6.24.0",
 		"konva": "^9.3.22",
 		"pdfjs-dist": "^6.1.200",
@@ -68,8 +68,8 @@
 		"@types/jest": "^30.0.0",
 		"@types/react": "^18.3.27",
 		"@types/react-dom": "^18.3.7",
-		"@wordpress/env": "11.12.0",
-		"@wordpress/scripts": "^33.0.0",
+		"@wordpress/env": "11.14.0",
+		"@wordpress/scripts": "^34.2.0",
 		"typescript": "^5.9.3"
 	},
 	"overrides": {
