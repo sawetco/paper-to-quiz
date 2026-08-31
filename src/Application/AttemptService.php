@@ -66,9 +66,9 @@ final class AttemptService {
 		return $this->questions_cache[$key];
 	}
 
-	private function public_access(?array $record, int $assessment_id): bool|\WP_Error {
+	private function public_access(?array $record, int $assessment_id, string $not_available_message): bool|\WP_Error {
 		if (! $record || $record['assessment']['status'] !== 'published' || ! $record['revision']) {
-			return new \WP_Error('paper_to_quiz_not_available', __('This item is currently unavailable.', 'paper-to-quiz'), array('status' => 404));
+			return new \WP_Error('paper_to_quiz_not_available', $not_available_message, array('status' => 404));
 		}
 
 		$revision = $record['revision'];
@@ -94,7 +94,7 @@ final class AttemptService {
 
 	public function bootstrap(int $assessment_id): array|\WP_Error {
 		$record = $this->assessments->get($assessment_id, true);
-		$access = $this->public_access($record, $assessment_id);
+		$access = $this->public_access($record, $assessment_id, __('This item is currently unavailable.', 'paper-to-quiz'));
 		if (is_wp_error($access)) {
 			return $access;
 		}
@@ -153,7 +153,7 @@ final class AttemptService {
 
 	public function start(int $assessment_id, array $participant): array|\WP_Error {
 		$record = $this->assessments->get($assessment_id, true);
-		$access = $this->public_access($record, $assessment_id);
+		$access = $this->public_access($record, $assessment_id, __('This item could not be found.', 'paper-to-quiz'));
 		if (is_wp_error($access)) {
 			return $access;
 		}

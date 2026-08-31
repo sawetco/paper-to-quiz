@@ -281,6 +281,8 @@ try {
 	paper_to_quiz_rest_assert(404 === paper_to_quiz_rest_status($trashed_bootstrap), 'Trashed assessment bootstrap was not denied.');
 	$trashed_start = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/assessments/' . $assessment_public . '/attempts', array('participant' => array(), 'client' => array()));
 	paper_to_quiz_rest_assert(404 === paper_to_quiz_rest_status($trashed_start), 'Trashed assessment attempt start was not denied.');
+	$trashed_start_data = paper_to_quiz_rest_data($trashed_start);
+	paper_to_quiz_rest_assert(__('This item could not be found.', 'paper-to-quiz') === ($trashed_start_data['message'] ?? ''), 'Attempt start changed its not-found message.');
 	paper_to_quiz_rest_assert($attempt_count_before_trash === (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('attempts') . ' WHERE assessment_id=%d', $assessment_public)), 'Trashed assessment created an attempt.');
 	$purge = paper_to_quiz_rest_request('DELETE', '/paper-to-quiz/v1/admin/assessments/' . $assessment_public, array('force' => true), $manager);
 	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($purge), 'Assessment force delete failed.');
