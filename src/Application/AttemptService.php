@@ -1199,18 +1199,6 @@ final class AttemptService {
 						$submitted
 					)
 				);
-				/*
-				 * Snapshot per-subject rank/total so subject_scores() can render
-				 * in one SELECT at result time instead of two COUNT queries per
-				 * subject (plan 016). Recomputed for every eligible attempt in
-				 * each subject this attempt scored, using the same tie-break as
-				 * the live query (score DESC, duration_seconds ASC, submitted_at
-				 * ASC). Lives inside the surrounding finalize transaction.
-				 */
-				$this->refresh_subject_ranking_snapshot(
-					(int) $attempt['revision_id'],
-					array_map('intval', array_keys($subjects))
-				);
 			}
 			$this->db->commit();
 		} catch (\Throwable $error) {
