@@ -104,21 +104,79 @@ final class AssessmentService {
 			WHERE ' . $where . ' ORDER BY ' . $order_column . ' ' . $order_direction . ', a.id DESC LIMIT %d OFFSET %d';
 		$args[] = $per_page;
 		$args[] = $offset;
-		$rows   = $this->db->wpdb()->get_results($this->db->wpdb()->prepare($sql, ...$args), ARRAY_A) ?: array();
-		foreach ($rows as &$row) {
-			$subject_ids = $this->sanitize_subject_ids(json_decode((string) ($row['subject_ids_json'] ?? ''), true));
-			if (! $subject_ids && ! empty($row['revision_id'])) {
-				$subject_ids = array_map(
-					'intval',
-					$this->db->wpdb()->get_col(
-						$this->db->wpdb()->prepare(
-							'SELECT DISTINCT subject_id FROM ' . $this->db->table('questions') . ' WHERE revision_id = %d AND subject_id IS NOT NULL ORDER BY subject_id ASC',
-							(int) $row['revision_id']
-						)
-					) ?: array()
-				);
+		$rows = $this->db->wpdb()->get_results($this->db->wpdb()->prepare($sql, ...$args), ARRAY_A) ?: array();
+
+		// Keep stored subject order for list responses while deferring all database enrichment until after the row scan.
+		$subject_ids_by_row    = array();
+		$fallback_revision_ids = array();
+		foreach ($rows as $index => $row) {
+			$subject_ids_by_row[$index] = $this->sanitize_subject_ids_in_order(
+				json_decode((string) ($row['subject_ids_json'] ?? ''), true)
+			);
+			if (! $subject_ids_by_row[$index] && ! empty($row['revision_id'])) {
+				$fallback_revision_ids[(int) $row['revision_id']] = true;
 			}
-			$row['subject_names'] = $this->subject_names($subject_ids);
+		}
+
+		if ($fallback_revision_ids) {
+			$revision_ids   = array_map('intval', array_keys($fallback_revision_ids));
+			$placeholders    = implode(',', array_fill(0, count($revision_ids), '%d'));
+			$fallback_rows   = $this->db->wpdb()->get_results(
+				$this->db->wpdb()->prepare(
+					'SELECT DISTINCT revision_id, subject_id FROM ' . $this->db->table('questions') . " WHERE revision_id IN ({$placeholders}) AND subject_id IS NOT NULL ORDER BY revision_id ASC, subject_id ASC",
+					...$revision_ids
+				),
+				ARRAY_A
+			) ?: array();
+			$fallback_subject_ids = array();
+			foreach ($fallback_rows as $fallback_row) {
+				$revision_id = (int) ($fallback_row['revision_id'] ?? 0);
+				$subject_id  = (int) ($fallback_row['subject_id'] ?? 0);
+				if ($revision_id > 0 && $subject_id > 0) {
+					$fallback_subject_ids[$revision_id][] = $subject_id;
+				}
+			}
+			foreach ($subject_ids_by_row as $index => $subject_ids) {
+				if ($subject_ids || empty($rows[$index]['revision_id'])) {
+					continue;
+				}
+				$revision_id              = (int) $rows[$index]['revision_id'];
+				$subject_ids_by_row[$index] = $this->sanitize_subject_ids($fallback_subject_ids[$revision_id] ?? array());
+			}
+		}
+
+		$all_subject_ids = array();
+		foreach ($subject_ids_by_row as $subject_ids) {
+			foreach ($subject_ids as $subject_id) {
+				$all_subject_ids[$subject_id] = true;
+			}
+		}
+		$all_subject_ids = array_keys($all_subject_ids);
+		sort($all_subject_ids, SORT_NUMERIC);
+		$subject_names_by_id = array();
+		if ($all_subject_ids) {
+			$placeholders = implode(',', array_fill(0, count($all_subject_ids), '%d'));
+			$name_rows    = $this->db->wpdb()->get_results(
+				$this->db->wpdb()->prepare(
+					"SELECT id,name FROM " . $this->db->table('terms') . " WHERE type = 'subject' AND id IN ({$placeholders})",
+					...$all_subject_ids
+				),
+				ARRAY_A
+			) ?: array();
+			foreach ($name_rows as $name_row) {
+				$subject_names_by_id[(int) ($name_row['id'] ?? 0)] = (string) ($name_row['name'] ?? '');
+			}
+		}
+
+		foreach ($rows as $index => &$row) {
+			$row['subject_names'] = array_values(
+				array_filter(
+					array_map(
+						static fn (int $id): string => (string) ($subject_names_by_id[$id] ?? ''),
+						$subject_ids_by_row[$index] ?? array()
+					)
+				)
+			);
 			unset($row['subject_ids_json'], $row['subject_sort']);
 		}
 		unset($row);
@@ -1210,6 +1268,22 @@ final class AssessmentService {
 		}
 		$ids = array_values(array_unique(array_filter(array_map('intval', $value), static fn (int $id): bool => $id > 0)));
 		sort($ids, SORT_NUMERIC);
+		return $ids;
+	}
+
+	private function sanitize_subject_ids_in_order(mixed $value): array {
+		if (! is_array($value)) {
+			return array();
+		}
+		$ids  = array();
+		$seen = array();
+		foreach ($value as $item) {
+			$id = (int) $item;
+			if ($id > 0 && ! isset($seen[$id])) {
+				$seen[$id] = true;
+				$ids[]     = $id;
+			}
+		}
 		return $ids;
 	}
 
