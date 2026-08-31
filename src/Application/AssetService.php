@@ -13,6 +13,8 @@ use PaperToQuiz\Infrastructure\Installer;
 use PaperToQuiz\Infrastructure\StorageException;
 
 final class AssetService {
+	private const MAX_RELEASE_ATTEMPTS = 3;
+
 	public function __construct(
 		private readonly Database $db,
 		private readonly EncryptedStorage $storage
@@ -60,11 +62,38 @@ final class AssetService {
 		if (! $asset_id) {
 			return;
 		}
-		$this->db->wpdb()->query(
-			$this->db->wpdb()->prepare(
-				'UPDATE ' . $this->db->table('assets') . ' SET ref_count = ref_count + 1 WHERE id = %d',
-				$asset_id
+
+		$wpdb   = $this->db->wpdb();
+		$updated = $this->db->write(
+			'asset_retain',
+			fn (): int|false => $wpdb->query(
+				$wpdb->prepare(
+					'UPDATE ' . $this->db->table('assets') . ' SET ref_count = ref_count + 1 WHERE id = %d AND ref_count > 0',
+					$asset_id
+				)
 			)
+		);
+		if (1 === $updated) {
+			return;
+		}
+		if (false === $updated) {
+			throw $this->reference_database_exception('retain');
+		}
+
+		$wpdb->last_error = '';
+		if (! $this->get($asset_id)) {
+			if ((string) $wpdb->last_error !== '') {
+				throw $this->reference_database_exception('retain lookup');
+			}
+			throw new StorageException(
+				'Asset retain target is missing.',
+				__('The file reference could not be found. Please refresh and try again.', 'paper-to-quiz')
+			);
+		}
+
+		throw new StorageException(
+			'Asset retain affected zero live rows.',
+			__('The file reference could not be preserved. Please try again.', 'paper-to-quiz')
 		);
 	}
 
@@ -73,24 +102,86 @@ final class AssetService {
 			return;
 		}
 
-		$asset = $this->get($asset_id);
-		if (! $asset) {
-			return;
-		}
-
-		if ((int) $asset['ref_count'] > 1) {
-			$this->db->wpdb()->update(
-				$this->db->table('assets'),
-				array('ref_count' => (int) $asset['ref_count'] - 1),
-				array('id' => $asset_id),
-				array('%d'),
-				array('%d')
+		$wpdb = $this->db->wpdb();
+		for ($attempt = 0; $attempt < self::MAX_RELEASE_ATTEMPTS; $attempt++) {
+			$decremented = $this->db->write(
+				'asset_release_decrement',
+				fn (): int|false => $wpdb->query(
+					$wpdb->prepare(
+						'UPDATE ' . $this->db->table('assets') . ' SET ref_count = ref_count - 1 WHERE id = %d AND ref_count > 1',
+						$asset_id
+					)
+				)
 			);
+			if (1 === $decremented) {
+				return;
+			}
+			if (false === $decremented) {
+				throw $this->reference_database_exception('release decrement');
+			}
+
+			/*
+			 * The count is deliberately not used to choose a branch here. A
+			 * concurrent retain/release may have changed it after the conditional
+			 * decrement returned zero. The key is immutable; read it immediately
+			 * before the conditional final-row delete and retry if that delete loses
+			 * the race.
+			 */
+			$wpdb->last_error = '';
+			$asset = $this->get($asset_id);
+			if (! $asset) {
+				if ((string) $wpdb->last_error !== '') {
+					throw $this->reference_database_exception('release lookup');
+				}
+				return;
+			}
+			$storage_key = (string) ($asset['storage_key'] ?? '');
+			if ($storage_key === '') {
+				throw new StorageException(
+					'Asset release target has no storage key.',
+					__('The file reference could not be released. Please try again.', 'paper-to-quiz')
+				);
+			}
+
+			$deleted = $this->db->write(
+				'asset_release_delete',
+				fn (): int|false => $wpdb->query(
+					$wpdb->prepare(
+						'DELETE FROM ' . $this->db->table('assets') . ' WHERE id = %d AND ref_count = 1',
+						$asset_id
+					)
+				)
+			);
+			if (false === $deleted) {
+				throw $this->reference_database_exception('release delete');
+			}
+			if (1 !== $deleted) {
+				continue;
+			}
+
+			try {
+				$this->storage->delete($storage_key);
+			} catch (\Throwable) {
+				/* The row is already gone: failed cleanup leaves only recoverable bytes. */
+				throw new StorageException(
+					'Asset storage deletion failed.',
+					__('The file could not be removed. Please try again.', 'paper-to-quiz')
+				);
+			}
 			return;
 		}
 
-		$this->storage->delete((string) $asset['storage_key']);
-		$this->db->wpdb()->delete($this->db->table('assets'), array('id' => $asset_id), array('%d'));
+		$wpdb->last_error = '';
+		if (! $this->get($asset_id)) {
+			if ((string) $wpdb->last_error !== '') {
+				throw $this->reference_database_exception('release final lookup');
+			}
+			return;
+		}
+		throw new StorageException(
+			'Asset release did not reach a stable reference count.',
+			__('The file reference changed while it was being released. Please try again.', 'paper-to-quiz')
+		);
 	}
 
 	public function delete_files(array $assets): void {
@@ -152,5 +243,12 @@ final class AssetService {
 			return __('The server database appears to be full. Check the hosting disk quota.', 'paper-to-quiz');
 		}
 		return __('The asset record could not be created. Please try again.', 'paper-to-quiz');
+	}
+
+	private function reference_database_exception(string $operation): StorageException {
+		return new StorageException(
+			'Asset reference ' . $operation . ' database write failed.',
+			__('The file reference could not be updated. Please try again.', 'paper-to-quiz')
+		);
 	}
 }

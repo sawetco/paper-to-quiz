@@ -1056,18 +1056,7 @@ final class AssessmentService {
 	}
 
 	private function retain_asset_or_throw(int $asset_id): void {
-		if (! $asset_id) {
-			return;
-		}
-		$updated = $this->db->wpdb()->query(
-			$this->db->wpdb()->prepare(
-				'UPDATE ' . $this->db->table('assets') . ' SET ref_count = ref_count + 1 WHERE id = %d',
-				$asset_id
-			)
-		);
-		if ($updated !== 1) {
-			throw new \RuntimeException(esc_html__('The question image reference could not be preserved.', 'paper-to-quiz'));
-		}
+		$this->assets->retain($asset_id);
 	}
 
 	private function validate_publish(array $record): array {

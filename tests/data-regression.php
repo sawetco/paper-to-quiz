@@ -97,14 +97,13 @@ function paper_to_quiz_insert_retention_attempt(wpdb $wpdb, Database $database, 
 	return $attempt_id;
 }
 
-$database = new Database();
-$wpdb     = $database->wpdb();
-$service  = new AssessmentService(
-	$database,
-	new AssetService($database, new EncryptedStorage())
-);
-$suffix   = strtolower(wp_generate_password(10, false, false));
-$now      = current_time('mysql', true);
+$database      = new Database();
+$wpdb          = $database->wpdb();
+$asset_storage = new EncryptedStorage();
+$asset_service = new AssetService($database, $asset_storage);
+$service       = new AssessmentService($database, $asset_service);
+$suffix        = strtolower(wp_generate_password(10, false, false));
+$now           = current_time('mysql', true);
 
 $class_id      = 0;
 $subject_id    = 0;
@@ -116,6 +115,8 @@ $report        = array();
 $cleanup_counts = array();
 $retention_attempt_ids = array();
 $retention_settings_before = get_option(Settings::OPTION, false);
+$asset_ids     = array();
+$asset_storage_keys = array();
 
 try {
 	$administrator = get_role('administrator');
@@ -123,6 +124,41 @@ try {
 	foreach (array('paper_to_quiz_manage_assessments', 'paper_to_quiz_publish_assessments', 'paper_to_quiz_view_results', 'paper_to_quiz_manage_settings') as $capability) {
 		paper_to_quiz_assert($administrator->has_cap($capability), 'Administrator role is missing ' . $capability . '.');
 	}
+
+	/*
+	 * A live reference must keep its encrypted file, while the final release
+	 * must remove both records. Releasing the already-removed ID is idempotent.
+	 */
+	$atomic_asset_id = $asset_service->create_from_string(
+		'Atomic asset reference regression ' . $suffix,
+		'question_image',
+		'image/png'
+	);
+	$asset_ids[] = $atomic_asset_id;
+	$atomic_asset = $asset_service->get($atomic_asset_id);
+	paper_to_quiz_assert(is_array($atomic_asset) && ! empty($atomic_asset['storage_key']), 'Atomic asset fixture was not persisted.');
+	$atomic_storage_key = (string) $atomic_asset['storage_key'];
+	$asset_storage_keys[] = $atomic_storage_key;
+	paper_to_quiz_assert($asset_storage->exists($atomic_storage_key), 'Atomic asset fixture file was not written.');
+	$asset_service->retain($atomic_asset_id);
+	paper_to_quiz_assert(
+		2 === (int) $wpdb->get_var($wpdb->prepare('SELECT ref_count FROM ' . $database->table('assets') . ' WHERE id=%d', $atomic_asset_id)),
+		'Retaining a live asset did not increment its reference count.'
+	);
+	$asset_service->release($atomic_asset_id);
+	paper_to_quiz_assert(
+		1 === (int) $wpdb->get_var($wpdb->prepare('SELECT ref_count FROM ' . $database->table('assets') . ' WHERE id=%d', $atomic_asset_id)),
+		'Releasing one live asset reference changed the final count.'
+	);
+	paper_to_quiz_assert($asset_storage->exists($atomic_storage_key), 'Releasing one live asset reference deleted its file.');
+	$asset_service->release($atomic_asset_id);
+	paper_to_quiz_assert(
+		0 === (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $database->table('assets') . ' WHERE id=%d', $atomic_asset_id)),
+		'Releasing the final asset reference left a database row.'
+	);
+	paper_to_quiz_assert(! $asset_storage->exists($atomic_storage_key), 'Releasing the final asset reference left a storage file.');
+	$asset_service->release($atomic_asset_id);
+	$report['asset_reference_atomicity'] = 'passed';
 
 	$created_class = $service->save_class('Regression Class ' . $suffix, null, '#2f6fed');
 	paper_to_quiz_assert(! is_wp_error($created_class), 'Class could not be created.');
@@ -384,6 +420,7 @@ try {
 		'delete_isolation'    => 'passed',
 		'idempotent_delete'   => 'passed',
 		'retention_cleanup'   => 'passed',
+		'asset_reference_atomicity' => 'passed',
 	);
 } finally {
 	if (false === $retention_settings_before) {
@@ -400,6 +437,16 @@ try {
 		$wpdb->query('DELETE FROM ' . $database->table('result_email_jobs') . " WHERE attempt_id IN ({$ids})");
 		$wpdb->query('DELETE FROM ' . $database->table('attempts') . " WHERE id IN ({$ids})");
 		// phpcs:enable WordPress.DB
+	}
+	foreach (array_values(array_unique($asset_ids)) as $asset_id) {
+		$wpdb->delete($database->table('assets'), array('id' => $asset_id), array('%d'));
+	}
+	foreach (array_values(array_unique($asset_storage_keys)) as $storage_key) {
+		try {
+			$asset_storage->delete($storage_key);
+		} catch (Throwable $error) {
+			error_log('[Paper to Quiz regression cleanup] asset storage: ' . $error->getMessage());
+		}
 	}
 	foreach (array_filter(array($revision_a, $revision_b)) as $revision_id) {
 		paper_to_quiz_assert(false !== $wpdb->delete($database->table('questions'), array('revision_id' => $revision_id), array('%d')), 'Regression questions could not be cleaned up.');
