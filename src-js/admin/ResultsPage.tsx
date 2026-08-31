@@ -1,29 +1,20 @@
 import { useEffect, useRef, useState } from '@wordpress/element';
 import { Notice, Spinner } from '@wordpress/components';
 import { __, _n, _x, sprintf } from '@wordpress/i18n';
-import type { ListResponse } from '../types';
 import { api } from './api';
 import { attemptStatusLabels, formatDuration } from './labels';
 import { formatScore } from '../shared/format';
 import { ListPagination } from './ListPagination';
 import { BusyLabel } from './BusyLabel';
-
-type ResultItem = {
-	id: string;
-	title: string;
-	type: 'exam' | 'test';
-	participant_label: string;
-	participant_type: 'member' | 'guest';
-	started_at_display: string;
-	submitted_at_display: string;
-	duration_seconds?: string;
-	correct_count: string;
-	wrong_count: string;
-	blank_count: string;
-	score: string;
-	score_has_fraction?: string;
-	status: string;
-};
+import type {
+	AdminResultDetail,
+	AdminResultsResponse,
+	AttemptStatusValue,
+	ParticipantValue,
+	ResultAnswer,
+	ResultItem,
+	ResultSubject,
+} from './result-types';
 
 type AssessmentOption = {
 	id: string;
@@ -31,12 +22,18 @@ type AssessmentOption = {
 	type: 'exam' | 'test';
 };
 
-const emptyResponse: ListResponse< ResultItem > = {
+const emptyResponse: AdminResultsResponse = {
 	items: [],
 	total: 0,
 	pages: 0,
 	page: 1,
-	counts: {},
+	counts: {
+		all: 0,
+		in_progress: 0,
+		submitted: 0,
+		auto_submitted: 0,
+		expired: 0,
+	},
 };
 
 const participantFieldLabels: Record< string, string > = {
@@ -57,13 +54,17 @@ const diagnosticLabels: Record< string, string > = {
 	timezone: __( 'Time zone', 'paper-to-quiz' ),
 };
 
-function answerStatus( answer: any ): string {
+export function answerStatus( answer: ResultAnswer ): string {
 	if ( ! answer.selected_option ) {
 		return __( 'Blank', 'paper-to-quiz' );
 	}
 	return answer.is_correct === '1'
 		? __( 'Correct', 'paper-to-quiz' )
 		: __( 'Wrong', 'paper-to-quiz' );
+}
+
+function resultStatusLabel( status: AttemptStatusValue ): string {
+	return attemptStatusLabels[ status ] || status;
 }
 
 export function ResultsPage() {
@@ -81,10 +82,9 @@ export function ResultsPage() {
 	const [ assessments, setAssessments ] = useState< AssessmentOption[] >(
 		[]
 	);
-	const [ response, setResponse ] = useState<
-		ListResponse< ResultItem > & { subject_analytics?: any[] }
-	>( emptyResponse );
-	const [ detail, setDetail ] = useState< any | null >( null );
+	const [ response, setResponse ] =
+		useState< AdminResultsResponse >( emptyResponse );
+	const [ detail, setDetail ] = useState< AdminResultDetail | null >( null );
 	const [ loading, setLoading ] = useState( true );
 	const [ detailLoadingId, setDetailLoadingId ] = useState< number | null >(
 		null
@@ -121,7 +121,7 @@ export function ResultsPage() {
 		if ( search ) {
 			query.set( 'search', search );
 		}
-		api< ListResponse< ResultItem > >( `/admin/results?${ query }` )
+		api< AdminResultsResponse >( `/admin/results?${ query }` )
 			.then( setResponse )
 			.catch( ( caught ) => setError( caught.message ) )
 			.finally( () => setLoading( false ) );
@@ -143,7 +143,9 @@ export function ResultsPage() {
 		setDetailLoadingId( id );
 		setError( '' );
 		try {
-			setDetail( await api( `/admin/results/${ id }` ) );
+			setDetail(
+				await api< AdminResultDetail >( `/admin/results/${ id }` )
+			);
 		} catch ( caught ) {
 			setError(
 				caught instanceof Error
@@ -484,7 +486,7 @@ export function ResultsPage() {
 									</td>
 								</tr>
 							) }
-							{ response.items.map( ( item ) => (
+							{ response.items.map( ( item: ResultItem ) => (
 								<tr key={ item.id }>
 									<td
 										className="column-primary column-result-title"
@@ -627,8 +629,7 @@ export function ResultsPage() {
 											'paper-to-quiz'
 										) }
 									>
-										{ attemptStatusLabels[ item.status ] ||
-											item.status }
+										{ resultStatusLabel( item.status ) }
 									</td>
 								</tr>
 							) ) }
@@ -687,15 +688,15 @@ function ResultSortableColumn( {
 	);
 }
 
-function ResultDetail( {
+export function ResultDetail( {
 	detail,
 	onClose,
 }: {
-	detail: any;
+	detail: AdminResultDetail;
 	onClose: () => void;
 } ) {
-	const participantEntries = Object.entries( detail.participant || {} );
-	const diagnosticEntries = Object.entries( detail.diagnostics || {} ).filter(
+	const participantEntries = Object.entries( detail.participant ?? {} );
+	const diagnosticEntries = Object.entries( detail.diagnostics ?? {} ).filter(
 		( [ key ] ) =>
 			! [
 				'screen',
@@ -708,7 +709,7 @@ function ResultDetail( {
 		detail.type === 'exam'
 			? _x( 'Exam', 'Assessment type', 'paper-to-quiz' )
 			: _x( 'Test', 'Assessment type', 'paper-to-quiz' );
-	const systemRows: Array< [ string, unknown ] > = [
+	const systemRows: Array< [ string, ParticipantValue ] > = [
 		[ __( 'Record ID', 'paper-to-quiz' ), detail.id ],
 		[
 			sprintf(
@@ -730,10 +731,7 @@ function ResultDetail( {
 				? __( 'Member', 'paper-to-quiz' )
 				: __( 'Guest', 'paper-to-quiz' ),
 		],
-		[
-			__( 'Status', 'paper-to-quiz' ),
-			attemptStatusLabels[ detail.status ] || detail.status,
-		],
+		[ __( 'Status', 'paper-to-quiz' ), resultStatusLabel( detail.status ) ],
 		[ __( 'Start', 'paper-to-quiz' ), detail.started_at_display || '—' ],
 		[
 			__( 'Last activity', 'paper-to-quiz' ),
@@ -801,7 +799,7 @@ function ResultDetail( {
 					wide
 				>
 					<div className="ptq-subject-analytics">
-						{ detail.subjects.map( ( subject: any ) => (
+						{ detail.subjects.map( ( subject: ResultSubject ) => (
 							<div key={ subject.subject_id }>
 								<strong>{ subject.name }</strong>
 								<span>
@@ -895,7 +893,7 @@ function ResultDetail( {
 						</tr>
 					</thead>
 					<tbody>
-						{ detail.answers.map( ( answer: any ) => {
+						{ detail.answers.map( ( answer: ResultAnswer ) => {
 							return (
 								<tr key={ answer.id || answer.question_id }>
 									<td>{ answer.ordinal }</td>
@@ -909,7 +907,7 @@ function ResultDetail( {
 														'Question %d',
 														'paper-to-quiz'
 													),
-													answer.ordinal
+													Number( answer.ordinal )
 												) }
 											/>
 										) : (
@@ -967,7 +965,11 @@ function DetailPanel( {
 	);
 }
 
-function DetailList( { rows }: { rows: Array< [ string, unknown ] > } ) {
+function DetailList( {
+	rows,
+}: {
+	rows: Array< [ string, ParticipantValue ] >;
+} ) {
 	return (
 		<dl className="ptq-participant-detail">
 			{ rows.map( ( [ label, value ] ) => (
