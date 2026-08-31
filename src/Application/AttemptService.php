@@ -66,8 +66,7 @@ final class AttemptService {
 		return $this->questions_cache[$key];
 	}
 
-	public function bootstrap(int $assessment_id): array|\WP_Error {
-		$record = $this->assessments->get($assessment_id, true);
+	private function public_access(?array $record, int $assessment_id): bool|\WP_Error {
 		if (! $record || $record['assessment']['status'] !== 'published' || ! $record['revision']) {
 			return new \WP_Error('paper_to_quiz_not_available', __('This item is currently unavailable.', 'paper-to-quiz'), array('status' => 404));
 		}
@@ -90,6 +89,17 @@ final class AttemptService {
 			return new \WP_Error('paper_to_quiz_access_denied', __('You do not have permission to participate in this item.', 'paper-to-quiz'), array('status' => 403));
 		}
 
+		return true;
+	}
+
+	public function bootstrap(int $assessment_id): array|\WP_Error {
+		$record = $this->assessments->get($assessment_id, true);
+		$access = $this->public_access($record, $assessment_id);
+		if (is_wp_error($access)) {
+			return $access;
+		}
+
+		$revision = $record['revision'];
 		$latest_attempt_public_id = null;
 		if (is_user_logged_in()) {
 			$latest_attempt_public_id = $this->db->wpdb()->get_var(
@@ -143,8 +153,9 @@ final class AttemptService {
 
 	public function start(int $assessment_id, array $participant): array|\WP_Error {
 		$record = $this->assessments->get($assessment_id, true);
-		if (! $record || ! $record['revision']) {
-			return new \WP_Error('paper_to_quiz_not_available', __('This item could not be found.', 'paper-to-quiz'), array('status' => 404));
+		$access = $this->public_access($record, $assessment_id);
+		if (is_wp_error($access)) {
+			return $access;
 		}
 		$availability = $this->availability($record);
 		if (is_wp_error($availability)) {
@@ -154,9 +165,6 @@ final class AttemptService {
 		$revision = $record['revision'];
 		$is_member = $revision['access_mode'] === 'login_required';
 		$user_id   = get_current_user_id();
-		if ($is_member && (! $user_id || ! current_user_can('read'))) {
-			return new \WP_Error('paper_to_quiz_login_required', __('You must log in.', 'paper-to-quiz'), array('status' => 401));
-		}
 
 		$participant_data = $this->validate_participant($revision, $participant, $is_member);
 		if (is_wp_error($participant_data)) {

@@ -127,6 +127,22 @@ try {
 	paper_to_quiz_rest_assert(false !== $wpdb->update($db->table('revisions'), array('lifecycle' => 'published', 'published_at' => $now), array('id' => $published_revision)), 'Publish revision update failed.');
 	paper_to_quiz_rest_assert(false !== $wpdb->update($db->table('assessments'), array('status' => 'published', 'published_revision_id' => $published_revision, 'current_draft_revision_id' => null), array('id' => $assessment_public)), 'Publish assessment update failed.');
 
+	$bootstrap = paper_to_quiz_rest_request('GET', '/paper-to-quiz/v1/assessments/' . $assessment_public . '/bootstrap');
+	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($bootstrap), 'Published assessment bootstrap failed.');
+	$deny_assessment_access = static function (bool $allowed, int $assessment_id, int $user_id, array $record) use ($assessment_public): bool {
+		return $assessment_id === $assessment_public ? false : $allowed;
+	};
+	try {
+		add_filter('paper_to_quiz_can_access_assessment', $deny_assessment_access, 10, 4);
+		$denied_bootstrap = paper_to_quiz_rest_request('GET', '/paper-to-quiz/v1/assessments/' . $assessment_public . '/bootstrap');
+		paper_to_quiz_rest_assert(403 === paper_to_quiz_rest_status($denied_bootstrap), 'Access filter did not deny public bootstrap.');
+		$denied_start = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/assessments/' . $assessment_public . '/attempts', array('participant' => array(), 'client' => array()));
+		paper_to_quiz_rest_assert(403 === paper_to_quiz_rest_status($denied_start), 'Access filter did not deny public attempt start.');
+		paper_to_quiz_rest_assert(0 === (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('attempts') . ' WHERE assessment_id=%d', $assessment_public)), 'Access-filter-denied assessment created an attempt.');
+	} finally {
+		remove_filter('paper_to_quiz_can_access_assessment', $deny_assessment_access, 10);
+	}
+
 	$payload = array('title' => $suffix . ' edited', 'type' => 'exam', 'class_id' => $class, 'subject_ids' => array($subject), 'access_mode' => 'guest_allowed', 'options' => array('A', 'B', 'C', 'D'), 'total_points' => 10000, 'window_start_utc' => gmdate('Y-m-d H:i:s', time() + HOUR_IN_SECONDS), 'window_end_utc' => gmdate('Y-m-d H:i:s', time() + 2 * HOUR_IN_SECONDS), 'results_release_at_utc' => gmdate('Y-m-d H:i:s', time() + 3 * HOUR_IN_SECONDS), 'allow_repeat' => true, 'feedback_timing' => 'scheduled', 'result_visibility' => 'summary');
 	$edit_one = paper_to_quiz_rest_request('PUT', '/paper-to-quiz/v1/admin/assessments/' . $assessment_public, $payload, $manager);
 	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($edit_one), 'First assessment PUT failed.');
@@ -258,13 +274,19 @@ try {
 	}
 
 	[$assessment_other, $other_revision, $other_question] = $insert_assessment('exam');
+	$attempt_count_before_trash = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('attempts') . ' WHERE assessment_id=%d', $assessment_public));
 	$trash = paper_to_quiz_rest_request('DELETE', '/paper-to-quiz/v1/admin/assessments/' . $assessment_public, array(), $manager);
 	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($trash), 'Assessment trash failed.');
+	$trashed_bootstrap = paper_to_quiz_rest_request('GET', '/paper-to-quiz/v1/assessments/' . $assessment_public . '/bootstrap');
+	paper_to_quiz_rest_assert(404 === paper_to_quiz_rest_status($trashed_bootstrap), 'Trashed assessment bootstrap was not denied.');
+	$trashed_start = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/assessments/' . $assessment_public . '/attempts', array('participant' => array(), 'client' => array()));
+	paper_to_quiz_rest_assert(404 === paper_to_quiz_rest_status($trashed_start), 'Trashed assessment attempt start was not denied.');
+	paper_to_quiz_rest_assert($attempt_count_before_trash === (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('attempts') . ' WHERE assessment_id=%d', $assessment_public)), 'Trashed assessment created an attempt.');
 	$purge = paper_to_quiz_rest_request('DELETE', '/paper-to-quiz/v1/admin/assessments/' . $assessment_public, array('force' => true), $manager);
 	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($purge), 'Assessment force delete failed.');
 	paper_to_quiz_rest_assert((int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('assessments') . ' WHERE id=%d', $assessment_other)) === 1, 'Unrelated assessment was deleted.');
 	paper_to_quiz_rest_assert((int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('terms') . ' WHERE id IN (%d,%d)', $class, $subject)) === 2, 'Shared terms were deleted.');
-	$report = array('admin_auth' => 'passed', 'admin_route_and_settings_health' => 'passed', 'class_color_and_duplicate' => 'passed', 'subject_selection_and_test_policy' => 'passed', 'draft_revision_idempotency' => 'passed', 'attempt_submit_idempotency' => 'passed', 'finalize_single_flight' => 'passed', 'answer_key_validation' => 'passed', 'operational_error_sanitization' => 'passed', 'delete_isolation' => 'passed', 'route_permission_gates' => 'passed');
+	$report = array('admin_auth' => 'passed', 'admin_route_and_settings_health' => 'passed', 'class_color_and_duplicate' => 'passed', 'subject_selection_and_test_policy' => 'passed', 'public_attempt_access_gate' => 'passed', 'draft_revision_idempotency' => 'passed', 'attempt_submit_idempotency' => 'passed', 'finalize_single_flight' => 'passed', 'answer_key_validation' => 'passed', 'operational_error_sanitization' => 'passed', 'delete_isolation' => 'passed', 'route_permission_gates' => 'passed');
 } finally {
 	if ($attempt) {
 		paper_to_quiz_rest_assert(false !== $wpdb->delete($db->table('result_email_jobs'), array('attempt_id' => $attempt), array('%d')), 'Result email jobs cleanup failed.');
