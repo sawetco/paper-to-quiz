@@ -78,6 +78,10 @@ final class AssessmentWriteTest extends TestCase {
 		$this->assert_initial_write_failure_rolls_back('revision_insert');
 	}
 
+	public function test_assessment_insert_failure_returns_stable_error_without_rows(): void {
+		$this->assert_initial_write_failure_rolls_back('assessment_insert');
+	}
+
 	public function test_draft_pointer_failure_rolls_back_assessment_and_revision(): void {
 		$this->assert_initial_write_failure_rolls_back('assessment_draft_pointer_update');
 	}
@@ -85,6 +89,7 @@ final class AssessmentWriteTest extends TestCase {
 	private function assert_initial_write_failure_rolls_back(string $failed_operation): void {
 		$wpdb          = $this->base_db->wpdb();
 		$title         = $this->title_prefix . ' ' . $failed_operation;
+		$assessment_count_before = (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . $this->base_db->table('assessments'));
 		$created_id    = 0;
 		$revision_id   = 0;
 		$failure_seen  = false;
@@ -131,6 +136,11 @@ final class AssessmentWriteTest extends TestCase {
 		$this->assertSame('paper_to_quiz_assessment_create_failed', $result->get_error_code());
 		$this->assertSame(500, (int) ($result->get_error_data()['status'] ?? 0));
 		$this->assertStringContainsString('Support code:', $result->get_error_message());
+		$this->assertSame(
+			$assessment_count_before,
+			(int) $wpdb->get_var('SELECT COUNT(*) FROM ' . $db->table('assessments')),
+			'A failed assessment write changed the assessment row count.'
+		);
 		$this->assertSame(0, $created_id ? (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('assessments') . ' WHERE id=%d', $created_id)) : 0);
 		$this->assertSame(0, $revision_id ? (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('revisions') . ' WHERE id=%d', $revision_id)) : 0);
 		$this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('revisions') . ' WHERE title=%s', $title)));
