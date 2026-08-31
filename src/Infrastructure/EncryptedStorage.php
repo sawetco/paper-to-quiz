@@ -13,8 +13,10 @@ final class EncryptedStorage {
 
 	private string $base_dir;
 	private string $uploads_error;
+	private PrivateKeyProvider $key_provider;
 
-	public function __construct() {
+	public function __construct(?PrivateKeyProvider $key_provider = null) {
+		$this->key_provider = $key_provider ?? new PrivateKeyProvider();
 		$uploads        = wp_upload_dir();
 		$this->base_dir = trailingslashit($uploads['basedir']) . 'paper-to-quiz-private';
 		$this->uploads_error = (string) ($uploads['error'] ?? '');
@@ -305,24 +307,7 @@ final class EncryptedStorage {
 	}
 
 	private function derive_key(string $purpose): string {
-		$master = defined('PAPER_TO_QUIZ_PRIVATE_STORAGE_KEY') ? (string) PAPER_TO_QUIZ_PRIVATE_STORAGE_KEY : '';
-		if ($master === '') {
-			$encoded = (string) get_option('paper_to_quiz_storage_key', '');
-			if ($encoded === '') {
-				$encoded = base64_encode(random_bytes(32));
-				add_option('paper_to_quiz_storage_key', $encoded, '', false);
-			}
-			$decoded = base64_decode($encoded, true);
-			if ($decoded === false) {
-				throw new StorageException(
-					'The private storage key is corrupt.',
-					__('The private storage key is corrupt. Restore it from backup or rotate it in wp-config.php.', 'paper-to-quiz')
-				);
-			}
-			$master = $decoded;
-		}
-
-		return hash_hkdf('sha256', $master, 32, 'ptq:' . $purpose, wp_salt('auth'));
+		return hash_hkdf('sha256', $this->key_provider->get_key(), 32, 'ptq:' . $purpose, wp_salt('auth'));
 	}
 
 	/**

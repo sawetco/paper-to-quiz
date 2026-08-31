@@ -17,6 +17,7 @@ use PaperToQuiz\Infrastructure\Crypto;
 use PaperToQuiz\Infrastructure\Database;
 use PaperToQuiz\Infrastructure\EncryptedStorage;
 use PaperToQuiz\Infrastructure\Installer;
+use PaperToQuiz\Infrastructure\PrivateKeyProvider;
 use PaperToQuiz\Infrastructure\Settings;
 use PaperToQuiz\Privacy\PrivacyManager;
 use PaperToQuiz\Rest\AdminController;
@@ -40,8 +41,9 @@ final class Plugin {
 		}
 
 		$db                  = new Database();
-		$this->storage       = new EncryptedStorage();
-		$crypto              = new Crypto();
+		$key_provider        = new PrivateKeyProvider();
+		$this->storage       = new EncryptedStorage($key_provider);
+		$crypto              = new Crypto($key_provider);
 		$assets              = new AssetService($db, $this->storage);
 		$terms               = new TermService($db);
 		$purge_service       = new AssessmentPurgeService($db, $assets);

@@ -8,6 +8,12 @@ namespace PaperToQuiz\Infrastructure;
 // phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
 
 final class Crypto {
+	private PrivateKeyProvider $key_provider;
+
+	public function __construct(?PrivateKeyProvider $key_provider = null) {
+		$this->key_provider = $key_provider ?? new PrivateKeyProvider();
+	}
+
 	public function encrypt_array(array $value): string {
 		$plain = wp_json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 		if (! is_string($plain)) {
@@ -47,23 +53,6 @@ final class Crypto {
 	}
 
 	private function key(): string {
-		$master = defined('PAPER_TO_QUIZ_PRIVATE_STORAGE_KEY') ? (string) PAPER_TO_QUIZ_PRIVATE_STORAGE_KEY : '';
-		if ($master === '') {
-			$encoded = (string) get_option('paper_to_quiz_storage_key', '');
-			if ($encoded === '') {
-				$encoded = base64_encode(random_bytes(32));
-				add_option('paper_to_quiz_storage_key', $encoded, '', false);
-			}
-			$decoded = base64_decode($encoded, true);
-			if ($decoded === false) {
-				throw new StorageException(
-					'The private storage key is corrupt.',
-					__('The private storage key is corrupt. Restore it from backup or rotate it in wp-config.php.', 'paper-to-quiz')
-				);
-			}
-			$master = $decoded;
-		}
-
-		return hash_hkdf('sha256', $master, 32, 'ptq:participant', wp_salt('secure_auth'));
+		return hash_hkdf('sha256', $this->key_provider->get_key(), 32, 'ptq:participant', wp_salt('secure_auth'));
 	}
 }
