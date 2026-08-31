@@ -173,61 +173,134 @@ final class AttemptService {
 		if (is_wp_error($participant_data)) {
 			return $participant_data;
 		}
+
+		$created = null;
 		if ($is_member && ! $revision['allow_repeat']) {
-			$existing = $this->db->wpdb()->get_row(
-				$this->db->wpdb()->prepare(
-					'SELECT * FROM ' . $this->db->table('attempts') . " WHERE assessment_id = %d AND wp_user_id = %d ORDER BY id DESC LIMIT 1",
-					$assessment_id,
-					$user_id
-				),
-				ARRAY_A
-			);
-			if ($existing) {
-				if ($existing['status'] !== 'in_progress') {
-					return new \WP_Error('paper_to_quiz_repeat_not_allowed', __('This item can only be completed once.', 'paper-to-quiz'), array('status' => 409));
+			/*
+			 * The assessment row is the serialization point for a member's
+			 * non-repeatable attempt. The user_revision index is intentionally not
+			 * unique because repeatable attempts share the same schema, so the
+			 * check and insert must happen while this owning row is locked.
+			 */
+			$this->db->begin();
+			try {
+				$locked = $this->db->wpdb()->get_row(
+					$this->db->wpdb()->prepare(
+						'SELECT status,published_revision_id FROM ' . $this->db->table('assessments') . ' WHERE id = %d FOR UPDATE',
+						$assessment_id
+					),
+					ARRAY_A
+				);
+				if (! $locked || 'published' !== (string) $locked['status']) {
+					$this->db->rollback();
+					return new \WP_Error('paper_to_quiz_not_available', __('This item is currently unavailable.', 'paper-to-quiz'), array('status' => 404));
 				}
-				return $this->rotate_and_state($existing);
+				if ((int) $locked['published_revision_id'] !== (int) $revision['id']) {
+					$this->db->rollback();
+					return new \WP_Error(
+						'paper_to_quiz_revision_changed',
+						__('The published revision changed. Refresh the page and try again.', 'paper-to-quiz'),
+						array('status' => 409)
+					);
+				}
+
+				$existing = $this->db->wpdb()->get_row(
+					$this->db->wpdb()->prepare(
+						'SELECT * FROM ' . $this->db->table('attempts') . " WHERE assessment_id = %d AND wp_user_id = %d ORDER BY id DESC LIMIT 1",
+						$assessment_id,
+						$user_id
+					),
+					ARRAY_A
+				);
+				if ($existing) {
+					if ('in_progress' !== (string) $existing['status']) {
+						$this->db->commit();
+						return new \WP_Error('paper_to_quiz_repeat_not_allowed', __('This item can only be completed once.', 'paper-to-quiz'), array('status' => 409));
+					}
+					$state = $this->rotate_and_state($existing);
+					$this->db->commit();
+					return $state;
+				}
+
+				$created = $this->insert_attempt($assessment_id, $record['assessment'], $revision, $is_member, $user_id, $participant_data);
+				$this->db->commit();
+			} catch (\Throwable $error) {
+				$this->db->rollback();
+				return $this->start_error($error);
+			}
+		} else {
+			try {
+				$created = $this->insert_attempt($assessment_id, $record['assessment'], $revision, $is_member, $user_id, $participant_data);
+			} catch (\Throwable $error) {
+				return $this->start_error($error);
 			}
 		}
 
-		$token      = $this->new_token();
-		$public_id  = wp_generate_uuid4();
-		$now        = time();
-		$deadline   = null;
-		$is_test = (string) $record['assessment']['type'] === 'test';
-		if (! $is_test && $revision['duration_seconds']) {
+		$attempt_id = (int) $created['attempt_id'];
+		do_action('paper_to_quiz_attempt_started', $attempt_id, $assessment_id, $user_id ?: null); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public API required by the plugin contract.
+
+		$attempt = $this->attempt_by_id($attempt_id);
+		if (! $attempt) {
+			return $this->start_error(new \RuntimeException('Attempt could not be read after insertion.'));
+		}
+		return $this->state_payload($attempt, (string) $created['token']);
+	}
+
+	/**
+	 * Insert a fresh attempt and return the credentials needed for its state
+	 * payload. The caller owns transaction boundaries when serialization is
+	 * required for the start policy.
+	 *
+	 * @return array{attempt_id:int,token:string}
+	 */
+	private function insert_attempt(int $assessment_id, array $assessment, array $revision, bool $is_member, int $user_id, array $participant_data): array {
+		$token    = $this->new_token();
+		$now      = time();
+		$deadline = null;
+		if ('test' !== (string) $assessment['type'] && $revision['duration_seconds']) {
 			$deadline = $now + (int) $revision['duration_seconds'];
 		}
-		if (! $is_test && $revision['window_end_utc']) {
+		if ('test' !== (string) $assessment['type'] && $revision['window_end_utc']) {
 			$window_end = strtotime((string) $revision['window_end_utc'] . ' UTC');
 			$deadline   = $deadline ? min($deadline, $window_end) : $window_end;
 		}
 
-		$inserted = $this->db->wpdb()->insert(
-			$this->db->table('attempts'),
-			array(
-				'public_id'        => $public_id,
-				'token_hash'       => $this->token_hash($token),
-				'assessment_id'    => $assessment_id,
-				'revision_id'      => (int) $revision['id'],
-				'wp_user_id'       => $is_member ? $user_id : null,
-				'participant_type' => $is_member ? 'member' : 'guest',
-				'participant_data' => $this->crypto->encrypt_array($participant_data),
-				'status'           => 'in_progress',
-				'started_at'       => gmdate('Y-m-d H:i:s', $now),
-				'deadline_at'      => $deadline ? gmdate('Y-m-d H:i:s', $deadline) : null,
-				'last_activity_at' => gmdate('Y-m-d H:i:s', $now),
+		$inserted = $this->db->write(
+			'attempt_insert',
+			fn (): int|false => $this->db->wpdb()->insert(
+				$this->db->table('attempts'),
+				array(
+					'public_id'        => wp_generate_uuid4(),
+					'token_hash'       => $this->token_hash($token),
+					'assessment_id'    => $assessment_id,
+					'revision_id'      => (int) $revision['id'],
+					'wp_user_id'       => $is_member ? $user_id : null,
+					'participant_type' => $is_member ? 'member' : 'guest',
+					'participant_data' => $this->crypto->encrypt_array($participant_data),
+					'status'           => 'in_progress',
+					'started_at'       => gmdate('Y-m-d H:i:s', $now),
+					'deadline_at'      => $deadline ? gmdate('Y-m-d H:i:s', $deadline) : null,
+					'last_activity_at' => gmdate('Y-m-d H:i:s', $now),
+				)
 			)
 		);
-		if (! $inserted) {
-			return new \WP_Error('paper_to_quiz_attempt_failed', __('Could not start. Please try again.', 'paper-to-quiz'), array('status' => 500));
+		if (false === $inserted || 1 !== (int) $inserted || (int) $this->db->wpdb()->insert_id < 1) {
+			throw new \RuntimeException('Attempt insert failed.');
 		}
 
-		$attempt_id = (int) $this->db->wpdb()->insert_id;
-		do_action('paper_to_quiz_attempt_started', $attempt_id, $assessment_id, $user_id ?: null); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public API required by the plugin contract.
+		return array(
+			'attempt_id' => (int) $this->db->wpdb()->insert_id,
+			'token'      => $token,
+		);
+	}
 
-		$attempt = $this->attempt_by_id($attempt_id);
-		return $this->state_payload($attempt, $token);
+	private function start_error(\Throwable $error): \WP_Error {
+		return OperationalErrorReporter::report(
+			'paper_to_quiz_attempt_failed',
+			$error,
+			__('Could not start. Please try again.', 'paper-to-quiz'),
+			500
+		);
 	}
 
 	public function state(string $public_id, string $token): array|\WP_Error {
@@ -1063,11 +1136,17 @@ final class AttemptService {
 
 	private function rotate_and_state(array $attempt): array {
 		$token = $this->new_token();
-		$this->db->wpdb()->update(
-			$this->db->table('attempts'),
-			array('token_hash' => $this->token_hash($token)),
-			array('id' => (int) $attempt['id'])
+		$updated = $this->db->write(
+			'attempt_token_rotate',
+			fn (): int|false => $this->db->wpdb()->update(
+				$this->db->table('attempts'),
+				array('token_hash' => $this->token_hash($token)),
+				array('id' => (int) $attempt['id'])
+			)
 		);
+		if (false === $updated || 1 !== (int) $updated) {
+			throw new \RuntimeException('Attempt token rotation failed.');
+		}
 		$attempt['token_hash'] = $this->token_hash($token);
 		return $this->state_payload($attempt, $token);
 	}
