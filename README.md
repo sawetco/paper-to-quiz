@@ -46,14 +46,14 @@ The plugin does not send usage data or telemetry to the developer.
 
 ## Installation
 
-Download `paper-to-quiz.zip` from the
-[latest release](https://github.com/sawetco/paper-to-quiz/releases/latest). In
-WordPress, go to **Plugins → Add New Plugin → Upload Plugin**, upload the ZIP,
-and activate Paper to Quiz.
+Install and update Paper to Quiz through WordPress by searching for **Paper to
+Quiz** under **Plugins → Add New Plugin**, or use the [official WordPress.org
+plugin directory](https://wordpress.org/plugins/paper-to-quiz/).
 
-Once the plugin is available in the WordPress.org directory, it will also be
-possible to install and update it directly from the WordPress administration
-screen.
+For a manual installation, download the installable `paper-to-quiz.zip` from
+the [latest GitHub release](https://github.com/sawetco/paper-to-quiz/releases/latest).
+In WordPress, go to **Plugins → Add New Plugin → Upload Plugin**, upload the
+ZIP, and activate Paper to Quiz.
 
 ### About the encryption key
 

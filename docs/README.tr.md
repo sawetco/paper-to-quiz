@@ -47,13 +47,15 @@ Eklenti geliştiriciye kullanım verisi veya telemetri göndermez.
 
 ## Kurulum
 
-[En güncel sürümden](https://github.com/sawetco/paper-to-quiz/releases/latest)
-`paper-to-quiz.zip` dosyasını indirin. WordPress yönetim panelinde **Eklentiler →
-Yeni Eklenti Ekle → Eklenti Yükle** yolunu izleyin, ZIP dosyasını yükleyin ve
-Paper to Quiz'i etkinleştirin.
+Paper to Quiz'i WordPress üzerinden kurup güncellemek için **Eklentiler → Yeni
+Eklenti Ekle** bölümünde **Paper to Quiz** araması yapın veya [resmî
+WordPress.org eklenti dizinini](https://wordpress.org/plugins/paper-to-quiz/)
+kullanın.
 
-Eklenti WordPress.org dizininde yayımlandığında doğrudan WordPress yönetim
-panelinden de kurulup güncellenebilecektir.
+Manuel kurulum için [en güncel GitHub sürümündeki](https://github.com/sawetco/paper-to-quiz/releases/latest)
+kurulabilir `paper-to-quiz.zip` dosyasını indirin. WordPress yönetim panelinde
+**Eklentiler → Yeni Eklenti Ekle → Eklenti Yükle** yolunu izleyin, ZIP dosyasını
+yükleyin ve Paper to Quiz'i etkinleştirin.
 
 ### Şifreleme anahtarı hakkında
 
