@@ -378,21 +378,6 @@ final class AssessmentService {
 			if (! $record) {
 				return new \WP_Error('paper_to_quiz_not_found', __('Record not found.', 'paper-to-quiz'), array('status' => 404));
 			}
-			$type = (string) $record['assessment']['type'];
-			if (! array_key_exists('subject_ids', $payload)) {
-				$payload['subject_ids'] = $record['revision']['subject_ids'] ?? array();
-			}
-			$subject_error = $this->validate_subject_selection($payload);
-			if (is_wp_error($subject_error)) {
-				return $subject_error;
-			}
-			$payload['subject_ids'] = $this->sanitize_subject_ids($payload['subject_ids']);
-			$policy_error = $this->validate_policy_payload($payload, $type);
-			if (is_wp_error($policy_error)) {
-				return $policy_error;
-			}
-			$payload = $this->normalize_payload_for_type($payload, $type);
-
 			$revision_id = (int) $record['assessment']['current_draft_revision_id'];
 			if (! $revision_id) {
 				$revision_id = $this->clone_published_to_draft($record);
@@ -401,22 +386,70 @@ final class AssessmentService {
 				}
 			}
 
-			$data = $this->revision_payload($payload);
-			unset($data['assessment_id'], $data['revision_no'], $data['lifecycle'], $data['created_at']);
-			if (false === $this->db->wpdb()->update($this->db->table('revisions'), $data, array('id' => $revision_id))) {
-				return new \WP_Error('paper_to_quiz_revision_save_failed', __('Draft details could not be saved.', 'paper-to-quiz'), array('status' => 500));
-			}
-			$assessment_status = ! empty($record['assessment']['published_revision_id']) ? 'published' : 'draft';
-			if (false === $this->db->wpdb()->update(
-				$this->db->table('assessments'),
-				array(
-					'status'     => $assessment_status,
-					'updated_by' => $user_id,
-					'updated_at' => $now,
-				),
-				array('id' => $assessment_id)
-			)) {
-				return new \WP_Error('paper_to_quiz_assessment_save_failed', __('Record could not be updated.', 'paper-to-quiz'), array('status' => 500));
+			$this->db->begin();
+			try {
+				$locked = $this->lock_current_draft($assessment_id, $revision_id);
+				if (is_wp_error($locked)) {
+					$this->db->rollback();
+					return $locked;
+				}
+
+				$type = (string) $locked['assessment']['type'];
+				if (! array_key_exists('subject_ids', $payload)) {
+					$payload['subject_ids'] = $locked['revision']['subject_ids'] ?? array();
+				}
+				$subject_error = $this->validate_subject_selection($payload);
+				if (is_wp_error($subject_error)) {
+					$this->db->rollback();
+					return $subject_error;
+				}
+				$payload['subject_ids'] = $this->sanitize_subject_ids($payload['subject_ids']);
+				$policy_error = $this->validate_policy_payload($payload, $type);
+				if (is_wp_error($policy_error)) {
+					$this->db->rollback();
+					return $policy_error;
+				}
+				$payload = $this->normalize_payload_for_type($payload, $type);
+				$data    = $this->revision_payload($payload);
+				unset($data['assessment_id'], $data['revision_no'], $data['lifecycle'], $data['created_at']);
+
+				$revision_write = $this->db->write(
+					'revision_save',
+					fn (): int|false => $this->db->wpdb()->update(
+						$this->db->table('revisions'),
+						$data,
+						array('id' => $revision_id, 'lifecycle' => 'draft')
+					)
+				);
+				if (false === $revision_write) {
+					throw new \RuntimeException('Draft revision update failed.');
+				}
+
+				$assessment_status = ! empty($locked['assessment']['published_revision_id']) ? 'published' : 'draft';
+				$assessment_write  = $this->db->write(
+					'assessment_save',
+					fn (): int|false => $this->db->wpdb()->update(
+						$this->db->table('assessments'),
+						array(
+							'status'     => $assessment_status,
+							'updated_by' => $user_id,
+							'updated_at' => $now,
+						),
+						array('id' => $assessment_id, 'current_draft_revision_id' => $revision_id)
+					)
+				);
+				if (false === $assessment_write) {
+					throw new \RuntimeException('Assessment update failed.');
+				}
+				$this->db->commit();
+			} catch (\Throwable $error) {
+				$this->db->rollback();
+				return OperationalErrorReporter::report(
+					'paper_to_quiz_assessment_save_failed',
+					$error,
+					__('Record could not be updated. Please try again.', 'paper-to-quiz'),
+					500
+				);
 			}
 		}
 
@@ -428,30 +461,39 @@ final class AssessmentService {
 		if (! $record || ! $record['revision']) {
 			return new \WP_Error('paper_to_quiz_not_found', __('Draft not found.', 'paper-to-quiz'), array('status' => 404));
 		}
-		if ($record['revision']['lifecycle'] !== 'draft') {
-			return new \WP_Error('paper_to_quiz_immutable', __('Published revisions cannot be changed.', 'paper-to-quiz'), array('status' => 409));
-		}
-
-		$old       = (int) $record['revision']['source_asset_id'];
-		$questions = $record['questions'];
-		if ($old && $old !== $asset_id && $questions && ! in_array($question_strategy, array('preserve', 'clear'), true)) {
-			return new \WP_Error(
-				'paper_to_quiz_pdf_question_strategy_required',
-				__('Specify whether existing questions should be kept or cleared when replacing the PDF.', 'paper-to-quiz'),
-				array('status' => 409)
-			);
-		}
 
 		$assets_to_release = array();
 		$this->db->begin();
 		try {
-			if (false === $this->db->wpdb()->update(
-				$this->db->table('revisions'),
-				array('source_asset_id' => $asset_id),
-				array('id' => (int) $record['revision']['id']),
-				array('%d'),
-				array('%d')
-			)) {
+			$locked = $this->lock_current_draft($assessment_id, (int) $record['revision']['id']);
+			if (is_wp_error($locked)) {
+				$this->db->rollback();
+				return $locked;
+			}
+
+			$old         = (int) $locked['revision']['source_asset_id'];
+			$questions   = $locked['questions'];
+			$revision_id = (int) $locked['revision']['id'];
+			if ($old && $old !== $asset_id && $questions && ! in_array($question_strategy, array('preserve', 'clear'), true)) {
+				$this->db->rollback();
+				return new \WP_Error(
+					'paper_to_quiz_pdf_question_strategy_required',
+					__('Specify whether existing questions should be kept or cleared when replacing the PDF.', 'paper-to-quiz'),
+					array('status' => 409)
+				);
+			}
+
+			$source_write = $this->db->write(
+				'revision_source_asset_update',
+				fn (): int|false => $this->db->wpdb()->update(
+					$this->db->table('revisions'),
+					array('source_asset_id' => $asset_id),
+					array('id' => $revision_id, 'lifecycle' => 'draft'),
+					array('%d'),
+					array('%d', '%s')
+				)
+			);
+			if (false === $source_write) {
 				throw new \RuntimeException(__('The PDF could not be attached to the draft.', 'paper-to-quiz'));
 			}
 			if ($old && $old !== $asset_id) {
@@ -460,11 +502,15 @@ final class AssessmentService {
 						$assets_to_release[] = (int) $question['main_asset_id'];
 						$assets_to_release[] = (int) $question['thumb_asset_id'];
 					}
-					if (false === $this->db->wpdb()->delete(
-						$this->db->table('questions'),
-						array('revision_id' => (int) $record['revision']['id']),
-						array('%d')
-					)) {
+					$clear_write = $this->db->write(
+						'pdf_questions_clear',
+						fn (): int|false => $this->db->wpdb()->delete(
+							$this->db->table('questions'),
+							array('revision_id' => $revision_id),
+							array('%d')
+						)
+					);
+					if (false === $clear_write) {
 						throw new \RuntimeException(__('Draft questions could not be cleared.', 'paper-to-quiz'));
 					}
 				} elseif ($question_strategy === 'preserve') {
@@ -472,13 +518,17 @@ final class AssessmentService {
 						$assets_to_release[] = (int) $question['main_asset_id'];
 						$assets_to_release[] = (int) $question['thumb_asset_id'];
 					}
-					if (false === $this->db->wpdb()->query(
-						$this->db->wpdb()->prepare(
-							'UPDATE ' . $this->db->table('questions') . ' SET main_asset_id = NULL, thumb_asset_id = NULL, updated_at = %s WHERE revision_id = %d',
-							current_time('mysql', true),
-							(int) $record['revision']['id']
+					$preserve_write = $this->db->write(
+						'pdf_questions_detach_assets',
+						fn (): int|false => $this->db->wpdb()->query(
+							$this->db->wpdb()->prepare(
+								'UPDATE ' . $this->db->table('questions') . ' SET main_asset_id = NULL, thumb_asset_id = NULL, updated_at = %s WHERE revision_id = %d',
+								current_time('mysql', true),
+								$revision_id
+							)
 						)
-					)) {
+					);
+					if (false === $preserve_write) {
 						throw new \RuntimeException(__('Questions could not be prepared for regeneration.', 'paper-to-quiz'));
 					}
 				}
@@ -508,7 +558,7 @@ final class AssessmentService {
 		?int $question_id = null
 	): array|\WP_Error {
 		$revision = $this->get_revision($revision_id);
-		if (! $revision || $revision['lifecycle'] !== 'draft') {
+		if (! $revision) {
 			return new \WP_Error('paper_to_quiz_immutable', __('Only draft questions can be edited.', 'paper-to-quiz'), array('status' => 409));
 		}
 
@@ -525,99 +575,114 @@ final class AssessmentService {
 			return new \WP_Error('paper_to_quiz_question_client_key', __('The question record key is invalid.', 'paper-to-quiz'), array('status' => 400));
 		}
 
-		if (! $question_id && $client_key !== '') {
-			$question_id = (int) $this->db->wpdb()->get_var(
-				$this->db->wpdb()->prepare(
-					'SELECT id FROM ' . $this->db->table('questions') . ' WHERE revision_id = %d AND client_key = %s',
-					$revision_id,
-					$client_key
-				)
-			);
-		}
+		$assessment_id  = (int) $revision['assessment_id'];
+		$assets_to_release = array();
+		$this->db->begin();
+		try {
+			$locked = $this->lock_current_draft($assessment_id, $revision_id);
+			if (is_wp_error($locked)) {
+				$this->db->rollback();
+				return $locked;
+			}
 
-		$data = array(
-			'revision_id'     => $revision_id,
-			'source_page'     => max(1, (int) ($metadata['page'] ?? 1)),
-			'crop_x'          => max(0, min(1, (float) $crop['x'])),
-			'crop_y'          => max(0, min(1, (float) $crop['y'])),
-			'crop_width'      => max(0.0001, min(1, (float) $crop['width'])),
-			'crop_height'     => max(0.0001, min(1, (float) $crop['height'])),
-			'source_rotation' => (int) ($metadata['rotation'] ?? 0),
-			'subject_id'      => ! empty($metadata['subject_id']) ? (int) $metadata['subject_id'] : null,
-			'updated_at'      => current_time('mysql', true),
-		);
-		if ($client_key !== '') {
-			$data['client_key'] = $client_key;
-		}
-		if ($main_asset_id) {
-			$data['main_asset_id'] = $main_asset_id;
-		}
-		if ($thumb_asset_id) {
-			$data['thumb_asset_id'] = $thumb_asset_id;
-		}
+			if (! $question_id && $client_key !== '') {
+				$question_id = (int) $this->db->wpdb()->get_var(
+					$this->db->wpdb()->prepare(
+						'SELECT id FROM ' . $this->db->table('questions') . ' WHERE revision_id = %d AND client_key = %s',
+						$revision_id,
+						$client_key
+					)
+				);
+			}
 
-		if ($question_id) {
-			$existing = $this->db->wpdb()->get_row(
-				$this->db->wpdb()->prepare(
-					'SELECT * FROM ' . $this->db->table('questions') . ' WHERE id = %d AND revision_id = %d',
-					$question_id,
-					$revision_id
-				),
-				ARRAY_A
+			$data = array(
+				'revision_id'     => $revision_id,
+				'source_page'     => max(1, (int) ($metadata['page'] ?? 1)),
+				'crop_x'          => max(0, min(1, (float) $crop['x'])),
+				'crop_y'          => max(0, min(1, (float) $crop['y'])),
+				'crop_width'      => max(0.0001, min(1, (float) $crop['width'])),
+				'crop_height'     => max(0.0001, min(1, (float) $crop['height'])),
+				'source_rotation' => (int) ($metadata['rotation'] ?? 0),
+				'subject_id'      => ! empty($metadata['subject_id']) ? (int) $metadata['subject_id'] : null,
+				'updated_at'      => current_time('mysql', true),
 			);
-			if (! $existing) {
-				return new \WP_Error('paper_to_quiz_question_not_found', __('Question not found.', 'paper-to-quiz'), array('status' => 404));
+			if ($client_key !== '') {
+				$data['client_key'] = $client_key;
 			}
-			$data['ordinal'] = (int) $existing['ordinal'] === $requested_ordinal
-				? $requested_ordinal
-				: $this->next_temporary_ordinal($revision_id);
-			if (false === $this->db->wpdb()->update($this->db->table('questions'), $data, array('id' => $question_id))) {
-				return new \WP_Error('paper_to_quiz_question_save', __('Question could not be saved.', 'paper-to-quiz'), array('status' => 500));
+			if ($main_asset_id) {
+				$data['main_asset_id'] = $main_asset_id;
 			}
-			if ($main_asset_id && (int) $existing['main_asset_id'] !== $main_asset_id) {
-				$this->release_asset_safely((int) $existing['main_asset_id']);
+			if ($thumb_asset_id) {
+				$data['thumb_asset_id'] = $thumb_asset_id;
 			}
-			if ($thumb_asset_id && (int) $existing['thumb_asset_id'] !== $thumb_asset_id) {
-				$this->release_asset_safely((int) $existing['thumb_asset_id']);
-			}
-		} else {
-			$data['ordinal']    = $this->next_temporary_ordinal($revision_id);
-			$data['created_at'] = current_time('mysql', true);
-			$data['points']     = 0;
-			if (false === $this->db->wpdb()->insert($this->db->table('questions'), $data)) {
-				if ($client_key !== '') {
-					$duplicate_id = (int) $this->db->wpdb()->get_var(
-						$this->db->wpdb()->prepare(
-							'SELECT id FROM ' . $this->db->table('questions') . ' WHERE revision_id = %d AND client_key = %s',
-							$revision_id,
-							$client_key
-						)
-					);
-					if ($duplicate_id) {
-						return $this->save_question(
-							$revision_id,
-							$metadata,
-							$main_asset_id,
-							$thumb_asset_id,
-							$duplicate_id
-						);
-					}
+
+			if ($question_id) {
+				$existing = $this->db->wpdb()->get_row(
+					$this->db->wpdb()->prepare(
+						'SELECT * FROM ' . $this->db->table('questions') . ' WHERE id = %d AND revision_id = %d FOR UPDATE',
+						$question_id,
+						$revision_id
+					),
+					ARRAY_A
+				);
+				if (! is_array($existing)) {
+					$this->db->rollback();
+					return new \WP_Error('paper_to_quiz_question_not_found', __('Question not found.', 'paper-to-quiz'), array('status' => 404));
 				}
-				return new \WP_Error('paper_to_quiz_question_save', __('Question could not be saved.', 'paper-to-quiz'), array('status' => 500));
+				$data['ordinal'] = (int) $existing['ordinal'] === $requested_ordinal
+					? $requested_ordinal
+					: $this->next_temporary_ordinal($revision_id);
+				$updated = $this->db->write(
+					'question_update',
+					fn (): int|false => $this->db->wpdb()->update($this->db->table('questions'), $data, array('id' => $question_id, 'revision_id' => $revision_id))
+				);
+				if (false === $updated) {
+					throw new \RuntimeException('Question update failed.');
+				}
+				if ($main_asset_id && (int) $existing['main_asset_id'] !== $main_asset_id) {
+					$assets_to_release[] = (int) $existing['main_asset_id'];
+				}
+				if ($thumb_asset_id && (int) $existing['thumb_asset_id'] !== $thumb_asset_id) {
+					$assets_to_release[] = (int) $existing['thumb_asset_id'];
+				}
+			} else {
+				$data['ordinal']    = $this->next_temporary_ordinal($revision_id);
+				$data['created_at'] = current_time('mysql', true);
+				$data['points']     = 0;
+				$inserted = $this->db->write(
+					'question_insert',
+					fn (): int|false => $this->db->wpdb()->insert($this->db->table('questions'), $data)
+				);
+				if (1 !== $inserted || (int) $this->db->wpdb()->insert_id < 1) {
+					throw new \RuntimeException('Question insert failed.');
+				}
+				$question_id = (int) $this->db->wpdb()->insert_id;
 			}
-			$question_id = (int) $this->db->wpdb()->insert_id;
+
+			$this->db->commit();
+		} catch (\Throwable $error) {
+			$this->db->rollback();
+			return OperationalErrorReporter::report(
+				'paper_to_quiz_question_save',
+				$error,
+				__('Question could not be saved. Please try again.', 'paper-to-quiz'),
+				500
+			);
 		}
 
-		return $this->question($question_id) ?: array();
+		foreach ($assets_to_release as $released_asset_id) {
+			$this->release_asset_safely($released_asset_id);
+		}
+
+		return $this->question((int) $question_id) ?: array();
 	}
 
 	public function update_answer_key(int $revision_id, array $items, bool $prune_missing = false): array|\WP_Error {
 		$revision = $this->get_revision($revision_id);
-		if (! $revision || $revision['lifecycle'] !== 'draft') {
+		if (! $revision) {
 			return new \WP_Error('paper_to_quiz_immutable', __('Only draft answer keys can be edited.', 'paper-to-quiz'), array('status' => 409));
 		}
 
-		$options = $revision['options'];
 		$item_ids = array_map(
 			static fn (array $item): int => (int) ($item['id'] ?? 0),
 			array_values($items)
@@ -634,6 +699,13 @@ final class AssessmentService {
 		$pruned_assets = array();
 		$this->db->begin();
 		try {
+			$locked = $this->lock_current_draft((int) $revision['assessment_id'], $revision_id);
+			if (is_wp_error($locked)) {
+				$this->db->rollback();
+				return $locked;
+			}
+			$options = $locked['revision']['options'];
+
 			$existing_rows = $this->db->wpdb()->get_results(
 				$this->db->wpdb()->prepare(
 					'SELECT id,main_asset_id,thumb_asset_id FROM ' . $this->db->table('questions') . ' WHERE revision_id = %d',
@@ -647,11 +719,15 @@ final class AssessmentService {
 					if (in_array((int) $row['id'], $unique_item_ids, true)) {
 						continue;
 					}
-					if (false === $this->db->wpdb()->delete(
-						$this->db->table('questions'),
-						array('id' => (int) $row['id'], 'revision_id' => $revision_id),
-						array('%d', '%d')
-					)) {
+					$prune_write = $this->db->write(
+						'answer_key_question_prune',
+						fn (): int|false => $this->db->wpdb()->delete(
+							$this->db->table('questions'),
+							array('id' => (int) $row['id'], 'revision_id' => $revision_id),
+							array('%d', '%d')
+						)
+					);
+					if (false === $prune_write) {
 						throw new \RuntimeException(__('Previous question records could not be cleared.', 'paper-to-quiz'));
 					}
 					$pruned_assets[] = array(
@@ -680,14 +756,18 @@ final class AssessmentService {
 
 			$temporary_base = $this->next_temporary_ordinal($revision_id) + count($items);
 			foreach (array_values($items) as $index => $item) {
-				if (false === $this->db->wpdb()->update(
-					$this->db->table('questions'),
-					array('ordinal' => $temporary_base + $index),
-					array(
-						'id'          => (int) $item['id'],
-						'revision_id' => $revision_id,
+				$prepare_write = $this->db->write(
+					'answer_key_order_prepare',
+					fn (): int|false => $this->db->wpdb()->update(
+						$this->db->table('questions'),
+						array('ordinal' => $temporary_base + $index),
+						array(
+							'id'          => (int) $item['id'],
+							'revision_id' => $revision_id,
+						)
 					)
-				)) {
+				);
+				if (false === $prepare_write) {
 					throw new \RuntimeException(__('Question order could not be prepared.', 'paper-to-quiz'));
 				}
 			}
@@ -699,19 +779,23 @@ final class AssessmentService {
 				if ($correct !== '' && ! in_array(strtoupper($correct), $options, true)) {
 					throw new \InvalidArgumentException(__('The correct answer is not one of the available options.', 'paper-to-quiz'));
 				}
-				if (false === $this->db->wpdb()->update(
-					$this->db->table('questions'),
-					array(
-						'ordinal'       => $index + 1,
-						'correct_option' => strtoupper($correct),
-						'points'        => $points,
-						'updated_at'    => current_time('mysql', true),
-					),
-					array(
-						'id'          => $question_id,
-						'revision_id' => $revision_id,
+				$answer_write = $this->db->write(
+					'answer_key_question_update',
+					fn (): int|false => $this->db->wpdb()->update(
+						$this->db->table('questions'),
+						array(
+							'ordinal'       => $index + 1,
+							'correct_option' => strtoupper($correct),
+							'points'        => $points,
+							'updated_at'    => current_time('mysql', true),
+						),
+						array(
+							'id'          => $question_id,
+							'revision_id' => $revision_id,
+						)
 					)
-				)) {
+				);
+				if (false === $answer_write) {
 					throw new \RuntimeException(__('The answer key could not be saved.', 'paper-to-quiz'));
 				}
 			}
@@ -744,65 +828,124 @@ final class AssessmentService {
 			return new \WP_Error('paper_to_quiz_not_found', __('Question not found.', 'paper-to-quiz'), array('status' => 404));
 		}
 		$revision = $this->get_revision((int) $question['revision_id']);
-		if (! $revision || $revision['lifecycle'] !== 'draft') {
+		if (! $revision) {
 			return new \WP_Error('paper_to_quiz_immutable', __('Published questions cannot be deleted.', 'paper-to-quiz'), array('status' => 409));
 		}
 
-		$this->db->wpdb()->delete($this->db->table('questions'), array('id' => $question_id), array('%d'));
-		$this->release_asset_safely((int) $question['main_asset_id']);
-		$this->release_asset_safely((int) $question['thumb_asset_id']);
+		$revision_id = (int) $question['revision_id'];
+		$this->db->begin();
+		try {
+			$locked = $this->lock_current_draft((int) $revision['assessment_id'], $revision_id);
+			if (is_wp_error($locked)) {
+				$this->db->rollback();
+				return $locked;
+			}
 
-		$remaining = $this->questions((int) $question['revision_id'], true);
-		foreach ($remaining as $index => $item) {
-			$this->db->wpdb()->update(
-				$this->db->table('questions'),
-				array('ordinal' => $index + 1),
-				array('id' => (int) $item['id']),
-				array('%d'),
-				array('%d')
+			$question = $this->db->wpdb()->get_row(
+				$this->db->wpdb()->prepare(
+					'SELECT * FROM ' . $this->db->table('questions') . ' WHERE id = %d AND revision_id = %d FOR UPDATE',
+					$question_id,
+					$revision_id
+				),
+				ARRAY_A
+			);
+			if (! is_array($question)) {
+				$this->db->rollback();
+				return new \WP_Error('paper_to_quiz_not_found', __('Question not found.', 'paper-to-quiz'), array('status' => 404));
+			}
+
+			$deleted = $this->db->write(
+				'question_delete',
+				fn (): int|false => $this->db->wpdb()->delete(
+					$this->db->table('questions'),
+					array('id' => $question_id, 'revision_id' => $revision_id),
+					array('%d', '%d')
+				)
+			);
+			if (1 !== $deleted) {
+				throw new \RuntimeException('Question delete failed.');
+			}
+
+			$remaining = $this->questions($revision_id, true);
+			foreach ($remaining as $index => $item) {
+				$reordered = $this->db->write(
+					'question_reorder_update',
+					fn (): int|false => $this->db->wpdb()->update(
+						$this->db->table('questions'),
+						array('ordinal' => $index + 1),
+						array('id' => (int) $item['id'], 'revision_id' => $revision_id),
+						array('%d'),
+						array('%d', '%d')
+					)
+				);
+				if (false === $reordered) {
+					throw new \RuntimeException('Question reorder failed.');
+				}
+			}
+			$this->db->commit();
+		} catch (\Throwable $error) {
+			$this->db->rollback();
+			return OperationalErrorReporter::report(
+				'paper_to_quiz_question_delete_failed',
+				$error,
+				__('The question could not be deleted. Please try again.', 'paper-to-quiz'),
+				500
 			);
 		}
+
+		$this->release_asset_safely((int) $question['main_asset_id']);
+		$this->release_asset_safely((int) $question['thumb_asset_id']);
 		return true;
 	}
 
 	public function publish(int $assessment_id): array|\WP_Error {
-		$record = $this->get($assessment_id);
-		if (! $record || ! $record['revision']) {
-			return new \WP_Error('paper_to_quiz_not_found', __('Record not found.', 'paper-to-quiz'), array('status' => 404));
-		}
-
-		$errors = $this->validate_publish($record);
-		if ($errors) {
-			return new \WP_Error(
-				'paper_to_quiz_publish_validation',
-				__('Publishing checks are incomplete.', 'paper-to-quiz'),
-				array('status' => 422, 'errors' => $errors)
-			);
-		}
-
-		$revision_id = (int) $record['revision']['id'];
-		$now         = current_time('mysql', true);
 		$this->db->begin();
 		try {
-			if (1 !== $this->db->wpdb()->update(
-				$this->db->table('revisions'),
-				array('lifecycle' => 'published', 'published_at' => $now),
-				array('id' => $revision_id),
-				array('%s', '%s'),
-				array('%d')
-			)) {
+			$record = $this->lock_current_draft($assessment_id);
+			if (is_wp_error($record)) {
+				$this->db->rollback();
+				return $record;
+			}
+
+			$errors = $this->validate_publish($record);
+			if ($errors) {
+				$this->db->rollback();
+				return new \WP_Error(
+					'paper_to_quiz_publish_validation',
+					__('Publishing checks are incomplete.', 'paper-to-quiz'),
+					array('status' => 422, 'errors' => $errors)
+				);
+			}
+
+			$revision_id = (int) $record['revision']['id'];
+			$now         = current_time('mysql', true);
+			$revision_write = $this->db->write(
+				'revision_publish',
+				fn (): int|false => $this->db->wpdb()->update(
+					$this->db->table('revisions'),
+					array('lifecycle' => 'published', 'published_at' => $now),
+					array('id' => $revision_id, 'assessment_id' => $assessment_id, 'lifecycle' => 'draft'),
+					array('%s', '%s'),
+					array('%d', '%d', '%s')
+				)
+			);
+			if (1 !== $revision_write) {
 				throw new \RuntimeException('Revision publish update failed.');
 			}
-			if (1 !== $this->db->wpdb()->update(
-				$this->db->table('assessments'),
-				array(
-					'status'                    => 'published',
-					'published_revision_id'     => $revision_id,
-					'current_draft_revision_id' => null,
-					'updated_at'                => $now,
-				),
-				array('id' => $assessment_id)
-			)) {
+			$assessment_write = $this->db->write(
+				'assessment_publish_pointer_update',
+				fn (): int|false => $this->db->wpdb()->update(
+					$this->db->table('assessments'),
+					array(
+						'status'                    => 'published',
+						'published_revision_id'     => $revision_id,
+						'current_draft_revision_id' => null,
+						'updated_at'                => $now,
+					),
+					array('id' => $assessment_id, 'current_draft_revision_id' => $revision_id)
+				)
+			);
+			if (1 !== $assessment_write) {
 				throw new \RuntimeException('Assessment publish pointer update failed.');
 			}
 			$this->db->commit();
@@ -816,6 +959,7 @@ final class AssessmentService {
 			);
 		}
 
+		/** @var int $revision_id */
 		do_action('paper_to_quiz_assessment_published', $assessment_id, $revision_id); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public API required by the plugin contract.
 		return $this->get($assessment_id, true) ?: array();
 	}
@@ -981,6 +1125,17 @@ final class AssessmentService {
 			if ((int) $locked['published_revision_id'] !== (int) $source['id']) {
 				throw new \RuntimeException(__('The published revision changed. Refresh the page and try again.', 'paper-to-quiz'));
 			}
+			$locked_source = $this->db->wpdb()->get_row(
+				$this->db->wpdb()->prepare(
+					'SELECT id,lifecycle FROM ' . $this->db->table('revisions') . ' WHERE id = %d AND assessment_id = %d FOR UPDATE',
+					(int) $source['id'],
+					$assessment_id
+				),
+				ARRAY_A
+			);
+			if (! is_array($locked_source) || 'published' !== (string) $locked_source['lifecycle']) {
+				throw new \RuntimeException(__('The published revision changed. Refresh the page and try again.', 'paper-to-quiz'));
+			}
 
 			$data = array();
 			foreach (self::REVISION_COLUMNS as $column) {
@@ -1057,6 +1212,67 @@ final class AssessmentService {
 
 	private function retain_asset_or_throw(int $asset_id): void {
 		$this->assets->retain($asset_id);
+	}
+
+	/**
+	 * Lock an assessment and its current draft in the repository-wide order.
+	 *
+	 * The caller must already own an open transaction and must commit or roll it
+	 * back. Every draft mutation and publish operation uses this helper so an
+	 * unlocked lifecycle check can never authorize a later write.
+	 *
+	 * @return array|\WP_Error Locked assessment, revision, and question snapshot.
+	 */
+	private function lock_current_draft(int $assessment_id, ?int $expected_revision_id = null): array|\WP_Error {
+		$assessment = $this->db->wpdb()->get_row(
+			$this->db->wpdb()->prepare(
+				'SELECT * FROM ' . $this->db->table('assessments') . ' WHERE id = %d FOR UPDATE',
+				$assessment_id
+			),
+			ARRAY_A
+		);
+		if (! is_array($assessment)) {
+			return new \WP_Error('paper_to_quiz_not_found', __('Record not found.', 'paper-to-quiz'), array('status' => 404));
+		}
+
+		$revision_id = (int) ($assessment['current_draft_revision_id'] ?? 0);
+		if (
+			$revision_id < 1 ||
+			(null !== $expected_revision_id && $expected_revision_id !== $revision_id)
+		) {
+			return new \WP_Error(
+				'paper_to_quiz_immutable',
+				__('The draft changed or was published. Refresh the page and try again.', 'paper-to-quiz'),
+				array('status' => 409)
+			);
+		}
+
+		$locked_revision = $this->db->wpdb()->get_row(
+			$this->db->wpdb()->prepare(
+				'SELECT id,assessment_id,lifecycle FROM ' . $this->db->table('revisions') . ' WHERE id = %d AND assessment_id = %d FOR UPDATE',
+				$revision_id,
+				$assessment_id
+			),
+			ARRAY_A
+		);
+		if (! is_array($locked_revision) || 'draft' !== (string) $locked_revision['lifecycle']) {
+			return new \WP_Error(
+				'paper_to_quiz_immutable',
+				__('The draft changed or was published. Refresh the page and try again.', 'paper-to-quiz'),
+				array('status' => 409)
+			);
+		}
+
+		$revision = $this->get_revision($revision_id);
+		if (! is_array($revision)) {
+			return new \WP_Error('paper_to_quiz_not_found', __('Draft not found.', 'paper-to-quiz'), array('status' => 404));
+		}
+
+		return array(
+			'assessment' => $assessment,
+			'revision'   => $revision,
+			'questions'  => $this->questions($revision_id, true),
+		);
 	}
 
 	private function release_asset_safely(?int $asset_id): void {

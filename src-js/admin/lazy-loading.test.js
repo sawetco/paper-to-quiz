@@ -19,7 +19,7 @@ describe( 'admin authoring loading boundaries', () => {
 
 	it( 'keeps PDF.js and Konva behind the wizard step boundary', () => {
 		const wizard = source( 'Wizard.tsx' );
-		const editor = source( 'PdfEditor.tsx' );
+		const worker = source( 'pdfWorker.ts' );
 
 		expect( wizard ).not.toMatch(
 			/import\s+\{\s*PdfEditor\s*\}\s+from\s+['"]\.\/PdfEditor['"]/
@@ -27,7 +27,7 @@ describe( 'admin authoring loading boundaries', () => {
 		expect( wizard ).toMatch(
 			/lazy\(\s*\(\)\s*=>\s*import\([\s\S]*webpackChunkName:\s*["']admin-pdf-editor["'][\s\S]*['"]\.\/PdfEditor['"]\s*\)/
 		);
-		expect( editor ).toContain( "'pdfjs-dist/build/pdf.worker.min.mjs'" );
+		expect( worker ).toContain( "'pdfjs-dist/build/pdf.worker.min.mjs'" );
 	} );
 
 	it( 'uses the enqueued script URL for dynamic assets', () => {

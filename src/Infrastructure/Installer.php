@@ -48,6 +48,7 @@ final class Installer {
 
 	public static function deactivate(): void {
 		wp_clear_scheduled_hook('paper_to_quiz_daily_cleanup');
+		wp_clear_scheduled_hook(Cleanup::CONTINUATION_HOOK);
 		wp_clear_scheduled_hook('paper_to_quiz_process_result_emails');
 		wp_clear_scheduled_hook('paper_to_quiz_process_encryption_migration');
 	}

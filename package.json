@@ -1,12 +1,15 @@
 {
 	"name": "paper-to-quiz",
-	"version": "1.1.4",
+	"version": "1.1.5",
 	"private": true,
 	"description": "Convert PDF exams and worksheets into secure, image-based WordPress quizzes.",
 	"license": "GPL-2.0-or-later",
 	"files": [
 		"build",
 		"build-tools",
+		"!build-tools/**/*.test.js",
+		"!build-tools/check-release-metadata.js",
+		"!build-tools/run-wp-env-suite.js",
 		"src",
 		"src-js",
 		"!src-js/**/*.test.js",
@@ -36,6 +39,7 @@
 		"start": "wp-scripts start",
 		"build": "wp-scripts build",
 		"check:build-portability": "node build-tools/check-build-portability.js",
+		"check:release-metadata": "node build-tools/check-release-metadata.js",
 		"lint:js": "wp-scripts lint-js src-js",
 		"lint:css": "wp-scripts lint-style \"src-js/**/*.scss\"",
 		"test:unit": "wp-scripts test-unit-js",
@@ -46,7 +50,10 @@
 		"env:install": "node -e \"const { spawnSync } = require('node:child_process'); const path = require('node:path'); const wpEnv = process.platform === 'win32' ? path.resolve('node_modules/.bin/wp-env.cmd') : 'wp-env'; const options = process.platform === 'win32' ? { stdio: 'inherit', shell: true } : { stdio: 'inherit' }; const run = (args) => { const result = spawnSync(wpEnv, args, options); if (result.status !== 0) process.exit(result.status || 1); }; const installed = spawnSync(wpEnv, ['run', 'cli', 'wp', 'core', 'is-installed'], options); if (installed.status !== 0) run(['run', 'cli', 'wp', 'core', 'install', '--url=http://localhost:8888', '--title=Paper to Quiz Integration', '--admin_user=admin', '--admin_password=paper-to-quiz-integration', '--admin_email=admin@example.com', '--skip-email']); run(['run', 'cli', 'wp', 'plugin', 'activate', 'paper-to-quiz']);\"",
 		"env:stop": "wp-env stop",
 		"test:integration:run": "wp-env run cli env WP_ENVIRONMENT_TYPE=local PAPER_TO_QUIZ_ALLOW_REGRESSION=1 wp eval-file wp-content/plugins/paper-to-quiz/tests/data-regression.php && wp-env run cli env WP_ENVIRONMENT_TYPE=local PAPER_TO_QUIZ_ALLOW_REGRESSION=1 wp eval-file wp-content/plugins/paper-to-quiz/tests/rest-regression.php",
-		"test:integration": "node -e \"const { spawnSync } = require('node:child_process'); const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'; const npmOptions = { stdio: 'inherit', shell: true }; const run = (script) => { const result = spawnSync(npm, ['run', script], npmOptions); if (result.status !== 0) { const error = new Error('npm run ' + script + ' failed'); error.exitCode = result.status || 1; throw error; } }; let exitCode = 1; try { run('env:start'); run('env:reset'); run('env:install'); run('test:integration:run'); exitCode = 0; } catch (error) { console.error(error.message); exitCode = error.exitCode || 1; } finally { const stop = spawnSync(npm, ['run', 'env:stop'], npmOptions); if (exitCode === 0 && stop.status !== 0) { exitCode = stop.status || 1; } } process.exit(exitCode);\"",
+		"test:integration": "node build-tools/run-wp-env-suite.js wp71 integration",
+		"test:integration:wp68": "node build-tools/run-wp-env-suite.js wp68 integration",
+		"test:e2e": "node build-tools/run-wp-env-suite.js wp71 e2e",
+		"test:e2e:wp68": "node build-tools/run-wp-env-suite.js wp68 e2e",
 		"plugin-zip": "wp-scripts plugin-zip"
 	},
 	"dependencies": {
@@ -65,15 +72,20 @@
 	"devDependencies": {
 		"@testing-library/jest-dom": "^6.9.1",
 		"@testing-library/react": "^16.3.3",
+		"@playwright/test": "^1.63.0",
 		"@types/jest": "^30.0.0",
 		"@types/react": "^18.3.27",
 		"@types/react-dom": "^18.3.7",
 		"@wordpress/env": "11.15.0",
+		"@wordpress/e2e-test-utils-playwright": "^2.0.0",
 		"@wordpress/scripts": "^35.0.0",
+		"fake-indexeddb": "^6.2.5",
+		"react": "18.3.1",
+		"react-dom": "18.3.1",
 		"typescript": "^5.9.3"
 	},
 	"overrides": {
-		"adm-zip": "0.6.0",
+		"adm-zip": "0.6.1",
 		"linkify-it": "5.0.2",
 		"markdown-it": "14.2.0",
 		"qs": "6.16.0",

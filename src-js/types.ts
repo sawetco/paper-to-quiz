@@ -141,6 +141,7 @@ declare global {
 				crop_dpi?: number;
 				max_image_edge?: number;
 				max_pdf_mb?: number;
+				page_warning?: number;
 			};
 		};
 	}

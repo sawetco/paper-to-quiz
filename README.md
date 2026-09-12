@@ -115,6 +115,7 @@ npx tsc --noEmit
 npm run test:unit -- --runInBand
 npm run build
 npm run check:build-portability
+npm run check:release-metadata
 npm run plugin-zip
 ```
 
@@ -122,9 +123,14 @@ Run the local integration suite with:
 
 ```sh
 npm run test:integration
+npm run test:e2e
+npm run test:integration:wp68
+npm run test:e2e:wp68
 ```
 
-Never run these tests against a production site or real data. If you would like
+The default commands validate WordPress 7.1; the `:wp68` commands validate the
+minimum supported WordPress 6.8.8/PHP 8.1 baseline. Never run these tests
+against a production site or real data. If you would like
 to contribute, see [CONTRIBUTING.md](CONTRIBUTING.md). The technical working
 rules for this repository are documented in [AGENTS.md](AGENTS.md).
 

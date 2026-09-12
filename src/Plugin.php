@@ -69,6 +69,7 @@ final class Plugin {
 		add_action('rest_api_init', array($public_controller, 'register_routes'));
 		add_filter('rest_pre_serve_request', array($this, 'serve_binary'), 10, 4);
 		add_action('paper_to_quiz_daily_cleanup', array($cleanup, 'run'));
+		add_action(Cleanup::CONTINUATION_HOOK, array($cleanup, 'run'), 10, 1);
 		add_action('paper_to_quiz_attempt_completed', array($email_service, 'enqueue'));
 		add_action('paper_to_quiz_process_result_emails', array($email_service, 'process'));
 		add_action('paper_to_quiz_process_encryption_migration', array($encryption_migration, 'run'));

@@ -4,7 +4,7 @@ Tags: quiz, exam, pdf, education, test
 Requires at least: 6.8
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 1.1.4
+Stable tag: 1.1.5
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -78,8 +78,9 @@ Depending on the choices made by the site administrator, an assessment may store
 participant details, answers, score, duration, IP address and basic browser
 information. Exams that require membership also connect the result to the
 participant's WordPress account. Paper to Quiz supports the WordPress personal
-data export and erasure tools, and administrators can choose how long results are
-kept.
+data export and erasure tools. Administrators can choose how long participant
+identity and contact data is kept before automatic anonymization; anonymous
+scores and statistics remain available.
 
 == Development ==
 
@@ -88,6 +89,14 @@ The current development source is available at
 https://github.com/sawetco/paper-to-quiz.
 
 == Changelog ==
+
+= 1.1.5 =
+
+* Made draft editing and publishing atomic so published questions cannot change during concurrent administration requests.
+* Made retention and abandoned-upload cleanup bounded, retryable, and self-draining.
+* Applied the configured PDF image and page-warning limits and strengthened editor recovery and cancellation behavior.
+* Added automated compatibility coverage for WordPress 6.8.8 and 7.1, including the PDF authoring browser flow.
+* Strengthened release metadata checks and pinned GitHub Actions to reviewed revisions.
 
 = 1.1.4 =
 

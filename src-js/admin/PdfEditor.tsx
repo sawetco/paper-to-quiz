@@ -18,7 +18,6 @@ import { CSS } from '@dnd-kit/utilities';
 import { Layer, Rect, Stage, Transformer } from 'react-konva';
 import type Konva from 'konva';
 import {
-	GlobalWorkerOptions,
 	getDocument,
 	type PDFDocumentProxy,
 	type PDFPageProxy,
@@ -32,11 +31,9 @@ import type {
 } from '../types';
 import { api, fetchBinary } from './api';
 import { BusyLabel } from './BusyLabel';
+import { initializePdfWorker } from './pdfWorker';
 
-GlobalWorkerOptions.workerSrc = new URL(
-	'pdfjs-dist/build/pdf.worker.min.mjs',
-	import.meta.url
-).toString();
+initializePdfWorker();
 
 export function PdfEditor( {
 	record,
@@ -71,6 +68,7 @@ export function PdfEditor( {
 	const [ saveProgress, setSaveProgress ] = useState( '' );
 	const [ deletingKey, setDeletingKey ] = useState< string | null >( null );
 	const [ warning, setWarning ] = useState( '' );
+	const [ pageWarning, setPageWarning ] = useState( '' );
 	const [ recoveryReady, setRecoveryReady ] = useState( false );
 	const [ subjects, setSubjects ] = useState< Term[] >( [] );
 	const canvasRef = useRef< HTMLCanvasElement | null >( null );
@@ -90,10 +88,14 @@ export function PdfEditor( {
 	);
 
 	useEffect( () => {
+		let cancelled = false;
 		api< ListResponse< Term > >(
 			'/admin/subjects?status=active&page=1&per_page=100'
 		)
 			.then( ( response ) => {
+				if ( cancelled ) {
+					return;
+				}
 				const allowedSubjectIds = new Set( [
 					...( record.revision.subject_ids || [] ).map( Number ),
 					...record.questions
@@ -110,14 +112,19 @@ export function PdfEditor( {
 						: response.items
 				);
 			} )
-			.catch( () =>
-				onError(
-					__(
-						'Subjects could not be loaded. Try again before saving questions.',
-						'paper-to-quiz'
-					)
-				)
-			);
+			.catch( () => {
+				if ( ! cancelled ) {
+					onError(
+						__(
+							'Subjects could not be loaded. Try again before saving questions.',
+							'paper-to-quiz'
+						)
+					);
+				}
+			} );
+		return () => {
+			cancelled = true;
+		};
 	}, [ onError, record.questions, record.revision.subject_ids ] );
 
 	useEffect( () => {
@@ -181,22 +188,41 @@ export function PdfEditor( {
 
 	useEffect( () => {
 		let cancelled = false;
+		const configuredThreshold = Number(
+			window.paperToQuizAdmin.settings.page_warning
+		);
+		const threshold = Number.isFinite( configuredThreshold )
+			? Math.max(
+					20,
+					Math.min( 1000, Math.floor( configuredThreshold ) )
+			  )
+			: 200;
 		fetchBinary( record.revision.pdf_url! )
 			.then( ( data ) => getDocument( { data } ).promise )
 			.then( ( document ) => {
 				if ( ! cancelled ) {
 					setPdf( document );
-					if ( document.numPages > 200 ) {
-						setWarning(
-							__(
-								'This PDF has more than 200 pages. Performance may decrease while thumbnails are prepared.',
-								'paper-to-quiz'
+					if ( document.numPages > threshold ) {
+						setPageWarning(
+							sprintf(
+								/* translators: %d: Configured PDF page warning threshold. */
+								__(
+									'This PDF has more than %d pages. Performance may decrease while thumbnails are prepared.',
+									'paper-to-quiz'
+								),
+								threshold
 							)
 						);
+					} else {
+						setPageWarning( '' );
 					}
 				}
 			} )
-			.catch( ( caught ) => onError( pdfError( caught ) ) );
+			.catch( ( caught ) => {
+				if ( ! cancelled ) {
+					onError( pdfError( caught ) );
+				}
+			} );
 		return () => {
 			cancelled = true;
 		};
@@ -215,7 +241,10 @@ export function PdfEditor( {
 				setPage( loaded );
 			} )
 			.catch( ( caught ) => {
-				if ( caught?.name !== 'RenderingCancelledException' ) {
+				if (
+					! cancelled &&
+					caught?.name !== 'RenderingCancelledException'
+				) {
 					onError( pdfError( caught ) );
 				}
 			} );
@@ -275,6 +304,7 @@ export function PdfEditor( {
 			return;
 		}
 		let cancelled = false;
+		let activeTask: any = null;
 		( async () => {
 			for ( let number = 1; number <= pdf.numPages; number += 1 ) {
 				if ( cancelled ) {
@@ -284,6 +314,9 @@ export function PdfEditor( {
 					continue;
 				}
 				const loaded = await pdf.getPage( number );
+				if ( cancelled ) {
+					return;
+				}
 				const viewport = loaded.getViewport( { scale: 0.18 } );
 				const canvas = document.createElement( 'canvas' );
 				canvas.width = viewport.width;
@@ -292,11 +325,16 @@ export function PdfEditor( {
 				if ( ! context ) {
 					continue;
 				}
-				await loaded.render( {
+				activeTask = loaded.render( {
 					canvas,
 					canvasContext: context,
 					viewport,
-				} ).promise;
+				} );
+				await activeTask.promise;
+				activeTask = null;
+				if ( cancelled ) {
+					return;
+				}
 				const image = canvas.toDataURL( 'image/jpeg', 0.65 );
 				thumbsRef.current[ number ] = image;
 				setThumbs( ( current ) => ( {
@@ -306,10 +344,14 @@ export function PdfEditor( {
 				await new Promise< void >( ( resolve ) =>
 					window.requestAnimationFrame( () => resolve() )
 				);
+				if ( cancelled ) {
+					return;
+				}
 			}
 		} )().catch( () => undefined );
 		return () => {
 			cancelled = true;
+			activeTask?.cancel?.();
 		};
 	}, [ pdf, mainReady ] );
 
@@ -679,6 +721,14 @@ export function PdfEditor( {
 			{ warning && (
 				<Notice status="warning" onRemove={ () => setWarning( '' ) }>
 					{ warning }
+				</Notice>
+			) }
+			{ pageWarning && (
+				<Notice
+					status="warning"
+					onRemove={ () => setPageWarning( '' ) }
+				>
+					{ pageWarning }
 				</Notice>
 			) }
 			<div className="ptq-editor-layout">

@@ -1,97 +1,109 @@
 name: Quality
 
 on:
-    push:
-        branches:
-            - '**'
-    pull_request:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
-    contents: read
+  contents: read
 
 jobs:
-    javascript:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v7
-            - uses: actions/setup-node@v6
-              with:
-                  node-version: 22
-                  cache: npm
-            - run: npm ci
-            - run: npm audit --omit=dev --audit-level=high
-            - run: npm run lint:js
-            - run: npm run lint:css
-            - run: npx tsc --noEmit
-            - run: npm run test:unit -- --runInBand
-            - run: npm run build
-            - run: npm run check:build-portability
-            - run: npm run plugin-zip
-            - name: Extract distribution
-              run: unzip paper-to-quiz.zip -d plugin-check-build
-            - uses: wordpress/plugin-check-action@v1.1.9
-              with:
-                  build-dir: ./plugin-check-build/paper-to-quiz
+  javascript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run check:release-metadata
+      - run: npm run lint:js
+      - run: npm run lint:css
+      - run: npx tsc --noEmit
+      - run: npm run test:unit -- --runInBand
+      - run: npm run build
+      - run: npm run check:build-portability
+      - run: npm run plugin-zip
+      - name: Extract distribution
+        run: unzip paper-to-quiz.zip -d plugin-check-build
+      - uses: wordpress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1.1.9
+        with:
+          build-dir: ./plugin-check-build/paper-to-quiz
 
-    php-syntax:
-        runs-on: ubuntu-latest
-        strategy:
-            matrix:
-                php: ['8.1', '8.3', '8.5']
-        steps:
-            - uses: actions/checkout@v7
-            - uses: shivammathur/setup-php@v2
-              with:
-                  php-version: ${{ matrix.php }}
-                  coverage: none
-            - name: Validate PHP syntax
-              run: find . -type f -name '*.php' -not -path './node_modules/*' -print0 | xargs -0 -n1 php -l
+  php-syntax:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ["8.1", "8.3", "8.5"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+      - uses: shivammathur/setup-php@bf6b4fbd49ca58e4608c9c89fba0b8d90bd2a39f # 2.35.5
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Validate PHP syntax
+        run: find . -type f -name '*.php' -not -path './node_modules/*' -print0 | xargs -0 -n1 php -l
 
-    php-unit:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v7
-            - uses: actions/setup-node@v6
-              with:
-                  node-version: 22
-                  cache: npm
-            - run: npm ci
-            - run: npm run env:start
-            - run: npm run env:install
-            - run: npm run test:php
-            - if: always()
-              name: Stop wp-env
-              run: npm run env:stop
-            - if: failure()
-              name: Upload wp-env logs
-              uses: actions/upload-artifact@v6
-              with:
-                  name: wp-env-logs-phpunit
-                  path: |
-                      ~/.wp-env/**/logs/**
-                      ~/.npm/_logs/**
-                  if-no-files-found: ignore
+  php-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run env:start
+      - run: npm run env:install
+      - run: npm run test:php
+      - if: always()
+        name: Stop wp-env
+        run: npm run env:stop
+      - if: failure()
+        name: Upload wp-env logs
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: wp-env-logs-phpunit
+          path: |
+            ~/.wp-env/**/logs/**
+            ~/.npm/_logs/**
+          if-no-files-found: ignore
 
-    integration:
-        needs: [javascript, php-syntax]
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v7
-            - uses: actions/setup-node@v6
-              with:
-                  node-version: 22
-                  cache: npm
-            - run: npm ci
-            - run: npm run test:integration
-            - if: always()
-              name: Stop wp-env
-              run: npm run env:stop
-            - if: failure()
-              name: Upload wp-env logs
-              uses: actions/upload-artifact@v6
-              with:
-                  name: wp-env-logs
-                  path: |
-                      ~/.wp-env/**/logs/**
-                      ~/.npm/_logs/**
-                  if-no-files-found: ignore
+  compatibility:
+    needs: [javascript, php-syntax]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [wp71, wp68]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: node build-tools/run-wp-env-suite.js ${{ matrix.target }} integration
+      - run: node build-tools/run-wp-env-suite.js ${{ matrix.target }} e2e
+      - if: failure()
+        name: Upload wp-env and browser logs
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: compatibility-${{ matrix.target }}-logs
+          path: |
+            .wp-env-home/**/logs/**
+            ~/.npm/_logs/**
+            test-results/**
+            playwright-report/**
+          if-no-files-found: ignore

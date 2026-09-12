@@ -132,7 +132,7 @@ final class RetentionCleanupTest extends TestCase {
 		$wpdb = $this->db->wpdb();
 		$table = $this->db->table( 'attempts' );
 		$handler = static function ( string $query ) use ( &$selects, &$adjusted, $wpdb, $table, $exact_id, $newer_id ): string {
-			if ( str_contains( $query, 'SELECT id FROM' ) && str_contains( $query, 'anonymized_at IS NULL' ) ) {
+			if ( str_contains( $query, 'SELECT id,submitted_at FROM' ) && str_contains( $query, 'anonymized_at IS NULL' ) ) {
 				$selects[] = $query;
 				if ( ! $adjusted && preg_match( "/submitted_at\\s*<=\\s*'([^']+)'/", $query, $matches ) ) {
 					$adjusted = true;
@@ -196,6 +196,43 @@ final class RetentionCleanupTest extends TestCase {
 		$this->assertNull( $this->fetch_attempt( $failed )['anonymized_at'], 'The failed row must remain retryable.' );
 		$this->assertNotNull( $this->fetch_attempt( $failed )['participant_data'] );
 		$this->assertNotNull( $this->fetch_attempt( $successful )['anonymized_at'] );
+	}
+
+	public function test_a_full_failed_batch_cannot_starve_a_later_attempt(): void {
+		$this->set_retention_days( 1 );
+		$first_time = gmdate( 'Y-m-d H:i:s', time() - 3 * DAY_IN_SECONDS );
+		$next_time  = gmdate( 'Y-m-d H:i:s', time() - 2 * DAY_IN_SECONDS );
+		$failed_ids = array();
+		for ( $index = 0; $index < 100; ++$index ) {
+			$failed_ids[] = $this->seed_attempt( 'submitted', $first_time );
+		}
+		$healthy_id = $this->seed_attempt( 'submitted', $next_time );
+		$table      = $this->db->table( 'attempts' );
+		$handler    = static function ( string $query ) use ( $failed_ids, $table ): string|false {
+			foreach ( $failed_ids as $failed_id ) {
+				if (
+					str_contains( $query, 'UPDATE `' . $table . '`' ) &&
+					str_contains( $query, 'participant_data' ) &&
+					str_contains( $query, '`id` = ' . $failed_id )
+				) {
+					return false;
+				}
+			}
+			return $query;
+		};
+		add_filter( 'query', $handler, 10 );
+		$this->query_filter_handlers[] = $handler;
+
+		$first = $this->attempts->anonymize_expired_batch();
+		$this->assertSame( 100, $first['selected'] );
+		$this->assertSame( 0, $first['succeeded'] );
+		$this->assertSame( 100, $first['failed'] );
+		$this->assertIsArray( $first['cursor'] );
+
+		$second = $this->attempts->anonymize_expired_batch( $first['cursor'], $first['cutoff'] );
+		$this->assertSame( 1, $second['selected'] );
+		$this->assertSame( 1, $second['succeeded'] );
+		$this->assertNotNull( $this->fetch_attempt( $healthy_id )['anonymized_at'] );
 	}
 
 	private function set_retention_days( int $days ): void {

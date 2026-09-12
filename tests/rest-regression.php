@@ -461,6 +461,33 @@ try {
 		paper_to_quiz_rest_assert(is_array($question_asset) && $storage->exists((string) $question_asset['storage_key']), 'Question image asset storage was not created.');
 		$workflow_storage_keys[] = (string) $question_asset['storage_key'];
 	}
+	$temporary_question_ids = array();
+	for ($ordinal = 2; $ordinal <= 3; ++$ordinal) {
+		$temporary_metadata = $question_metadata;
+		$temporary_metadata['ordinal']    = $ordinal;
+		$temporary_metadata['client_key'] = wp_generate_uuid4();
+		$temporary_response = paper_to_quiz_rest_multipart_request(
+			'/paper-to-quiz/v1/admin/revisions/' . $workflow_revision . '/questions',
+			array('metadata' => wp_json_encode($temporary_metadata)),
+			$image_files,
+			$manager
+		);
+		paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($temporary_response), 'Temporary question REST upload failed.');
+		$temporary_data = paper_to_quiz_rest_data($temporary_response);
+		$temporary_question_ids[] = (int) ($temporary_data['id'] ?? 0);
+		foreach (array('main_asset_id', 'thumb_asset_id') as $asset_field) {
+			$temporary_asset_id = (int) ($temporary_data[$asset_field] ?? 0);
+			paper_to_quiz_rest_assert($temporary_asset_id > 0, 'Temporary question asset was not created.');
+			$workflow_asset_ids[] = $temporary_asset_id;
+			$workflow_storage_keys[] = (string) $wpdb->get_var($wpdb->prepare('SELECT storage_key FROM ' . $db->table('assets') . ' WHERE id=%d', $temporary_asset_id));
+		}
+	}
+	$delete_middle = paper_to_quiz_rest_request('DELETE', '/paper-to-quiz/v1/admin/questions/' . $temporary_question_ids[0], array(), $manager);
+	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($delete_middle) && true === (paper_to_quiz_rest_data($delete_middle)['deleted'] ?? false), 'Question DELETE did not report success.');
+	$remaining_ordinals = array_map('intval', $wpdb->get_col($wpdb->prepare('SELECT ordinal FROM ' . $db->table('questions') . ' WHERE revision_id=%d ORDER BY ordinal ASC', $workflow_revision)));
+	paper_to_quiz_rest_assert(array(1, 2) === $remaining_ordinals, 'Question DELETE did not commit contiguous ordinals.');
+	$delete_last_temporary = paper_to_quiz_rest_request('DELETE', '/paper-to-quiz/v1/admin/questions/' . $temporary_question_ids[1], array(), $manager);
+	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($delete_last_temporary), 'Temporary question cleanup through REST failed.');
 
 	$answer_key = paper_to_quiz_rest_request(
 		'PUT',
@@ -480,6 +507,8 @@ try {
 	paper_to_quiz_rest_assert(is_array($published_row) && 'published' === $published_row['status'] && (int) $published_row['published_revision_id'] === $workflow_revision && empty($published_row['current_draft_revision_id']), 'Workflow publish did not update assessment lifecycle pointers.');
 	paper_to_quiz_rest_assert(is_array($published_revision_row) && 'published' === $published_revision_row['lifecycle'] && ! empty($published_revision_row['published_at']), 'Workflow publish did not publish the revision lifecycle.');
 	paper_to_quiz_rest_assert((int) ($published_data['revision']['id'] ?? 0) === $workflow_revision && 'published' === ($published_data['revision']['lifecycle'] ?? ''), 'Workflow publish response omitted the published revision.');
+	$immutable_delete = paper_to_quiz_rest_request('DELETE', '/paper-to-quiz/v1/admin/questions/' . $workflow_question, array(), $manager);
+	paper_to_quiz_rest_assert(409 === paper_to_quiz_rest_status($immutable_delete), 'Published question DELETE did not preserve immutable revision state.');
 
 	$workflow_bootstrap = paper_to_quiz_rest_request('GET', '/paper-to-quiz/v1/assessments/' . $workflow_assessment . '/bootstrap');
 	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($workflow_bootstrap), 'Published workflow bootstrap failed.');

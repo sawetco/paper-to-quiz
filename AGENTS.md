@@ -10,6 +10,11 @@ contracts, or release behavior changes.
   WordPress 6.8+ and PHP 8.1+.
 - The administration application uses React, TypeScript, and
   `@wordpress/components`.
+- The direct React 18.3.1 development dependencies intentionally match the React
+  runtime supplied by supported WordPress Core releases. Keep React externalized
+  from production assets, and move React, React DOM, their types, and React-Konva
+  together only after the supported WordPress matrix proves a Core React 19
+  transition.
 - PDF questions are selected manually with PDF.js, Konva, and React-Konva.
 - The student application is isolated from theme styles.
 - `PaperToQuiz`, `PAPER_TO_QUIZ_*`, `paper_to_quiz_`, `paper-to-quiz/v1`, and `[paper_to_quiz]` are permanent
@@ -65,6 +70,7 @@ npx tsc --noEmit
 npm run test:unit -- --runInBand
 npm run build
 npm run check:build-portability
+npm run check:release-metadata
 npm run plugin-zip
 ```
 
@@ -74,7 +80,9 @@ production ZIP includes `src-js/`, `build-tools/`, `webpack.config.js`,
 security documents and the primary README, so human-readable source remains
 available during WordPress.org review. The Turkish GitHub README is deliberately
 excluded because Plugin Check flags additional root Markdown files; tests,
-development dependencies, and repository metadata also stay out of the archive.
+development-only release/test runners (including the metadata checker and wp-env
+matrix runner), development dependencies, and repository metadata also stay out
+of the archive.
 
 GitHub Releases is the versioned binary distribution channel. After the
 version constants, package metadata, changelog, and POT template are synchronized
@@ -147,17 +155,22 @@ raised PHP memory limit to parse the large bundled JS without fataling on the
 Translations installed from WordPress.org are loaded through WordPress core;
 the plugin must not override `load_textdomain_mofile` with bundled catalogs.
 
-Integration gate (disposable local wp-env only):
+Compatibility gates (disposable local wp-env only):
 
 ```powershell
 npm run test:integration
+npm run test:e2e
+npm run test:integration:wp68
+npm run test:e2e:wp68
 ```
 
-On `main`, this starts a disposable local WordPress environment, resets both
-wp-env databases, installs WordPress from scratch, runs both clean-install
-regression scripts with the required local guards, and stops the environment
-afterward. The migration branch additionally runs its MySQL prefix migration
-regression.
+The default pair runs on WordPress 7.1; the `:wp68` pair proves the minimum
+supported WordPress 6.8.8/PHP 8.1 baseline. Each command uses an isolated
+`WP_ENV_HOME`, starts and resets a disposable environment, verifies the exact
+Core version, and stops the environment afterward. Integration runs both
+clean-install regression scripts; E2E creates a guarded synthetic assessment
+and exercises the browser authoring flow. The migration branch additionally
+runs its MySQL prefix migration regression.
 Never run the regression scripts against production or against real data.
 
 The data regression script creates and then removes temporary plugin records:

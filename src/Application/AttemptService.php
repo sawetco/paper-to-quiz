@@ -809,25 +809,58 @@ final class AttemptService {
 	}
 
 	public function anonymize_expired(): int {
+		return (int) $this->anonymize_expired_batch()['succeeded'];
+	}
+
+	/**
+	 * Process one bounded retention batch without allowing failed leading rows
+	 * to starve later eligible attempts.
+	 *
+	 * @param array{submitted_at:string,id:int}|null $cursor Keyset cursor from a previous batch.
+	 * @return array{selected:int,succeeded:int,failed:int,cursor:array{submitted_at:string,id:int}|null,cutoff:string}
+	 */
+	public function anonymize_expired_batch(?array $cursor = null, ?string $cutoff = null): array {
 		$settings       = Settings::get();
 		$retention_days = max(1, min(3650, (int) ($settings['retention_days'] ?? 365)));
-		$cutoff         = gmdate('Y-m-d H:i:s', time() - ($retention_days * DAY_IN_SECONDS));
-		$attempt_ids    = $this->db->wpdb()->get_col(
+		$cutoff         = $cutoff ?: gmdate('Y-m-d H:i:s', time() - ($retention_days * DAY_IN_SECONDS));
+		$where          = 'anonymized_at IS NULL AND submitted_at IS NOT NULL AND submitted_at <= %s';
+		$args           = array($cutoff);
+		if ($cursor && ! empty($cursor['submitted_at']) && ! empty($cursor['id'])) {
+			$where .= ' AND (submitted_at > %s OR (submitted_at = %s AND id > %d))';
+			$args[] = (string) $cursor['submitted_at'];
+			$args[] = (string) $cursor['submitted_at'];
+			$args[] = (int) $cursor['id'];
+		}
+		$args[] = self::RETENTION_CLEANUP_BATCH_SIZE;
+		$rows   = $this->db->wpdb()->get_results(
 			$this->db->wpdb()->prepare(
-				'SELECT id FROM ' . $this->db->table('attempts') . "
-				WHERE anonymized_at IS NULL AND submitted_at IS NOT NULL AND submitted_at <= %s
-				ORDER BY submitted_at ASC, id ASC LIMIT %d",
-				$cutoff,
-				self::RETENTION_CLEANUP_BATCH_SIZE
-			)
+				'SELECT id,submitted_at FROM ' . $this->db->table('attempts') . "
+				WHERE {$where} ORDER BY submitted_at ASC, id ASC LIMIT %d",
+				...$args
+			),
+			ARRAY_A
 		) ?: array();
-		$count = 0;
-		foreach ($attempt_ids as $attempt_id) {
-			if ($this->anonymize_attempt((int) $attempt_id)) {
-				++$count;
+
+		$succeeded = 0;
+		$failed    = 0;
+		foreach ($rows as $row) {
+			if ($this->anonymize_attempt((int) $row['id'])) {
+				++$succeeded;
+			} else {
+				++$failed;
 			}
 		}
-		return $count;
+
+		$last = $rows ? $rows[array_key_last($rows)] : null;
+		return array(
+			'selected'  => count($rows),
+			'succeeded' => $succeeded,
+			'failed'    => $failed,
+			'cursor'    => is_array($last)
+				? array('submitted_at' => (string) $last['submitted_at'], 'id' => (int) $last['id'])
+				: null,
+			'cutoff'    => $cutoff,
+		);
 	}
 
 	public function expire_stale_attempts(): int {

@@ -27,15 +27,23 @@ npm run lint:css
 npx tsc --noEmit
 npm run test:unit -- --runInBand
 npm run build
+npm run check:build-portability
+npm run check:release-metadata
+npm run plugin-zip
 ```
 
 The integration gate is an explicit disposable/local-only check:
 
 ```powershell
 npm run test:integration
+npm run test:e2e
+npm run test:integration:wp68
+npm run test:e2e:wp68
 ```
 
-It must run only against the local wp-env environment. Never run
+The default pair validates WordPress 7.1, while the `:wp68` pair validates the
+minimum supported WordPress 6.8.8/PHP 8.1 environment. These commands must run
+only against their disposable local wp-env environments. Never run
 `tests/data-regression.php` or `tests/rest-regression.php` against production,
 and do not use production credentials or real participant data.
 

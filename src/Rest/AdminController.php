@@ -1104,12 +1104,13 @@ final class AdminController {
 	}
 
 	private function settings_args(): array {
+		$constraints = Settings::constraints();
 		return array(
 			'max_pdf_mb'     => array('type' => 'integer', 'minimum' => 1, 'maximum' => 500),
 			'retention_days' => array('type' => 'integer', 'minimum' => 1, 'maximum' => 3650),
-			'crop_dpi'       => array('type' => 'integer', 'minimum' => 120, 'maximum' => 360),
-			'max_image_edge' => array('type' => 'integer', 'minimum' => 1200, 'maximum' => 6000),
-			'page_warning'   => array('type' => 'integer', 'minimum' => 20, 'maximum' => 1000),
+			'crop_dpi'       => array('type' => 'integer') + $constraints['crop_dpi'],
+			'max_image_edge' => array('type' => 'integer') + $constraints['max_image_edge'],
+			'page_warning'   => array('type' => 'integer') + $constraints['page_warning'],
 			'network_grace'  => array('type' => 'integer', 'minimum' => 0, 'maximum' => 120),
 			'purge_on_uninstall' => array('type' => 'boolean'),
 		);

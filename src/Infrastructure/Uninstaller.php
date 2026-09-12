@@ -46,6 +46,7 @@ final class Uninstaller {
 
 	private static function clear_scheduled_tasks(): void {
 		wp_clear_scheduled_hook('paper_to_quiz_daily_cleanup');
+		wp_clear_scheduled_hook(Cleanup::CONTINUATION_HOOK);
 		wp_clear_scheduled_hook('paper_to_quiz_process_result_emails');
 		wp_clear_scheduled_hook('paper_to_quiz_process_encryption_migration');
 	}
