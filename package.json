@@ -75,13 +75,13 @@
 		"@playwright/test": "^1.63.0",
 		"@types/jest": "^30.0.0",
 		"@types/react": "^18.3.27",
-		"@types/react-dom": "^18.3.7",
+		"@types/react-dom": "^19.3.0",
 		"@wordpress/env": "11.15.0",
 		"@wordpress/e2e-test-utils-playwright": "^2.0.0",
 		"@wordpress/scripts": "^35.0.0",
 		"fake-indexeddb": "^6.2.5",
 		"react": "18.3.1",
-		"react-dom": "18.3.1",
+		"react-dom": "19.3.0",
 		"typescript": "^5.9.3"
 	},
 	"overrides": {
