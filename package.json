@@ -65,7 +65,7 @@
 		"@wordpress/components": "^40.1.0",
 		"@wordpress/element": "^8.7.0",
 		"@wordpress/i18n": "^6.28.0",
-		"konva": "^10.5.0",
+		"konva": "^10.6.0",
 		"pdfjs-dist": "^6.3.289",
 		"react-konva": "^18.2.16"
 	},
