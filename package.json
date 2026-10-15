@@ -74,7 +74,7 @@
 		"react-konva": "^18.2.16"
 	},
 	"devDependencies": {
-		"@babel/core": "^7.29.7",
+		"@babel/core": "^8.0.7",
 		"@playwright/test": "^1.64.1",
 		"@testing-library/jest-dom": "^7.0.1",
 		"@testing-library/react": "^16.3.3",
