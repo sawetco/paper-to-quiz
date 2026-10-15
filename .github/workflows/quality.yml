@@ -73,7 +73,7 @@ jobs:
         run: npm run env:stop
       - if: failure()
         name: Upload wp-env logs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wp-env-logs-phpunit
           path: |
@@ -100,7 +100,7 @@ jobs:
       - run: node build-tools/run-wp-env-suite.js ${{ matrix.target }} e2e
       - if: failure()
         name: Upload wp-env and browser logs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: compatibility-${{ matrix.target }}-logs
           path: |
