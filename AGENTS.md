@@ -54,7 +54,9 @@ the plugin header version before committing a release.
 
 ## Local development
 
-The package manager is npm. Preserve `package-lock.json`.
+The package manager is npm. Preserve `package-lock.json`. Use Node.js 24.18+
+(or 26+) with npm 11.16+ for the current WordPress development tooling. CI uses
+Node.js 24. React remains externalized at the WordPress React 18 runtime.
 
 Security overrides in `package.json` pin vulnerable transitive development
 tools brought in by `@wordpress/scripts` and `@wordpress/env`. Keep overrides
@@ -62,8 +64,25 @@ narrow, verify their dependency paths with `npm explain`, and remove them when
 the upstream WordPress packages adopt patched ranges. Do not use
 `npm audit fix --force` for development-only findings.
 
+Until upstream publishes fixes, `postinstall` applies version-checked depth
+guards to braces 3.0.3 and width/precision bounds to sprintf-js 1.0.3.
+`npm run security:audit` verifies these guards and rejects every other advisory;
+it prints raw npm counts because registry audit still flags the original versions.
+The security regression runs hostile inputs in a bounded subprocess. Do not skip
+install scripts. These development helpers stay outside the plugin ZIP.
+The patched simple-git 4 override also needs the version-checked named-export
+adapter in wp-env 11.17.0; remove that adapter when wp-env supports it upstream.
+Jest is installed explicitly and uses `test-unit-jest` with the published
+WordPress preset; ESLint uses the flat Jest configuration.
+The webpack React reconciler alias resolves from react-konva so both hoisted
+and nested npm layouts preserve the same React 18 reconciler.
+The PHP unit CI job builds assets before bootstrapping WordPress. The PHPUnit
+bootstrap must fail with a nonzero exit status if WordPress exits before it
+finishes loading, and an empty test suite must never pass.
+
 ```powershell
 npm ci
+npm run security:audit
 npm run lint:js
 npm run lint:css
 npx tsc --noEmit
@@ -164,7 +183,9 @@ npm run test:integration:wp68
 npm run test:e2e:wp68
 ```
 
-The default pair runs on WordPress 7.1; the `:wp68` pair proves the minimum
+The readme `Tested up to` field uses the major/minor series (`7.1`); exact
+patch versions belong in the compatibility runner and changelog.
+The default pair runs on WordPress 7.1.3; the `:wp68` pair proves the minimum
 supported WordPress 6.8.8/PHP 8.1 baseline. Each command uses an isolated
 `WP_ENV_HOME`, starts and resets a disposable environment, verifies the exact
 Core version, and stops the environment afterward. Integration runs both

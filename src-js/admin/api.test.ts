@@ -7,7 +7,7 @@ jest.mock( '@wordpress/i18n', () => ( {
 jest.mock( '@noble/hashes/sha2.js', () => {
 	const { createHash } =
 		// @ts-expect-error Jest runs in Node, while the browser-only TS config deliberately excludes Node globals.
-		jest.requireActual< typeof import('node:crypto') >( 'node:crypto' );
+		jest.requireActual< typeof import( 'node:crypto' ) >( 'node:crypto' );
 	return {
 		sha256: {
 			create: () => {
@@ -38,7 +38,7 @@ type FetchImplementation = (
 ) => Promise< Response >;
 
 let fetchMock: jest.MockedFunction< FetchImplementation >;
-let uploadPdf: typeof import('./api').uploadPdf;
+let uploadPdf: typeof import( './api' ).uploadPdf;
 
 function response( body: unknown, ok = true, status = 200 ): Response {
 	return {
@@ -119,7 +119,7 @@ beforeEach( () => {
 	>();
 	const { createHash } =
 		// @ts-expect-error Jest runs in Node, while the browser-only TS config deliberately excludes Node globals.
-		jest.requireActual< typeof import('node:crypto') >( 'node:crypto' );
+		jest.requireActual< typeof import( 'node:crypto' ) >( 'node:crypto' );
 	const webCrypto = {
 		subtle: {
 			digest: async (
@@ -133,7 +133,7 @@ beforeEach( () => {
 								data.buffer as ArrayBuffer,
 								data.byteOffset,
 								data.byteLength
-						  );
+							);
 				const digest = createHash( 'sha256' ).update( bytes ).digest();
 				return digest.buffer.slice(
 					digest.byteOffset,

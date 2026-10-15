@@ -1,9 +1,10 @@
 const defaultConfig = require( '@wordpress/scripts/config/webpack.config' );
 const path = require( 'path' );
 
-const reactReconcilerRoot = path.join(
-	path.dirname( require.resolve( 'react-konva/package.json' ) ),
-	'node_modules/react-reconciler'
+const reactReconcilerRoot = path.dirname(
+	require.resolve( 'react-reconciler/package.json', {
+		paths: [ path.dirname( require.resolve( 'react-konva/package.json' ) ) ],
+	} )
 );
 const stableTranslatableChunks = new Set( [
 	'admin-wizard',

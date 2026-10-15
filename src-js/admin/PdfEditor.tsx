@@ -108,7 +108,7 @@ export function PdfEditor( {
 					allowedSubjectIds.size
 						? response.items.filter( ( subject ) =>
 								allowedSubjectIds.has( Number( subject.id ) )
-						  )
+							)
 						: response.items
 				);
 			} )
@@ -195,7 +195,7 @@ export function PdfEditor( {
 			? Math.max(
 					20,
 					Math.min( 1000, Math.floor( configuredThreshold ) )
-			  )
+				)
 			: 200;
 		fetchBinary( record.revision.pdf_url! )
 			.then( ( data ) => getDocument( { data } ).promise )
@@ -378,7 +378,7 @@ export function PdfEditor( {
 			? {
 					x: position.x / canvasSize.width,
 					y: position.y / canvasSize.height,
-			  }
+				}
 			: null;
 	}
 
@@ -494,7 +494,7 @@ export function PdfEditor( {
 					: __(
 							'The question could not be deleted.',
 							'paper-to-quiz'
-					  )
+						)
 			);
 		} finally {
 			deleteLock.current = false;
@@ -608,7 +608,7 @@ export function PdfEditor( {
 								id: Number( saved.id ),
 								dirty: false,
 								thumbUrl: saved.thumb_url,
-						  }
+							}
 						: item
 				);
 				setSelections( workingSelections );
@@ -651,7 +651,7 @@ export function PdfEditor( {
 					: __(
 							'The selections could not be saved.',
 							'paper-to-quiz'
-					  );
+						);
 			onError(
 				savedCount
 					? sprintf(
@@ -662,7 +662,7 @@ export function PdfEditor( {
 							),
 							savedCount,
 							detail
-					  )
+						)
 					: detail
 			);
 		} finally {
@@ -1255,7 +1255,7 @@ function canvasBlob(
 									'paper-to-quiz'
 								)
 							)
-					  ),
+						),
 			type,
 			quality
 		)

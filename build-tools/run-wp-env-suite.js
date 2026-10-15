@@ -7,7 +7,7 @@ const suite = process.argv[ 3 ];
 const targets = {
 	wp71: {
 		config: path.join( root, '.wp-env.json' ),
-		version: '7.1',
+		version: '7.1.3',
 		url: 'http://localhost:8888',
 	},
 	wp68: {

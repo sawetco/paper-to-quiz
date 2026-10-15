@@ -1,6 +1,6 @@
 {
 	"name": "paper-to-quiz",
-	"version": "1.1.5",
+	"version": "1.1.6",
 	"private": true,
 	"description": "Convert PDF exams and worksheets into secure, image-based WordPress quizzes.",
 	"license": "GPL-2.0-or-later",
@@ -33,7 +33,9 @@
 		"!languages/*.php",
 		"!languages/**/*.php",
 		"tsconfig.json",
-		"webpack.config.js"
+		"webpack.config.js",
+		"!build-tools/security-patches.js",
+		"!build-tools/security-audit.js"
 	],
 	"scripts": {
 		"start": "wp-scripts start",
@@ -42,7 +44,7 @@
 		"check:release-metadata": "node build-tools/check-release-metadata.js",
 		"lint:js": "wp-scripts lint-js src-js",
 		"lint:css": "wp-scripts lint-style \"src-js/**/*.scss\"",
-		"test:unit": "wp-scripts test-unit-js",
+		"test:unit": "wp-scripts test-unit-jest",
 		"test:php": "wp-env run cli composer --working-dir=wp-content/plugins/paper-to-quiz install --quiet && wp-env run cli composer --working-dir=wp-content/plugins/paper-to-quiz test",
 		"env:start": "wp-env start",
 		"env:reset": "wp-env reset all",
@@ -54,32 +56,42 @@
 		"test:integration:wp68": "node build-tools/run-wp-env-suite.js wp68 integration",
 		"test:e2e": "node build-tools/run-wp-env-suite.js wp71 e2e",
 		"test:e2e:wp68": "node build-tools/run-wp-env-suite.js wp68 e2e",
-		"plugin-zip": "wp-scripts plugin-zip"
+		"plugin-zip": "wp-scripts plugin-zip",
+		"postinstall": "node build-tools/security-patches.js",
+		"security:audit": "node build-tools/security-audit.js"
 	},
 	"dependencies": {
 		"@dnd-kit/core": "^6.3.1",
 		"@dnd-kit/sortable": "^10.0.0",
 		"@dnd-kit/utilities": "^3.2.2",
 		"@noble/hashes": "^2.4.0",
-		"@wordpress/api-fetch": "^7.55.0",
-		"@wordpress/components": "^40.1.0",
-		"@wordpress/element": "^8.7.0",
-		"@wordpress/i18n": "^6.28.0",
-		"konva": "^10.5.0",
-		"pdfjs-dist": "^6.3.289",
+		"@wordpress/api-fetch": "^7.57.0",
+		"@wordpress/components": "^42.0.0",
+		"@wordpress/element": "^9.0.0",
+		"@wordpress/i18n": "^6.30.0",
+		"konva": "^10.9.0",
+		"pdfjs-dist": "^6.4.299",
 		"react-konva": "^18.2.16"
 	},
 	"devDependencies": {
-		"@testing-library/jest-dom": "^6.9.1",
+		"@babel/core": "^7.29.7",
+		"@playwright/test": "^1.64.1",
+		"@testing-library/jest-dom": "^7.0.1",
 		"@testing-library/react": "^16.3.3",
-		"@playwright/test": "^1.63.0",
 		"@types/jest": "^30.0.0",
 		"@types/react": "^18.3.27",
 		"@types/react-dom": "^18.3.7",
-		"@wordpress/env": "11.15.0",
-		"@wordpress/e2e-test-utils-playwright": "^2.0.0",
-		"@wordpress/scripts": "^35.0.0",
+		"@wordpress/babel-preset-default": "^8.55.0",
+		"@wordpress/e2e-test-utils-playwright": "^3.0.0",
+		"@wordpress/env": "11.17.0",
+		"@wordpress/eslint-plugin": "^27.1.0",
+		"@wordpress/jest-preset-default": "^14.2.0",
+		"@wordpress/scripts": "^36.1.0",
+		"babel-jest": "^30.5.0",
+		"eslint-plugin-jest": "^29.17.0",
 		"fake-indexeddb": "^6.2.5",
+		"jest": "^30.5.0",
+		"jest-environment-jsdom": "^30.5.0",
 		"react": "18.3.1",
 		"react-dom": "18.3.1",
 		"typescript": "^5.9.3"
@@ -87,11 +99,7 @@
 	"overrides": {
 		"adm-zip": "0.6.1",
 		"linkify-it": "5.0.2",
-		"markdown-it": "14.2.0",
 		"qs": "6.16.0",
-		"markdownlint-cli": {
-			"minimatch": "3.1.5"
-		},
 		"copy-webpack-plugin": {
 			"serialize-javascript": "7.0.5"
 		},
@@ -99,9 +107,19 @@
 		"sockjs": {
 			"uuid": "11.1.1"
 		},
-		"webpack-dev-server": "5.2.6"
+		"webpack-dev-server": "5.2.6",
+		"@wordpress/env": {
+			"simple-git": "4.0.2",
+			"js-yaml": "3.15.2"
+		},
+		"postcss-selector-parser": "7.1.6",
+		"markdownlint-cli": {
+			"js-yaml": "5.4.3",
+			"smol-toml": "1.9.1"
+		},
+		"katex": "0.19.0"
 	},
 	"engines": {
-		"node": ">=22"
+		"node": "^24.18.0 || >=26.0.0"
 	}
 }

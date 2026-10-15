@@ -154,7 +154,7 @@ export function ResultsPage() {
 					: __(
 							'The result details could not be opened.',
 							'paper-to-quiz'
-					  )
+						)
 			);
 		} finally {
 			detailLock.current = false;
