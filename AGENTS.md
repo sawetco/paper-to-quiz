@@ -180,6 +180,8 @@ npm run test:integration:wp68
 npm run test:e2e:wp68
 ```
 
+The readme `Tested up to` field uses the major/minor series (`7.1`); exact
+patch versions belong in the compatibility runner and changelog.
 The default pair runs on WordPress 7.1.3; the `:wp68` pair proves the minimum
 supported WordPress 6.8.8/PHP 8.1 baseline. Each command uses an isolated
 `WP_ENV_HOME`, starts and resets a disposable environment, verifies the exact

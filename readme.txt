@@ -2,7 +2,7 @@
 Contributors: sawet
 Tags: quiz, exam, pdf, education, test
 Requires at least: 6.8
-Tested up to: 7.1.3
+Tested up to: 7.1
 Requires PHP: 8.1
 Stable tag: 1.1.6
 License: GPL-2.0-or-later

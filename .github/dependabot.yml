@@ -4,6 +4,18 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # WordPress Core supplies React 18 throughout the supported version matrix.
+    ignore:
+      - dependency-name: react
+        versions: [">=19"]
+      - dependency-name: react-dom
+        versions: [">=19"]
+      - dependency-name: '@types/react'
+        versions: [">=19"]
+      - dependency-name: '@types/react-dom'
+        versions: [">=19"]
+      - dependency-name: react-konva
+        versions: [">=19"]
     groups:
       wordpress-tooling:
         patterns:
