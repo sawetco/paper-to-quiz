@@ -16,7 +16,17 @@ updates:
         versions: [">=19"]
       - dependency-name: react-konva
         versions: [">=19"]
+      # The retained WordPress Jest transformer uses the Babel 7 preset.
+      - dependency-name: '@babel/core'
+        versions: [">=8"]
+      - dependency-name: '@wordpress/babel-preset-default'
+        versions: [">=9"]
     groups:
+      jest-tooling:
+        patterns:
+          - jest
+          - babel-jest
+          - jest-environment-jsdom
       wordpress-tooling:
         patterns:
           - '@wordpress/*'
