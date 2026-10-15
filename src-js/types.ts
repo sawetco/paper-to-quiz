@@ -1,10 +1,7 @@
 export type AccessMode = 'guest_allowed' | 'login_required';
 export type AssessmentType = 'exam' | 'test';
 export type FeedbackTiming =
-	| 'never'
-	| 'immediate'
-	| 'after_submit'
-	| 'scheduled';
+	'never' | 'immediate' | 'after_submit' | 'scheduled';
 export type ResultVisibility = 'hidden' | 'score_only' | 'summary' | 'detailed';
 
 export interface Term {

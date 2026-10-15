@@ -213,7 +213,7 @@ export function SettingsPage() {
 								: __(
 										'Settings could not be saved.',
 										'paper-to-quiz'
-								  )
+									)
 						);
 					} finally {
 						saveLock.current = false;
@@ -279,7 +279,7 @@ export function SettingsPage() {
 												: __(
 														'pages',
 														'paper-to-quiz'
-												  ) }
+													) }
 										</span>
 									) }
 									{ field.key === 'network_grace' && (

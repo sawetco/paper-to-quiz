@@ -33,7 +33,7 @@ function friendlyMessage( data: unknown, status: number ): string {
 			? __(
 					'The action could not be completed. Please try again.',
 					'paper-to-quiz'
-			  )
+				)
 			: __( 'The request could not be completed.', 'paper-to-quiz' );
 	}
 	const response = data as {

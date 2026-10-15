@@ -343,20 +343,20 @@ export function Wizard( {
 					<h1>
 						{ id
 							? draft.title ||
-							  sprintf(
+								sprintf(
 									/* translators: %s: Item type. */
 									__( 'Edit %s', 'paper-to-quiz' ),
 									draft.type === 'exam'
 										? __( 'Exam', 'paper-to-quiz' )
 										: __( 'Test', 'paper-to-quiz' )
-							  )
+								)
 							: sprintf(
 									/* translators: %s: Assessment type. */
 									__( 'New %s', 'paper-to-quiz' ),
 									initialType === 'exam'
 										? __( 'Exam', 'paper-to-quiz' )
 										: __( 'Test', 'paper-to-quiz' )
-							  ) }
+								) }
 					</h1>
 				</div>
 				{ id && <code>{ `[paper_to_quiz id="${ id }"]` }</code> }
@@ -486,11 +486,11 @@ export function Wizard( {
 										? __(
 												'Exam saved and published.',
 												'paper-to-quiz'
-										  )
+											)
 										: __(
 												'Test saved and published.',
 												'paper-to-quiz'
-										  )
+											)
 								);
 							} catch ( caught ) {
 								const apiError = caught as ApiError;
@@ -500,7 +500,7 @@ export function Wizard( {
 									errors
 										? `${
 												apiError.message
-										  }\n${ errors.join( '\n' ) }`
+											}\n${ errors.join( '\n' ) }`
 										: apiError.message
 								);
 							} finally {
@@ -599,7 +599,7 @@ function InformationStep( {
 						),
 						value: 'scheduled',
 					},
-			  ]
+				]
 			: [
 					{
 						label: __(
@@ -618,14 +618,14 @@ function InformationStep( {
 								? __(
 										'At the end of the test',
 										'paper-to-quiz'
-								  )
+									)
 								: __(
 										'After completing the exam',
 										'paper-to-quiz'
-								  ),
+									),
 						value: 'after_submit',
 					},
-			  ];
+				];
 	let rankingHelp: string = __(
 		'Only members who submit on time are included in the ranking.',
 		'paper-to-quiz'
@@ -718,12 +718,12 @@ function InformationStep( {
 														? [
 																...draft.subject_ids,
 																termId,
-														  ]
+															]
 														: draft.subject_ids.filter(
 																( id ) =>
 																	id !==
 																	termId
-														  )
+															)
 												)
 											}
 										/>
@@ -794,7 +794,7 @@ function InformationStep( {
 										draft.duration_seconds
 											? String(
 													draft.duration_seconds / 60
-											  )
+												)
 											: ''
 									}
 									onChange={ ( value ) =>
@@ -829,7 +829,7 @@ function InformationStep( {
 											...( value === 'guest_allowed'
 												? {
 														ranking_enabled: false,
-												  }
+													}
 												: {} ),
 										} )
 									}
@@ -909,7 +909,7 @@ function InformationStep( {
 							options={ feedbackOptions }
 							disabled={ Boolean(
 								draft.type === 'exam' &&
-									draft.results_release_at_utc
+								draft.results_release_at_utc
 							) }
 							help={
 								draft.type === 'exam' &&
@@ -917,7 +917,7 @@ function InformationStep( {
 									? __(
 											'Correct answers will be available on the result release date. Clear that date to choose a different option.',
 											'paper-to-quiz'
-									  )
+										)
 									: undefined
 							}
 							onChange={ ( value ) =>
@@ -1191,7 +1191,7 @@ function PdfStep( {
 								: __(
 										'The PDF could not be selected.',
 										'paper-to-quiz'
-								  )
+									)
 						);
 					} finally {
 						uploadLock.current = false;
@@ -1246,7 +1246,7 @@ function PdfStep( {
 										: __(
 												'The PDF could not be uploaded.',
 												'paper-to-quiz'
-										  )
+											)
 								);
 							} finally {
 								uploadLock.current = false;
@@ -1261,7 +1261,7 @@ function PdfStep( {
 						: __(
 								'Select a PDF or drop it here',
 								'paper-to-quiz'
-						  ) }
+							) }
 				</strong>
 				<span>
 					{ sprintf(
@@ -1440,7 +1440,7 @@ function AnswerKey( {
 																100
 														)
 													),
-											  }
+												}
 											: item
 									)
 								)
@@ -1487,7 +1487,7 @@ function AnswerKey( {
 								: __(
 										'The answer key could not be saved.',
 										'paper-to-quiz'
-								  )
+									)
 						);
 					} finally {
 						saveLock.current = false;
@@ -1584,15 +1584,15 @@ function PublishStep( {
 					__( 'Ranking is disabled', 'paper-to-quiz' ),
 					record.revision.ranking_enabled !== '1',
 				],
-		  ] as const )
+			] as const )
 		: ( [
 				[
 					__( 'Exam dates are valid', 'paper-to-quiz' ),
 					Boolean(
 						record.revision.window_start_utc &&
-							record.revision.window_end_utc &&
-							record.revision.window_start_utc <
-								record.revision.window_end_utc
+						record.revision.window_end_utc &&
+						record.revision.window_start_utc <
+							record.revision.window_end_utc
 					),
 				],
 				[
@@ -1620,7 +1620,7 @@ function PublishStep( {
 						( record.revision.access_mode === 'login_required' &&
 							record.revision.allow_repeat !== '1' ),
 				],
-		  ] as const );
+			] as const );
 	const checks =
 		record.assessment.type === 'exam'
 			? [ ...commonChecks, ...examChecks ]
@@ -1645,7 +1645,7 @@ function PublishStep( {
 					'paper-to-quiz'
 				),
 				Math.ceil( Number( record.revision.duration_seconds ) / 60 )
-		  )
+			)
 		: __( 'No time limit', 'paper-to-quiz' );
 	const summary: Array< [ string, string | number ] > = [
 		[

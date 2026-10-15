@@ -319,7 +319,7 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 					: __(
 							'The action could not be completed.',
 							'paper-to-quiz'
-					  )
+						)
 			);
 			throw caught;
 		} finally {
@@ -418,7 +418,7 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 											/* translators: %s: Item type. */
 											__( 'Edit %s', 'paper-to-quiz' ),
 											label
-									  )
+										)
 									: sprintf(
 											/* translators: %s: Term type. */
 											__(
@@ -426,7 +426,7 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 												'paper-to-quiz'
 											),
 											label
-									  ) }
+										) }
 							</h2>
 							<form onSubmit={ save }>
 								<div className="form-field form-required">
@@ -696,7 +696,7 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 																		Number(
 																			item.id
 																		)
-															  )
+																)
 													)
 												}
 											/>
@@ -762,11 +762,11 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 																				) =>
 																					value !==
 																					id
-																		  )
+																			)
 																		: [
 																				...current,
 																				id,
-																		  ]
+																			]
 															)
 														}
 													/>
@@ -827,11 +827,11 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 																			? __(
 																					'Archiving…',
 																					'paper-to-quiz'
-																			  )
+																				)
 																			: __(
 																					'Archive',
 																					'paper-to-quiz'
-																			  ) }
+																				) }
 																	</button>{ ' ' }
 																	|{ ' ' }
 																</span>
@@ -856,11 +856,11 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 																			? __(
 																					'Moving…',
 																					'paper-to-quiz'
-																			  )
+																				)
 																			: __(
 																					'Move to trash',
 																					'paper-to-quiz'
-																			  ) }
+																				) }
 																	</button>
 																</span>
 															</>
@@ -889,11 +889,11 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 																			? __(
 																					'Restoring…',
 																					'paper-to-quiz'
-																			  )
+																				)
 																			: __(
 																					'Restore',
 																					'paper-to-quiz'
-																			  ) }
+																				) }
 																	</button>{ ' ' }
 																	|{ ' ' }
 																</span>
@@ -945,11 +945,11 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 																			? __(
 																					'Restoring…',
 																					'paper-to-quiz'
-																			  )
+																				)
 																			: __(
 																					'Restore',
 																					'paper-to-quiz'
-																			  ) }
+																				) }
 																	</button>{ ' ' }
 																	|{ ' ' }
 																</span>
@@ -966,7 +966,7 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 																				? __(
 																						'A record in use cannot be permanently deleted.',
 																						'paper-to-quiz'
-																				  )
+																					)
 																				: undefined
 																		}
 																		disabled={

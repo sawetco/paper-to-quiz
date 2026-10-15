@@ -144,13 +144,13 @@ function contentCopy( type?: 'exam' | 'test' ) {
 				start: __( 'Start exam', 'paper-to-quiz' ),
 				finish: __( 'Finish exam', 'paper-to-quiz' ),
 				completed: __( 'Exam completed', 'paper-to-quiz' ),
-		  }
+			}
 		: {
 				name: __( 'Test', 'paper-to-quiz' ),
 				start: __( 'Start test', 'paper-to-quiz' ),
 				finish: __( 'Finish test', 'paper-to-quiz' ),
 				completed: __( 'Test completed', 'paper-to-quiz' ),
-		  };
+			};
 }
 
 const sectionOptions = 'ABCDEFGHIJKLMN'.split( '' );
@@ -583,11 +583,11 @@ export function StudentApp( {
 											),
 											studentClass,
 											studentSection
-									  )
+										)
 									: participant.class_section || '',
 							phone: participant.phone
 								? normalizeTurkishPhone( participant.phone ) ||
-								  participant.phone
+									participant.phone
 								: '',
 						},
 						client: {
@@ -640,7 +640,7 @@ export function StudentApp( {
 								'paper-to-quiz'
 							),
 							content.name
-					  )
+						)
 			);
 		} finally {
 			startLock.current = false;
@@ -730,7 +730,7 @@ export function StudentApp( {
 					: __(
 							'The submission could not be completed.',
 							'paper-to-quiz'
-					  )
+						)
 			);
 			autoSubmitting.current = false;
 		} finally {
@@ -773,7 +773,7 @@ export function StudentApp( {
 					: __(
 							'The submission could not be completed.',
 							'paper-to-quiz'
-					  )
+						)
 			);
 			autoSubmitting.current = false;
 		} finally {
@@ -856,7 +856,7 @@ export function StudentApp( {
 							/* translators: %s: Countdown until the exam starts. */
 							__( 'Starts in %s', 'paper-to-quiz' ),
 							formatCountdown( startsIn )
-					  )
+						)
 					: __( 'The exam has not started yet.', 'paper-to-quiz' );
 		}
 		if ( starting ) {
@@ -1092,7 +1092,7 @@ export function StudentApp( {
 													? __(
 															'Enter without the leading zero',
 															'paper-to-quiz'
-													  )
+														)
 													: undefined
 											}
 											pattern={
@@ -1113,7 +1113,7 @@ export function StudentApp( {
 															? formatTurkishPhoneInput(
 																	event.target
 																		.value
-															  )
+																)
 															: event.target
 																	.value,
 												} )
@@ -1214,12 +1214,12 @@ export function StudentApp( {
 								? __(
 										'Time is up. Your answers are being submitted…',
 										'paper-to-quiz'
-								  )
+									)
 								: sprintf(
 										/* translators: %s: Assessment type. */
 										__( 'Finishing %s…', 'paper-to-quiz' ),
 										content.name
-								  ) }
+									) }
 						</strong>
 						<span>{ __( 'Please wait.', 'paper-to-quiz' ) }</span>
 					</div>
@@ -1411,7 +1411,7 @@ export function StudentApp( {
 												'paper-to-quiz'
 											),
 											question.correctOption || ''
-									  ) }
+										) }
 							</p>
 						) }
 
@@ -1695,7 +1695,7 @@ function ResultView( {
 								new Date( result.release_at ).toLocaleString(
 									'tr-TR'
 								)
-						  )
+							)
 						: '' }
 				</p>
 				{ result.can_retry && (
@@ -1722,7 +1722,7 @@ function ResultView( {
 								: __(
 										'Exam result document',
 										'paper-to-quiz'
-								  ) }
+									) }
 						</h2>
 						<p>{ assessmentTitle }</p>
 					</div>
@@ -2232,7 +2232,7 @@ function startDurationLabel( bootstrap: Bootstrap ): string {
 							'paper-to-quiz'
 						),
 						minutes
-				  )
+					)
 				: '';
 			return [ hourLabel, minuteLabel ].filter( Boolean ).join( ' ' );
 		}

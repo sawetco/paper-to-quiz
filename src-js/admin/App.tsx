@@ -262,7 +262,7 @@ export function App() {
 						: __(
 								'The class and subject lists could not be loaded.',
 								'paper-to-quiz'
-						  ),
+							),
 			} );
 		}
 	}, [ isAssessmentPage ] );
@@ -463,7 +463,7 @@ export function App() {
 						: __(
 								'Could not calculate the deletion impact.',
 								'paper-to-quiz'
-						  )
+							)
 				);
 				return false;
 			}
@@ -611,7 +611,7 @@ export function App() {
 					: __(
 							'The action could not be completed.',
 							'paper-to-quiz'
-					  )
+						)
 			);
 			throw caught;
 		} finally {
@@ -640,7 +640,7 @@ export function App() {
 					: __(
 							'The record could not be duplicated.',
 							'paper-to-quiz'
-					  )
+						)
 			);
 		} finally {
 			actionLock.current = false;
@@ -838,7 +838,7 @@ export function App() {
 												? []
 												: list.items.map( ( item ) =>
 														Number( item.id )
-												  )
+													)
 										)
 									}
 								/>
@@ -923,11 +923,11 @@ export function App() {
 										? __(
 												'No records matched your search.',
 												'paper-to-quiz'
-										  )
+											)
 										: __(
 												'No records yet.',
 												'paper-to-quiz'
-										  ) }
+											) }
 								</td>
 							</tr>
 						) }
@@ -954,7 +954,7 @@ export function App() {
 														? current.filter(
 																( value ) =>
 																	value !== id
-														  )
+															)
 														: [ ...current, id ]
 												)
 											}
@@ -1004,11 +1004,11 @@ export function App() {
 																? __(
 																		'Restoring…',
 																		'paper-to-quiz'
-																  )
+																	)
 																: __(
 																		'Restore',
 																		'paper-to-quiz'
-																  ) }
+																	) }
 														</button>
 														{ ' | ' }
 													</span>
@@ -1031,11 +1031,11 @@ export function App() {
 																? __(
 																		'Deleting…',
 																		'paper-to-quiz'
-																  )
+																	)
 																: __(
 																		'Permanently delete',
 																		'paper-to-quiz'
-																  ) }
+																	) }
 														</button>
 													</span>
 												</>
@@ -1088,11 +1088,11 @@ export function App() {
 																? __(
 																		'Duplicating…',
 																		'paper-to-quiz'
-																  )
+																	)
 																: __(
 																		'Duplicate',
 																		'paper-to-quiz'
-																  ) }
+																	) }
 														</button>
 														{ ' | ' }
 													</span>
@@ -1115,11 +1115,11 @@ export function App() {
 																? __(
 																		'Moving…',
 																		'paper-to-quiz'
-																  )
+																	)
 																: __(
 																		'Move to trash',
 																		'paper-to-quiz'
-																  ) }
+																	) }
 														</button>
 													</span>
 												</>
@@ -1171,7 +1171,7 @@ export function App() {
 											? __(
 													'Membership required',
 													'paper-to-quiz'
-											  )
+												)
 											: __( 'Public', 'paper-to-quiz' ) }
 									</td>
 									<td

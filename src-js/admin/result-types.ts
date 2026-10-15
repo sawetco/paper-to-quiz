@@ -7,20 +7,13 @@
 export type NumericString = string;
 
 export type AttemptStatus =
-	| 'in_progress'
-	| 'submitted'
-	| 'auto_submitted'
-	| 'expired';
+	'in_progress' | 'submitted' | 'auto_submitted' | 'expired';
 
 /** Preserve autocomplete for known statuses while tolerating future values. */
 export type AttemptStatusValue = AttemptStatus | string;
 
 export type IntegrityStatus =
-	| 'pending'
-	| 'on_time'
-	| 'late_recovered'
-	| 'expired'
-	| string;
+	'pending' | 'on_time' | 'late_recovered' | 'expired' | string;
 
 export type ParticipantType = 'member' | 'guest';
 export type AssessmentType = 'exam' | 'test';

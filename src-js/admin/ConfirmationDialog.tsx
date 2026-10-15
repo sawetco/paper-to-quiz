@@ -106,7 +106,7 @@ export function ConfirmationDialog( {
 					: __(
 							'The action could not be completed.',
 							'paper-to-quiz'
-					  )
+						)
 			);
 		} finally {
 			setPending( false );

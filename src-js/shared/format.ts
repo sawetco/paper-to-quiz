@@ -37,21 +37,21 @@ export function formatDuration( seconds: number ): string {
 					/* translators: %d: Number of hours. */
 					_n( '%d hr', '%d hr', hours, 'paper-to-quiz' ),
 					hours
-			  )
+				)
 			: '',
 		minutes
 			? sprintf(
 					/* translators: %d: Number of minutes. */
 					_n( '%d min', '%d min', minutes, 'paper-to-quiz' ),
 					minutes
-			  )
+				)
 			: '',
 		remainingSeconds || ( ! hours && ! minutes )
 			? sprintf(
 					/* translators: %d: Number of seconds. */
 					_n( '%d sec', '%d sec', remainingSeconds, 'paper-to-quiz' ),
 					remainingSeconds
-			  )
+				)
 			: '',
 	]
 		.filter( Boolean )

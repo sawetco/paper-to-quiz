@@ -2,9 +2,9 @@
 Contributors: sawet
 Tags: quiz, exam, pdf, education, test
 Requires at least: 6.8
-Tested up to: 7.1
+Tested up to: 7.1.3
 Requires PHP: 8.1
-Stable tag: 1.1.5
+Stable tag: 1.1.6
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -89,6 +89,12 @@ The current development source is available at
 https://github.com/sawetco/paper-to-quiz.
 
 == Changelog ==
+
+= 1.1.6 =
+
+* Updated PDF.js, Konva, WordPress components, and development dependencies while preserving the WordPress React 18 runtime contract.
+* Updated vulnerable development dependency chains and SHA-pinned GitHub Actions.
+* Verified compatibility with WordPress 7.1.3 and the minimum WordPress 6.8.8 / PHP 8.1 baseline.
 
 = 1.1.5 =
 
