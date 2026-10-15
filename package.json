@@ -90,7 +90,7 @@
 		"babel-jest": "^30.5.0",
 		"eslint-plugin-jest": "^29.17.0",
 		"fake-indexeddb": "^6.2.5",
-		"jest": "^30.5.0",
+		"jest": "^30.5.2",
 		"jest-environment-jsdom": "^30.5.0",
 		"react": "18.3.1",
 		"react-dom": "18.3.1",
