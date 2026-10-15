@@ -74,6 +74,9 @@ The patched simple-git 4 override also needs the version-checked named-export
 adapter in wp-env 11.17.0; remove that adapter when wp-env supports it upstream.
 Jest is installed explicitly and uses `test-unit-jest` with the published
 WordPress preset; ESLint uses the flat Jest configuration.
+Keep Babel Core 7 and the WordPress Babel preset 8 together for this retained
+Jest transformer. Babel 8/preset 9 need a separate tested toolchain migration;
+Jest patch updates are grouped and move together.
 The webpack React reconciler alias resolves from react-konva so both hoisted
 and nested npm layouts preserve the same React 18 reconciler.
 The PHP unit CI job builds assets before bootstrapping WordPress. The PHPUnit
