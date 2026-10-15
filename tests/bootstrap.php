@@ -2,12 +2,7 @@
 /**
  * PHPUnit bootstrap for the Paper to Quiz plugin.
  *
- * The preferred path (the WordPress PHPUnit test suite via wp-env's
- * `testsEnvironment`) is unavailable here: `.wp-env.json` sets
- * `testsEnvironment: false`, and that option is deprecated in wp-env 11.12
- * with no auto-provided WP test suite (`/var/www/html/phpunit` does not exist).
- *
- * This fallback loads the real WordPress install from `/var/www/html/wp-load.php`
+ * This suite loads the disposable real WordPress install from `/var/www/html/wp-load.php`
  * so that `$wpdb`, `wp_salt()`, `wp_json_encode()`, and friends are available to
  * the units under test. The polyfill base class `Yoast\PHPUnitPolyfills\TestCases\TestCase`
  * is used instead of `\WP_UnitTestCase`.
@@ -21,6 +16,14 @@ if (defined('PAPER_TO_QUIZ_PHPUNIT_BOOTSTRAP_LOADED')) {
     return;
 }
 define('PAPER_TO_QUIZ_PHPUNIT_BOOTSTRAP_LOADED', true);
+
+// WordPress wp_die() can exit with status zero before PHPUnit runs any tests.
+register_shutdown_function(static function (): void {
+    if (! defined('PAPER_TO_QUIZ_PHPUNIT_BOOTSTRAP_READY')) {
+        fwrite(STDERR, "Paper to Quiz PHPUnit bootstrap did not complete.\n");
+        exit(1);
+    }
+});
 
 $wp_load = '/var/www/html/wp-load.php';
 
@@ -41,3 +44,5 @@ require_once $wp_load;
 
 // Load the plugin itself so its classes, constants, and autoloader are available.
 require_once dirname(__DIR__) . '/paper-to-quiz.php';
+
+define('PAPER_TO_QUIZ_PHPUNIT_BOOTSTRAP_READY', true);

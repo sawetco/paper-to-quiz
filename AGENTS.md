@@ -76,6 +76,9 @@ Jest is installed explicitly and uses `test-unit-jest` with the published
 WordPress preset; ESLint uses the flat Jest configuration.
 The webpack React reconciler alias resolves from react-konva so both hoisted
 and nested npm layouts preserve the same React 18 reconciler.
+The PHP unit CI job builds assets before bootstrapping WordPress. The PHPUnit
+bootstrap must fail with a nonzero exit status if WordPress exits before it
+finishes loading, and an empty test suite must never pass.
 
 ```powershell
 npm ci
