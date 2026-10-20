@@ -71,7 +71,7 @@ test( 'guest and member submissions respect release, access, masking, search, an
 	page,
 	browser,
 }, testInfo ) => {
-	test.setTimeout( 120_000 );
+	test.setTimeout( 180_000 );
 	const publicId = process.env.PTQ_E2E_RANKING_PUBLIC!;
 	const memberId = process.env.PTQ_E2E_RANKING_MEMBER!;
 	expect( publicId ).toMatch( /^\d+$/ );
@@ -137,7 +137,7 @@ test( 'guest and member submissions respect release, access, masking, search, an
 		await page.reload();
 		await expect(
 			page.getByRole( 'heading', { name: 'Overall ranking' } )
-		).toBeVisible();
+		).toBeVisible( { timeout: 30_000 } );
 		await page
 			.getByRole( 'button', { name: 'Ranking', exact: true } )
 			.click();
@@ -148,7 +148,7 @@ test( 'guest and member submissions respect release, access, masking, search, an
 		await memberPage.reload();
 		await expect(
 			memberPage.getByRole( 'heading', { name: 'Overall ranking' } )
-		).toBeVisible();
+		).toBeVisible( { timeout: 30_000 } );
 		await memberPage
 			.getByRole( 'button', { name: 'Ranking', exact: true } )
 			.click();

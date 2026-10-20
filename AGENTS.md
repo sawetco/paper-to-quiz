@@ -82,6 +82,10 @@ and nested npm layouts preserve the same React 18 reconciler.
 The PHP unit CI job builds assets before bootstrapping WordPress. The PHPUnit
 bootstrap must fail with a nonzero exit status if WordPress exits before it
 finishes loading, and an empty test suite must never pass.
+The Quality package check uses the repository's lockfile-installed wp-env in a
+separate disposable environment mapped to the extracted ZIP. Do not install an
+unlocked global wp-env in this gate. Run Plugin Check with its CLI bootstrap so
+runtime checks also run, and fail on any reported error or warning.
 
 ```powershell
 npm ci
