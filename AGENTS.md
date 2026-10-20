@@ -86,6 +86,8 @@ The Quality package check uses the repository's lockfile-installed wp-env in a
 separate disposable environment mapped to the extracted ZIP. Do not install an
 unlocked global wp-env in this gate. Run Plugin Check with its CLI bootstrap so
 runtime checks also run, and fail on any reported error or warning.
+Ranking search must also work without optional mbstring case conversion; the PHP
+job repeats RankingTest with mb_strtolower disabled.
 
 ```powershell
 npm ci

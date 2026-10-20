@@ -39,8 +39,9 @@ final class RankingService {
 	}
 
 	public static function search_name(string $value): string {
-		$value = mb_strtolower(strtr($value, array('İ' => 'i', 'I' => 'i', 'ı' => 'i')));
-		$value = remove_accents($value);
+		$value = remove_accents(strtr($value, array('İ' => 'i', 'I' => 'i', 'ı' => 'i')));
+		// mbstring is optional in WordPress; Turkish/Latin letters are ASCII now.
+		$value = function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
 		return trim(preg_replace('/[^\p{L}\p{N}]+/u', ' ', $value) ?? '');
 	}
 

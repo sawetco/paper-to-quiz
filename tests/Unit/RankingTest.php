@@ -83,6 +83,14 @@ final class RankingTest extends TestCase {
 		parent::tearDown();
 	}
 
+	public function test_public_name_search_handles_turkish_case_and_only_visible_initials(): void {
+		$label = RankingService::public_label(array('first_name' => '  Ahmet Mehmet  Ali ', 'last_name' => 'Yılmaz Demir'));
+		$this->assertSame('Ahmet M. A. Y. D.', $label);
+		$this->assertSame('ahmet m a y d', RankingService::search_name($label));
+		$this->assertSame('ipek m y', RankingService::search_name('İPEK M. Y.'));
+		$this->assertSame('isik c o s u g', RankingService::search_name('IŞIK Ç. Ö. Ş. Ü. Ğ.'));
+	}
+
 	public function test_ranking_tie_break_order_matches_score_duration_then_submitted_at(): void {
 		$suffix = 'rank-' . wp_generate_password( 6, false, false );
 		list( $assessment_id, $revision_id ) = $this->seed_ranked_exam( $suffix );
