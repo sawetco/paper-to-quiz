@@ -28,6 +28,7 @@ final class AssessmentService {
 		'results_release_at_utc',
 		'allow_repeat',
 		'ranking_enabled',
+		'ranking_list_enabled',
 		'feedback_timing',
 		'result_visibility',
 		'participant_fields_json',
@@ -985,6 +986,7 @@ final class AssessmentService {
 			'results_release_at_utc' => $source['revision']['results_release_at_utc'],
 			'allow_repeat'         => (bool) $source['revision']['allow_repeat'],
 			'ranking_enabled'      => (bool) $source['revision']['ranking_enabled'],
+			'ranking_list_enabled' => ! empty($source['revision']['ranking_list_enabled']),
 			'feedback_timing'      => $source['revision']['feedback_timing'],
 			'result_visibility'    => $source['revision']['result_visibility'],
 			'participant_fields'   => $source['revision']['participant_fields'],
@@ -1092,6 +1094,7 @@ final class AssessmentService {
 			'results_release_at_utc'    => $this->date_or_null($payload['results_release_at_utc'] ?? null),
 			'allow_repeat'              => ! empty($payload['allow_repeat']) ? 1 : 0,
 			'ranking_enabled'           => $ranking ? 1 : 0,
+			'ranking_list_enabled'      => ! empty($payload['ranking_list_enabled']) ? 1 : 0,
 			'feedback_timing'           => $this->enum($payload['feedback_timing'] ?? 'after_submit', array('never', 'immediate', 'after_submit', 'scheduled'), 'after_submit'),
 			'result_visibility'         => $this->enum($payload['result_visibility'] ?? 'summary', array('hidden', 'score_only', 'summary', 'detailed'), 'summary'),
 			'participant_fields_json'   => wp_json_encode($this->sanitize_participant_fields($payload['participant_fields'] ?? array())),
@@ -1312,9 +1315,13 @@ final class AssessmentService {
 		}
 		if (
 			! empty($revision['ranking_enabled']) &&
-			($revision['access_mode'] !== 'login_required' || ! empty($revision['allow_repeat']))
+			! empty($revision['allow_repeat'])
 		) {
-			$errors[] = __('Ranking can be used only for membership-required, non-repeatable exams.', 'paper-to-quiz');
+			$errors[] = __('Ranking can be used only for non-repeatable exams.', 'paper-to-quiz');
+		}
+		$list_policy = $this->validate_policy_payload($revision, (string) $record['assessment']['type']);
+		if (is_wp_error($list_policy)) {
+			$errors[] = $list_policy->get_error_message();
 		}
 
 		$subject_ids_to_validate = array();
@@ -1426,6 +1433,7 @@ final class AssessmentService {
 				$payload['window_end_utc']         = null;
 				$payload['results_release_at_utc'] = null;
 				$payload['ranking_enabled']        = false;
+				$payload['ranking_list_enabled']   = false;
 				if (($payload['feedback_timing'] ?? '') === 'scheduled') {
 					$payload['feedback_timing'] = 'after_submit';
 				}
@@ -1443,6 +1451,7 @@ final class AssessmentService {
 		$payload['results_release_at_utc']= null;
 		$payload['allow_repeat']          = true;
 		$payload['ranking_enabled']       = false;
+		$payload['ranking_list_enabled']  = false;
 		$payload['feedback_timing']       = in_array(($payload['feedback_timing'] ?? ''), array('never', 'immediate', 'after_submit'), true)
 			? $payload['feedback_timing']
 			: 'after_submit';
@@ -1450,6 +1459,13 @@ final class AssessmentService {
 	}
 
 	private function validate_policy_payload(array $payload, string $type): bool|\WP_Error {
+		if (! empty($payload['ranking_list_enabled']) && (
+			$type !== 'exam' || empty($payload['ranking_enabled']) || ! empty($payload['allow_repeat']) ||
+			! in_array($payload['result_visibility'] ?? 'summary', array('summary', 'detailed'), true)
+		)) {
+			$message = __('The participant list requires ranking, a non-repeatable exam, and summary or detailed results.', 'paper-to-quiz');
+			return new \WP_Error('paper_to_quiz_ranking_list_conflict', $message, array('status' => 400, 'params' => array('ranking_list_enabled' => $message)));
+		}
 		if ($type !== 'exam' || empty($payload['ranking_enabled'])) {
 			return true;
 		}
@@ -1457,13 +1473,6 @@ final class AssessmentService {
 			return new \WP_Error(
 				'paper_to_quiz_repeat_ranking_conflict',
 				__('Ranking cannot be enabled for repeatable exams.', 'paper-to-quiz'),
-				array('status' => 400)
-			);
-		}
-		if (($payload['access_mode'] ?? 'guest_allowed') !== 'login_required') {
-			return new \WP_Error(
-				'paper_to_quiz_guest_ranking_conflict',
-				__('Ranking can only be enabled for exams that require WordPress membership.', 'paper-to-quiz'),
 				array('status' => 400)
 			);
 		}

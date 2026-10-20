@@ -193,7 +193,11 @@ supported WordPress 6.8.8/PHP 8.1 baseline. Each command uses an isolated
 `WP_ENV_HOME`, starts and resets a disposable environment, verifies the exact
 Core version, and stops the environment afterward. Integration runs both
 clean-install regression scripts; E2E creates a guarded synthetic assessment
-and exercises the browser authoring flow. The migration branch additionally
+and exercises authoring, member/guest submissions, release/access gates, and the
+mobile ranking list.
+The guarded `tests/release-upgrade.php` fixture verifies actual ZIP clean installs
+and upgrades from 1.1.6 in an unmapped disposable wp-env; never replace a mapped
+source plugin with an older ZIP. The migration branch additionally
 runs its MySQL prefix migration regression.
 Never run the regression scripts against production or against real data.
 
@@ -209,6 +213,21 @@ wp eval-file wp-content/plugins/paper-to-quiz/tests/data-regression.php
 - Started attempts remain tied to their original `revision_id`.
 - Administrator `paper_to_quiz_*` capabilities are reconciled idempotently for existing active installations.
 - Tests are public, timeless, unranked, and repeatable without limit.
+- Non-repeatable exams can rank members and guests. Guests are ranked per
+  submission, never deduplicated using unverified names or contact information.
+- Ranking eligibility belongs to the original attempt revision. Do not backfill
+  historical guest results or automatically enable participant lists on upgrade.
+- Lists require the separate ranking_list_enabled opt-in, summary/detailed
+  results, the exam end and optional release time, and the normal assessment
+  access checks/filter. Never expose participant or user IDs, tokens, contact
+  fields, or unmasked surnames. Only masked public labels/search projections
+  may be stored unencrypted; original identity fields stay encrypted.
+- GET assessments/{id}/ranking accepts page (1..1000000), per_page (1..100,
+  default 20), and search (up to 80 characters). Search sees only public labels;
+  returned ranks remain global. Responses are private/no-store; the independent
+  ranking read limit is 120 requests per assessment/IP/minute.
+- Preserve schema 1.1.0 in rollback fixes; never downgrade nullable guest rows
+  to the old mandatory-user ranking schema.
 - Selecting an answer does not write to the server; submission is atomic and idempotent.
 - Access, schedule, and submission decisions use server UTC, never client time.
 - Source PDFs and question images remain in encrypted private storage.
@@ -225,10 +244,11 @@ wp eval-file wp-content/plugins/paper-to-quiz/tests/data-regression.php
 
 - A schema change updates `PAPER_TO_QUIZ_DB_VERSION`, installation/update logic,
   uninstall coverage, types, and tests together.
-- `main` remains at database schema version `1.0.0` for the PTQ2 encryption
-  format: the versioned encryption worker is a data-format migration and does
-  not change table shape. Add future schema migrations only for WordPress.org
-  versions released after this baseline.
+- Schema `1.1.0` (plugin 1.2.0) adds revision `ranking_list_enabled` (default
+  off), nullable ranking `wp_user_id`, and masked `public_label`/`public_search`.
+  Preserve the unique attempt and revision/member indexes and verify nullability
+  and uniqueness before advancing the schema version. The PTQ2 encryption
+  migration remains separate from this additive schema upgrade.
 - Historical database-prefix migration requirements belong only to
   `legacy-migration-support`; the clean source still performs the bounded PTQ1
   to PTQ2 encryption upgrade described above.

@@ -137,7 +137,8 @@ final class Installer {
 		$required_columns = array(
 			'assets'            => array('id', 'type', 'storage_key', 'mime', 'byte_size', 'sha256', 'width', 'height', 'ref_count', 'created_at'),
 			'questions'         => array('id', 'revision_id', 'client_key', 'ordinal', 'subject_id'),
-			'revisions'         => array('id', 'assessment_id', 'subject_ids_json', 'source_asset_id'),
+			'revisions'         => array('id', 'assessment_id', 'subject_ids_json', 'source_asset_id', 'ranking_list_enabled'),
+			'ranking_entries'   => array('id', 'revision_id', 'wp_user_id', 'attempt_id', 'public_label', 'public_search'),
 			'terms'             => array('id', 'type', 'name', 'slug', 'color', 'status'),
 			'upload_sessions'   => array('id', 'owner_user_id', 'expected_size', 'received_size', 'chunk_count', 'manifest_json', 'status'),
 			'attempts'          => array('id', 'submission_id', 'integrity_status', 'ranking_eligible'),
@@ -160,6 +161,26 @@ final class Installer {
 			}
 		}
 
+		// Verify changed nullability and uniqueness before advancing the schema version.
+		$columns = $wpdb->get_results($wpdb->prepare('SHOW COLUMNS FROM %i', $prefix . 'ranking_entries'), ARRAY_A); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Versioned schema health is cached by maybe_upgrade().
+		$user_column = array_values(array_filter($columns ?: array(), static fn (array $column): bool => $column['Field'] === 'wp_user_id'));
+		if (! $user_column || $user_column[0]['Null'] !== 'YES') {
+			return false;
+		}
+		$indexes = $wpdb->get_results($wpdb->prepare('SHOW INDEX FROM %i', $prefix . 'ranking_entries'), ARRAY_A) ?: array(); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Versioned schema health is cached by maybe_upgrade().
+		$unique = array();
+		foreach ($indexes as $index) {
+			if ((int) $index['Non_unique'] === 0) {
+				$unique[$index['Key_name']][(int) $index['Seq_in_index']] = $index['Column_name'];
+			}
+		}
+		foreach (array('attempt' => array('attempt_id'), 'revision_user' => array('revision_id', 'wp_user_id')) as $name => $expected) {
+			$actual = $unique[$name] ?? array();
+			ksort($actual);
+			if (array_values($actual) !== $expected) {
+				return false;
+			}
+		}
 		return true;
 	}
 
@@ -232,6 +253,7 @@ final class Installer {
 			results_release_at_utc datetime DEFAULT NULL,
 			allow_repeat tinyint(1) NOT NULL DEFAULT 1,
 			ranking_enabled tinyint(1) NOT NULL DEFAULT 0,
+			ranking_list_enabled tinyint(1) NOT NULL DEFAULT 0,
 			feedback_timing varchar(24) NOT NULL DEFAULT 'after_submit',
 			result_visibility varchar(24) NOT NULL DEFAULT 'summary',
 			participant_fields_json longtext DEFAULT NULL,
@@ -372,8 +394,10 @@ final class Installer {
 		$sql[] = "CREATE TABLE {$prefix}ranking_entries (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			revision_id bigint(20) unsigned NOT NULL,
-			wp_user_id bigint(20) unsigned NOT NULL,
+			wp_user_id bigint(20) unsigned DEFAULT NULL,
 			attempt_id bigint(20) unsigned NOT NULL,
+			public_label varchar(190) DEFAULT NULL,
+			public_search varchar(190) DEFAULT NULL,
 			score int(10) unsigned NOT NULL,
 			duration_seconds int(10) unsigned NOT NULL,
 			submitted_at datetime NOT NULL,
@@ -420,6 +444,18 @@ final class Installer {
 
 		foreach ($sql as $statement) {
 			dbDelta($statement);
+		}
+
+		// dbDelta compares types/defaults but does not reliably relax NOT NULL.
+		$user_column = $wpdb->get_row($wpdb->prepare('SHOW COLUMNS FROM %i LIKE %s', $prefix . 'ranking_entries', 'wp_user_id'), ARRAY_A); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Explicit versioned schema upgrade.
+		if (! $user_column) {
+			return false;
+		}
+		if ($user_column['Null'] !== 'YES') {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Additive nullable upgrade preserves existing member ranking rows.
+			if (false === $wpdb->query($wpdb->prepare('ALTER TABLE %i MODIFY wp_user_id bigint(20) unsigned DEFAULT NULL', $prefix . 'ranking_entries'))) {
+				return false;
+			}
 		}
 
 		add_option(

@@ -47,8 +47,28 @@ the migration never exposes keys or participant data.
 | ------------------------------- | -------------------------------------------- |
 | Public and always available     | May be available only between specific dates |
 | Can be repeated without a limit | Can be limited to one attempt                |
-| Does not include rankings       | May include member rankings                  |
+| Does not include rankings       | May include member and guest rankings        |
 | Suited to practice and revision | Suited to controlled assessment              |
+
+## Exam rankings
+
+Non-repeatable exams can enable rankings with either public or membership-required access.
+Participants receive their overall and per-subject rank. Ranking uses score descending,
+then duration ascending, then submission time ascending; identical tuples share a rank.
+Guest entries represent submissions, not verified unique individuals.
+
+The separate **Show participant list** option defaults to off. After the exam ends
+and any scheduled result release time passes, the list shows masked names (for example,
+Ahmet M. Y.), scores, and durations. Public exam lists are visible to everyone;
+membership-required lists require a signed-in member and honor assessment access filters.
+Search matches only the displayed masked name. Original identity fields stay encrypted;
+only the deliberately published masked name and its search form are stored unencrypted.
+Old guest results are not backfilled, and existing exams never publish a list automatically.
+Privacy erasure and retention cleanup remove list identities while retaining anonymous results.
+
+If a ranking release needs an emergency rollback, disable its list UI and route in a
+forward fix that retains schema 1.1.0. Do not reinstall an older schema writer that makes
+ranking user IDs mandatory: guest ranking rows intentionally contain SQL NULL values.
 
 ## Installation
 

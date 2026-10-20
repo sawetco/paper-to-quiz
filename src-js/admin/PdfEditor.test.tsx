@@ -134,6 +134,7 @@ function record( url = '/pdf/one' ): AssessmentRecord {
 			total_points: '10000',
 			allow_repeat: '1',
 			ranking_enabled: '0',
+			ranking_list_enabled: '0',
 			feedback_timing: 'after_submit',
 			result_visibility: 'summary',
 			participant_fields: {},

@@ -73,6 +73,7 @@ type Draft = {
 	results_release_at_utc: string;
 	allow_repeat: boolean;
 	ranking_enabled: boolean;
+	ranking_list_enabled: boolean;
 	feedback_timing: FeedbackTiming;
 	result_visibility: ResultVisibility;
 	participant_fields: Record<
@@ -97,6 +98,7 @@ function emptyDraft( type: AssessmentType ): Draft {
 		results_release_at_utc: '',
 		allow_repeat: type === 'test',
 		ranking_enabled: false,
+		ranking_list_enabled: false,
 		feedback_timing: 'after_submit',
 		result_visibility: 'summary',
 		participant_fields: Object.fromEntries(
@@ -242,11 +244,15 @@ export function Wizard( {
 	}, [ dirty ] );
 
 	const update = < K extends keyof Draft >( key: K, value: Draft[ K ] ) => {
-		setDraft( ( current ) => ( { ...current, [ key ]: value } ) );
+		setDraft( ( current ) =>
+			normalizeExamPolicy( { ...current, [ key ]: value } )
+		);
 		setDirty( true );
 	};
 	const updateMany = ( values: Partial< Draft > ) => {
-		setDraft( ( current ) => ( { ...current, ...values } ) );
+		setDraft( ( current ) =>
+			normalizeExamPolicy( { ...current, ...values } )
+		);
 		setDirty( true );
 	};
 
@@ -627,17 +633,12 @@ function InformationStep( {
 					},
 				];
 	let rankingHelp: string = __(
-		'Only members who submit on time are included in the ranking.',
+		'Participants who submit on time are included in the ranking. Guest rankings count submissions, not verified individuals.',
 		'paper-to-quiz'
 	);
 	if ( draft.allow_repeat ) {
 		rankingHelp = __(
 			'Repeatable exams cannot use ranking.',
-			'paper-to-quiz'
-		);
-	} else if ( draft.access_mode !== 'login_required' ) {
-		rankingHelp = __(
-			'Set access to “Membership required” to use ranking.',
 			'paper-to-quiz'
 		);
 	}
@@ -649,6 +650,7 @@ function InformationStep( {
 		if ( value ) {
 			values.allow_repeat = true;
 			values.ranking_enabled = false;
+			values.ranking_list_enabled = false;
 			values.window_start_utc = '';
 			values.window_end_utc = '';
 			values.results_release_at_utc = '';
@@ -826,11 +828,6 @@ function InformationStep( {
 									onChange={ ( value ) =>
 										updateMany( {
 											access_mode: value as AccessMode,
-											...( value === 'guest_allowed'
-												? {
-														ranking_enabled: false,
-													}
-												: {} ),
 										} )
 									}
 								/>
@@ -983,17 +980,42 @@ function InformationStep( {
 							/>
 							<ToggleControl
 								label={ __(
-									'Enable member ranking',
+									'Enable ranking',
 									'paper-to-quiz'
 								) }
 								help={ rankingHelp }
-								disabled={
-									draft.allow_repeat ||
-									draft.access_mode !== 'login_required'
-								}
+								disabled={ draft.allow_repeat }
 								checked={ draft.ranking_enabled }
 								onChange={ ( value ) =>
 									update( 'ranking_enabled', value )
+								}
+							/>
+							<ToggleControl
+								label={ __(
+									'Show participant list',
+									'paper-to-quiz'
+								) }
+								help={
+									draft.access_mode === 'guest_allowed'
+										? __(
+												'After results are released, everyone can see masked names, scores, and durations.',
+												'paper-to-quiz'
+											)
+										: __(
+												'After results are released, signed-in members can see masked names, scores, and durations.',
+												'paper-to-quiz'
+											)
+								}
+								disabled={
+									! draft.ranking_enabled ||
+									draft.allow_repeat ||
+									! [ 'summary', 'detailed' ].includes(
+										draft.result_visibility
+									)
+								}
+								checked={ draft.ranking_list_enabled }
+								onChange={ ( value ) =>
+									update( 'ranking_list_enabled', value )
 								}
 							/>
 						</div>
@@ -1786,6 +1808,7 @@ function fromRecord( record: AssessmentRecord ): Draft {
 		results_release_at_utc: localDate( revision.results_release_at_utc ),
 		allow_repeat: revision.allow_repeat === '1',
 		ranking_enabled: revision.ranking_enabled === '1',
+		ranking_list_enabled: revision.ranking_list_enabled === '1',
 		feedback_timing: revision.feedback_timing,
 		result_visibility: revision.result_visibility,
 		participant_fields: {

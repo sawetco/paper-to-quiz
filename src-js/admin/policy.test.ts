@@ -38,7 +38,7 @@ describe( 'exam policy', () => {
 		} );
 	} );
 
-	it( 'disables ranking for public access', () => {
+	it( 'preserves ranking for public access', () => {
 		expect(
 			normalizeExamPolicy( {
 				access_mode: 'guest_allowed',
@@ -49,6 +49,38 @@ describe( 'exam policy', () => {
 				results_release_at_utc: '',
 				feedback_timing: 'after_submit',
 			} ).ranking_enabled
+		).toBe( true );
+	} );
+	it( 'clears public list publication when ranking or result visibility forbids it', () => {
+		const draft = {
+			access_mode: 'guest_allowed' as const,
+			allow_repeat: false,
+			ranking_enabled: true,
+			ranking_list_enabled: true,
+			result_visibility: 'summary' as const,
+			window_start_utc: '',
+			window_end_utc: '',
+			results_release_at_utc: '',
+			feedback_timing: 'after_submit' as const,
+		};
+		expect( normalizeExamPolicy( draft ).ranking_list_enabled ).toBe(
+			true
+		);
+		expect(
+			normalizeExamPolicy( { ...draft, ranking_enabled: false } )
+				.ranking_list_enabled
+		).toBe( false );
+		expect(
+			normalizeExamPolicy( { ...draft, result_visibility: 'hidden' } )
+				.ranking_list_enabled
+		).toBe( false );
+		expect(
+			normalizeExamPolicy( { ...draft, result_visibility: 'score_only' } )
+				.ranking_list_enabled
+		).toBe( false );
+		expect(
+			normalizeExamPolicy( { ...draft, allow_repeat: true } )
+				.ranking_list_enabled
 		).toBe( false );
 	} );
 } );

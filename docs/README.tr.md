@@ -48,8 +48,28 @@ anahtarlar veya katılımcı verileri gösterilmez.
 | ------------------------------------ | --------------------------------------- |
 | Herkese açık ve süresizdir           | Belirli tarihler arasında açık olabilir |
 | İstendiği kadar tekrar edilebilir    | Tek denemeyle sınırlandırılabilir       |
-| Sıralama içermez                     | Üye sıralaması kullanılabilir           |
+| Sıralama içermez                     | Üye ve misafir sıralaması kullanılabilir           |
 | Pratik ve konu tekrarı için uygundur | Kontrollü değerlendirme için uygundur   |
+
+## Sınav sıralaması
+
+Tekrarlanamayan sınavlarda **Sıralamayı etkinleştir** seçeneği, herkese açık ve
+üyelere açık erişimde kullanılabilir. Genel ve ders sıralaması; puan azalan,
+süre artan, teslim zamanı artan sırayla hesaplanır. Üç değer de aynıysa sıra
+paylaşılır. Misafirler katılım bazında sıralanır; kişi başına kesin tek katılım
+garantisi verilmez.
+
+**Katılımcı listesini göster** ayrıca seçilir ve varsayılan olarak kapalıdır.
+Sınav bitip varsa sonuç açıklama zamanı geldiğinde maskeli ad (Ahmet M. Y.),
+puan ve süre yayımlanır. Herkese açık sınav listesini tüm ziyaretçiler;
+üyelere açık sınav listesini mevcut erişim kontrollerinden geçen üyeler görebilir.
+Arama yalnızca görünen maskeli ad üzerinde çalışır. Tam kimlik bilgileri şifreli
+kalır; maskeli ad ve arama karşılığı açık metin olarak saklanır.
+
+Geçmiş misafir sonuçları yeniden sıralanmaz ve mevcut sınavların listesi
+kendiliğinden açılmaz. Anonimleştirme ve saklama süresi temizliği, sıralama
+kimliğini de kaldırır. Sorun halinde şema 1.1.0 ve misafir verileri korunarak
+listeyi kapatan bir düzeltme sürümü kullanılmalıdır; eski şemaya dönülmemelidir.
 
 ## Kurulum
 
