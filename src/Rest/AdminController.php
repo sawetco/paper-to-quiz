@@ -1080,6 +1080,7 @@ final class AdminController {
 			'results_release_at_utc' => array('type' => array('string', 'null')),
 			'allow_repeat'           => array('type' => 'boolean'),
 			'ranking_enabled'        => array('type' => 'boolean'),
+			'ranking_list_enabled'   => array('type' => 'boolean'),
 			'feedback_timing'        => array('type' => 'string', 'enum' => array('never', 'immediate', 'after_submit', 'scheduled')),
 			'result_visibility'      => array('type' => 'string', 'enum' => array('hidden', 'score_only', 'summary', 'detailed')),
 		);

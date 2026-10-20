@@ -227,6 +227,7 @@ $subject = 0;
 $assessment_draft = 0;
 $assessment_public = 0;
 $assessment_other = 0;
+$ranking_assessments = array();
 $revision_draft = 0;
 $question = 0;
 $attempt = 0;
@@ -288,6 +289,29 @@ try {
 
 	paper_to_quiz_rest_assert(1 === $wpdb->insert($db->table('terms'), array('type' => 'subject', 'name' => $suffix . ' Subject', 'slug' => sanitize_title($suffix . ' Subject'), 'status' => 'active', 'created_at' => $now, 'updated_at' => $now)), 'Subject insert failed.');
 	$subject = (int) $wpdb->insert_id;
+
+	$ranking_payload = array('type' => 'exam', 'title' => $suffix . ' Ranking', 'class_id' => $class,
+		'subject_ids' => array($subject), 'access_mode' => 'guest_allowed', 'allow_repeat' => false,
+		'ranking_enabled' => true, 'ranking_list_enabled' => true, 'result_visibility' => 'summary');
+	foreach (array(array('ranking_enabled' => false), array('allow_repeat' => true), array('result_visibility' => 'hidden'), array('result_visibility' => 'score_only')) as $conflict) {
+		$response = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/assessments', array_merge($ranking_payload, $conflict), $manager);
+		paper_to_quiz_rest_assert(400 === paper_to_quiz_rest_status($response), 'Conflicting ranking list policy was accepted.');
+		paper_to_quiz_rest_assert(isset(paper_to_quiz_rest_data($response)['data']['params']['ranking_list_enabled']), 'Ranking policy error did not identify its field.');
+	}
+	$ranking_create = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/assessments', $ranking_payload, $manager);
+	$ranking_data = paper_to_quiz_rest_data($ranking_create);
+	paper_to_quiz_rest_assert(! empty($ranking_data['assessment']['id']), 'Public ranked exam creation failed.');
+	$ranking_id = (int) $ranking_data['assessment']['id'];
+	$ranking_assessments[] = $ranking_id;
+	paper_to_quiz_rest_assert('1' === (string) $ranking_data['revision']['ranking_enabled'] && '1' === (string) $ranking_data['revision']['ranking_list_enabled'], 'Public ranking flags did not round trip.');
+	$ranking_copy = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/assessments/' . $ranking_id . '/duplicate', array(), $manager);
+	$copy_data = paper_to_quiz_rest_data($ranking_copy);
+	paper_to_quiz_rest_assert(! empty($copy_data['assessment']['id']) && '1' === (string) $copy_data['revision']['ranking_list_enabled'], 'Duplicating a ranked exam lost its opt-in.');
+	$ranking_assessments[] = (int) $copy_data['assessment']['id'];
+	$ranking_edit = paper_to_quiz_rest_request('PUT', '/paper-to-quiz/v1/admin/assessments/' . $ranking_id,
+		array_merge($ranking_payload, array('ranking_enabled' => false, 'ranking_list_enabled' => false)), $manager);
+	paper_to_quiz_rest_assert('0' === (string) paper_to_quiz_rest_data($ranking_edit)['revision']['ranking_list_enabled'], 'Disabling ranking did not clear list publication.');
+	$report['ranking_policy'] = 'passed';
 
 	/*
 	 * Exercise the complete authoring workflow through its REST contracts. The
@@ -740,7 +764,7 @@ try {
 	paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($purge), 'Assessment force delete failed.');
 	paper_to_quiz_rest_assert((int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('assessments') . ' WHERE id=%d', $assessment_other)) === 1, 'Unrelated assessment was deleted.');
 	paper_to_quiz_rest_assert((int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $db->table('terms') . ' WHERE id IN (%d,%d)', $class, $subject)) === 2, 'Shared terms were deleted.');
-	$report = array('admin_auth' => 'passed', 'admin_route_and_settings_health' => 'passed', 'class_color_and_duplicate' => 'passed', 'upload_to_publish_workflow' => 'passed', 'subject_selection_and_test_policy' => 'passed', 'public_attempt_access_gate' => 'passed', 'draft_revision_idempotency' => 'passed', 'attempt_submit_idempotency' => 'passed', 'finalize_single_flight' => 'passed', 'answer_key_validation' => 'passed', 'operational_error_sanitization' => 'passed', 'critical_write_rollback' => 'passed', 'delete_isolation' => 'passed', 'route_permission_gates' => 'passed');
+	$report += array('admin_auth' => 'passed', 'admin_route_and_settings_health' => 'passed', 'class_color_and_duplicate' => 'passed', 'upload_to_publish_workflow' => 'passed', 'subject_selection_and_test_policy' => 'passed', 'public_attempt_access_gate' => 'passed', 'draft_revision_idempotency' => 'passed', 'attempt_submit_idempotency' => 'passed', 'finalize_single_flight' => 'passed', 'answer_key_validation' => 'passed', 'operational_error_sanitization' => 'passed', 'critical_write_rollback' => 'passed', 'delete_isolation' => 'passed', 'route_permission_gates' => 'passed');
 } finally {
 	foreach ($workflow_upload_sessions as $session_id) {
 		$workflow_storage_keys = array_values(array_unique(array_merge($workflow_storage_keys, paper_to_quiz_rest_session_storage_keys($wpdb, $db, $session_id))));
@@ -809,7 +833,7 @@ try {
 		paper_to_quiz_rest_assert(false !== $wpdb->delete($db->table('result_email_jobs'), array('attempt_id' => $attempt), array('%d')), 'Result email jobs cleanup failed.');
 		paper_to_quiz_rest_assert(false !== $wpdb->delete($db->table('answers'), array('attempt_id' => $attempt), array('%d')), 'Attempt answers cleanup failed.');
 	}
-	foreach (array_filter(array($assessment_draft, $assessment_public, $assessment_other)) as $id) {
+	foreach (array_filter(array_merge(array($assessment_draft, $assessment_public, $assessment_other), $ranking_assessments)) as $id) {
 		$wpdb->query($wpdb->prepare('DELETE FROM ' . $db->table('answers') . ' WHERE attempt_id IN (SELECT id FROM ' . $db->table('attempts') . ' WHERE assessment_id=%d)', $id));
 		paper_to_quiz_rest_assert(false !== $wpdb->delete($db->table('attempts'), array('assessment_id' => $id), array('%d')), 'Attempts cleanup failed.');
 		paper_to_quiz_rest_assert(false !== $wpdb->query($wpdb->prepare('DELETE q FROM ' . $db->table('questions') . ' q INNER JOIN ' . $db->table('revisions') . ' r ON r.id=q.revision_id WHERE r.assessment_id=%d', $id)), 'Questions cleanup failed.');

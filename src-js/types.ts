@@ -63,6 +63,7 @@ export interface Revision {
 	results_release_at_utc?: string;
 	allow_repeat: string;
 	ranking_enabled: string;
+	ranking_list_enabled: string;
 	feedback_timing: FeedbackTiming;
 	result_visibility: ResultVisibility;
 	participant_fields: Record<

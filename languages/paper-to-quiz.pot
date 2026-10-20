@@ -2,14 +2,14 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Paper to Quiz 1.1.6\n"
+"Project-Id-Version: Paper to Quiz 1.2.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/paper-to-quiz\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-12T19:12:03+00:00\n"
+"POT-Creation-Date: 2026-10-20T14:05:41+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: paper-to-quiz\n"
@@ -91,8 +91,8 @@ msgid "Untitled content"
 msgstr ""
 
 #: src/Application/AssessmentPurgeService.php:31
-#: src/Application/AssessmentService.php:379
-#: src/Application/AssessmentService.php:1235
+#: src/Application/AssessmentService.php:380
+#: src/Application/AssessmentService.php:1238
 #: src/Application/TermService.php:262
 #: src/Rest/AdminController.php:455
 msgid "Record not found."
@@ -134,280 +134,280 @@ msgstr ""
 msgid "Related records could not be deleted."
 msgstr ""
 
-#: src/Application/AssessmentService.php:302
+#: src/Application/AssessmentService.php:303
 msgid "Invalid assessment type."
 msgstr ""
 
-#: src/Application/AssessmentService.php:314
-#: src/Application/AssessmentService.php:1298
+#: src/Application/AssessmentService.php:315
+#: src/Application/AssessmentService.php:1301
 msgid "Title is required."
 msgstr ""
 
-#: src/Application/AssessmentService.php:372
+#: src/Application/AssessmentService.php:373
 msgid "The record could not be created. Please try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:450
+#: src/Application/AssessmentService.php:451
 msgid "Record could not be updated. Please try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:462
-#: src/Application/AssessmentService.php:1268
+#: src/Application/AssessmentService.php:463
+#: src/Application/AssessmentService.php:1271
 msgid "Draft not found."
 msgstr ""
 
-#: src/Application/AssessmentService.php:481
+#: src/Application/AssessmentService.php:482
 msgid "Specify whether existing questions should be kept or cleared when replacing the PDF."
 msgstr ""
 
-#: src/Application/AssessmentService.php:497
+#: src/Application/AssessmentService.php:498
 msgid "The PDF could not be attached to the draft."
 msgstr ""
 
-#: src/Application/AssessmentService.php:514
+#: src/Application/AssessmentService.php:515
 msgid "Draft questions could not be cleared."
 msgstr ""
 
-#: src/Application/AssessmentService.php:532
+#: src/Application/AssessmentService.php:533
 msgid "Questions could not be prepared for regeneration."
 msgstr ""
 
-#: src/Application/AssessmentService.php:543
+#: src/Application/AssessmentService.php:544
 msgid "The PDF could not be replaced. Please try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:562
+#: src/Application/AssessmentService.php:563
 msgid "Only draft questions can be edited."
 msgstr ""
 
-#: src/Application/AssessmentService.php:568
+#: src/Application/AssessmentService.php:569
 msgid "Crop coordinates are invalid."
 msgstr ""
 
-#: src/Application/AssessmentService.php:575
+#: src/Application/AssessmentService.php:576
 msgid "The question record key is invalid."
 msgstr ""
 
-#: src/Application/AssessmentService.php:630
-#: src/Application/AssessmentService.php:828
-#: src/Application/AssessmentService.php:854
-#: src/Application/AttemptService.php:406
+#: src/Application/AssessmentService.php:631
+#: src/Application/AssessmentService.php:829
+#: src/Application/AssessmentService.php:855
+#: src/Application/AttemptService.php:433
 msgid "Question not found."
 msgstr ""
 
-#: src/Application/AssessmentService.php:668
+#: src/Application/AssessmentService.php:669
 msgid "Question could not be saved. Please try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:683
+#: src/Application/AssessmentService.php:684
 msgid "Only draft answer keys can be edited."
 msgstr ""
 
-#: src/Application/AssessmentService.php:694
-#: src/Application/AssessmentService.php:753
+#: src/Application/AssessmentService.php:695
+#: src/Application/AssessmentService.php:754
 msgid "The answer key must include every draft question exactly once."
 msgstr ""
 
-#: src/Application/AssessmentService.php:731
+#: src/Application/AssessmentService.php:732
 msgid "Previous question records could not be cleared."
 msgstr ""
 
-#: src/Application/AssessmentService.php:771
+#: src/Application/AssessmentService.php:772
 msgid "Question order could not be prepared."
 msgstr ""
 
-#: src/Application/AssessmentService.php:780
+#: src/Application/AssessmentService.php:781
 msgid "The correct answer is not one of the available options."
 msgstr ""
 
-#: src/Application/AssessmentService.php:799
+#: src/Application/AssessmentService.php:800
 #: build/admin-wizard.js:8
 msgid "The answer key could not be saved."
 msgstr ""
 
-#: src/Application/AssessmentService.php:812
+#: src/Application/AssessmentService.php:813
 msgid "The answer key could not be saved. Please try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:832
+#: src/Application/AssessmentService.php:833
 msgid "Published questions cannot be deleted."
 msgstr ""
 
-#: src/Application/AssessmentService.php:891
+#: src/Application/AssessmentService.php:892
 msgid "The question could not be deleted. Please try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:915
+#: src/Application/AssessmentService.php:916
 msgid "Publishing checks are incomplete."
 msgstr ""
 
-#: src/Application/AssessmentService.php:957
+#: src/Application/AssessmentService.php:958
 msgid "Publishing could not be completed."
 msgstr ""
 
-#: src/Application/AssessmentService.php:970
+#: src/Application/AssessmentService.php:971
 msgid "The record to duplicate could not be found."
 msgstr ""
 
 #. translators: %s: Original assessment title.
-#: src/Application/AssessmentService.php:993
+#: src/Application/AssessmentService.php:995
 #, php-format
 msgid "%s (Copy)"
 msgstr ""
 
-#: src/Application/AssessmentService.php:1105
+#: src/Application/AssessmentService.php:1108
 msgid "The published revision to duplicate could not be found."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1119
+#: src/Application/AssessmentService.php:1122
 msgid "The record could not be locked."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1126
-#: src/Application/AssessmentService.php:1137
-#: src/Application/AttemptService.php:202
+#: src/Application/AssessmentService.php:1129
+#: src/Application/AssessmentService.php:1140
+#: src/Application/AttemptService.php:229
 msgid "The published revision changed. Refresh the page and try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1152
+#: src/Application/AssessmentService.php:1155
 msgid "The draft revision could not be created."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1185
+#: src/Application/AssessmentService.php:1188
 msgid "Published questions could not be copied to the draft."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1198
+#: src/Application/AssessmentService.php:1201
 msgid "The draft revision could not be attached to the record."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1207
+#: src/Application/AssessmentService.php:1210
 msgid "The draft revision could not be created. Please try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1245
-#: src/Application/AssessmentService.php:1261
+#: src/Application/AssessmentService.php:1248
+#: src/Application/AssessmentService.php:1264
 msgid "The draft changed or was published. Refresh the page and try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1286
+#: src/Application/AssessmentService.php:1289
 #: src/Rest/AdminController.php:1049
 msgid "A superseded private file could not be cleaned up."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1301
+#: src/Application/AssessmentService.php:1304
 msgid "A class must be selected."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1305
-#: src/Application/AssessmentService.php:1476
+#: src/Application/AssessmentService.php:1308
+#: src/Application/AssessmentService.php:1485
 #: build/admin-wizard.js:4
 msgid "Select at least one subject."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1308
+#: src/Application/AssessmentService.php:1311
 msgid "A PDF must be uploaded."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1311
+#: src/Application/AssessmentService.php:1314
 msgid "Select at least one question."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1317
-msgid "Ranking can be used only for membership-required, non-repeatable exams."
+#: src/Application/AssessmentService.php:1320
+msgid "Ranking can be used only for non-repeatable exams."
 msgstr ""
 
 #. translators: %d: Expected question position.
-#: src/Application/AssessmentService.php:1349
+#: src/Application/AssessmentService.php:1356
 #, php-format
 msgid "Question order has a gap at position %d."
 msgstr ""
 
 #. translators: %d: Question number.
-#: src/Application/AssessmentService.php:1353
+#: src/Application/AssessmentService.php:1360
 #, php-format
 msgid "Question %d has no image."
 msgstr ""
 
 #. translators: %d: Question number.
-#: src/Application/AssessmentService.php:1357
+#: src/Application/AssessmentService.php:1364
 #, php-format
 msgid "Question %d has no thumbnail image."
 msgstr ""
 
 #. translators: %d: Question number.
-#: src/Application/AssessmentService.php:1361
+#: src/Application/AssessmentService.php:1368
 #, php-format
 msgid "Select a subject for question %d."
 msgstr ""
 
 #. translators: %d: Question number.
-#: src/Application/AssessmentService.php:1366
+#: src/Application/AssessmentService.php:1373
 #, php-format
 msgid "The subject record for question %d is invalid."
 msgstr ""
 
 #. translators: %d: Question number.
-#: src/Application/AssessmentService.php:1369
+#: src/Application/AssessmentService.php:1376
 #, php-format
 msgid "Question %d uses a subject that is not selected in Basic Information."
 msgstr ""
 
 #. translators: %d: Question number.
-#: src/Application/AssessmentService.php:1374
+#: src/Application/AssessmentService.php:1381
 #, php-format
 msgid "The correct answer for question %d is invalid."
 msgstr ""
 
 #. translators: 1: Current question point total, 2: Required assessment point total.
-#: src/Application/AssessmentService.php:1381
+#: src/Application/AssessmentService.php:1388
 #, php-format
 msgid "Question points total is %1$s; required total is %2$s."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1393
+#: src/Application/AssessmentService.php:1400
 msgid "Repeatable exams cannot use a schedule or result release date."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1396
+#: src/Application/AssessmentService.php:1403
 #: build/admin-wizard.js:4
 msgid "Repeatable exams cannot use ranking."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1400
+#: src/Application/AssessmentService.php:1407
 msgid "Exam start and end dates are required."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1402
+#: src/Application/AssessmentService.php:1409
 #: build/admin-wizard.js:4
 msgid "The exam end date must be after the start date."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1404
+#: src/Application/AssessmentService.php:1411
 msgid "An exam with a past end date cannot be published. Select a new date."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1407
+#: src/Application/AssessmentService.php:1414
 msgid "The result release date cannot be before the exam end date."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1411
+#: src/Application/AssessmentService.php:1418
 msgid "When a result release date is set, correct answers can only be shown on that date."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1415
+#: src/Application/AssessmentService.php:1422
 msgid "A result release date is required for scheduled feedback."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1459
+#: src/Application/AssessmentService.php:1466
+msgid "The participant list requires ranking, a non-repeatable exam, and summary or detailed results."
+msgstr ""
+
+#: src/Application/AssessmentService.php:1475
 msgid "Ranking cannot be enabled for repeatable exams."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1466
-msgid "Ranking can only be enabled for exams that require WordPress membership."
-msgstr ""
-
-#: src/Application/AssessmentService.php:1492
+#: src/Application/AssessmentService.php:1501
 msgid "One or more selected subjects are no longer available. Review the subject selection and try again."
 msgstr ""
 
@@ -451,203 +451,211 @@ msgstr ""
 msgid "The file reference could not be updated. Please try again."
 msgstr ""
 
-#: src/Application/AttemptService.php:81
+#: src/Application/AttemptService.php:83
 #: src/Frontend/Shortcode.php:36
 msgid "You must log in to your account to participate."
 msgstr ""
 
-#: src/Application/AttemptService.php:92
+#: src/Application/AttemptService.php:94
 msgid "You do not have permission to participate in this item."
 msgstr ""
 
-#: src/Application/AttemptService.php:100
-#: src/Application/AttemptService.php:196
+#: src/Application/AttemptService.php:102
+#: src/Application/AttemptService.php:174
+#: src/Application/AttemptService.php:223
 #: src/Frontend/Shortcode.php:26
 msgid "This item is currently unavailable."
 msgstr ""
 
-#: src/Application/AttemptService.php:159
+#: src/Application/AttemptService.php:179
+msgid "The participant list is not available."
+msgstr ""
+
+#: src/Application/AttemptService.php:186
 #: src/Frontend/Shortcode.php:21
 msgid "This item could not be found."
 msgstr ""
 
-#: src/Application/AttemptService.php:218
+#: src/Application/AttemptService.php:245
 msgid "This item can only be completed once."
 msgstr ""
 
-#: src/Application/AttemptService.php:301
+#: src/Application/AttemptService.php:328
 msgid "Could not start. Please try again."
 msgstr ""
 
-#: src/Application/AttemptService.php:348
+#: src/Application/AttemptService.php:375
 msgid "No answers to save were found."
 msgstr ""
 
-#: src/Application/AttemptService.php:373
+#: src/Application/AttemptService.php:400
 msgid "Answers could not be saved. Please try again."
 msgstr ""
 
-#: src/Application/AttemptService.php:381
+#: src/Application/AttemptService.php:408
 msgid "This item has already been completed."
 msgstr ""
 
-#: src/Application/AttemptService.php:389
+#: src/Application/AttemptService.php:416
 msgid "The answer could not be saved because time expired."
 msgstr ""
 
-#: src/Application/AttemptService.php:412
+#: src/Application/AttemptService.php:439
 msgid "Invalid answer option."
 msgstr ""
 
-#: src/Application/AttemptService.php:514
+#: src/Application/AttemptService.php:541
 msgid "The answer could not be saved. Please try again."
 msgstr ""
 
-#: src/Application/AttemptService.php:523
+#: src/Application/AttemptService.php:550
 msgid "The item could not be completed. Please try again."
 msgstr ""
 
-#: src/Application/AttemptService.php:547
+#: src/Application/AttemptService.php:574
 msgid "The submission ID is invalid."
 msgstr ""
 
-#: src/Application/AttemptService.php:558
+#: src/Application/AttemptService.php:585
 msgid "The submission ID has been used in another attempt."
 msgstr ""
 
-#: src/Application/AttemptService.php:580
+#: src/Application/AttemptService.php:607
 msgid "This item has not been completed yet."
 msgstr ""
 
-#: src/Application/AttemptService.php:623
+#: src/Application/AttemptService.php:650
 msgid "Question image not found."
 msgstr ""
 
-#: src/Application/AttemptService.php:748
-#: src/Application/AttemptService.php:804
-#: src/Application/AttemptService.php:1513
-#: src/Application/AttemptService.php:1575
+#: src/Application/AttemptService.php:775
+#: src/Application/AttemptService.php:831
+#: src/Application/AttemptService.php:1541
+#: src/Application/AttemptService.php:1598
 #: build/admin-wizard.js:8
 msgid "Subject not specified"
 msgstr ""
 
-#: src/Application/AttemptService.php:924
+#: src/Application/AttemptService.php:952
 msgid "Attempt data could not be anonymized."
 msgstr ""
 
-#: src/Application/AttemptService.php:957
+#: src/Application/AttemptService.php:985
 #: build/admin.js:30
 msgid "Guest"
 msgstr ""
 
 #. translators: %d: WordPress user ID.
-#: src/Application/AttemptService.php:964
+#: src/Application/AttemptService.php:992
 #, php-format
 msgid "Member #%d"
 msgstr ""
 
-#: src/Application/AttemptService.php:966
+#: src/Application/AttemptService.php:994
 msgid "Anonymous member"
 msgstr ""
 
-#: src/Application/AttemptService.php:974
-#: build/student.js:5
-#: build/student.js:10
+#: src/Application/AttemptService.php:1002
+#: build/student.js:7
+#: build/student.js:12
 msgid "The exam has not started yet."
 msgstr ""
 
-#: src/Application/AttemptService.php:977
-#: build/student.js:5
+#: src/Application/AttemptService.php:1005
+#: build/student.js:7
 msgid "The exam has ended."
 msgstr ""
 
 #. translators: %s: Participant field label.
-#: src/Application/AttemptService.php:1043
-#: build/student.js:13
+#: src/Application/AttemptService.php:1071
+#: build/student.js:15
 #, php-format,js-format
 msgid "%s is required."
 msgstr ""
 
-#: src/Application/AttemptService.php:1048
+#: src/Application/AttemptService.php:1076
 msgid "Enter a valid email address."
 msgstr ""
 
-#: src/Application/AttemptService.php:1058
-#: build/student.js:15
+#: src/Application/AttemptService.php:1086
+#: build/student.js:17
 msgid "Enter a valid Turkish mobile phone number."
 msgstr ""
 
-#: src/Application/AttemptService.php:1081
-#: src/Application/AttemptService.php:1718
+#: src/Application/AttemptService.php:1109
+#: src/Application/AttemptService.php:1668
 #: build/admin-wizard.js:1
 #: build/admin.js:26
 msgid "First name"
 msgstr ""
 
-#: src/Application/AttemptService.php:1082
-#: src/Application/AttemptService.php:1719
+#: src/Application/AttemptService.php:1110
+#: src/Application/AttemptService.php:1669
 #: build/admin-wizard.js:1
 #: build/admin.js:26
 msgid "Last name"
 msgstr ""
 
-#: src/Application/AttemptService.php:1083
-#: src/Application/AttemptService.php:1720
+#: src/Application/AttemptService.php:1111
+#: src/Application/AttemptService.php:1670
 #: build/admin-wizard.js:1
 msgid "School name"
 msgstr ""
 
-#: src/Application/AttemptService.php:1084
-#: src/Application/AttemptService.php:1721
+#: src/Application/AttemptService.php:1112
+#: src/Application/AttemptService.php:1671
 #: build/admin-wizard.js:1
 #: build/admin.js:26
 msgid "Class and section"
 msgstr ""
 
-#: src/Application/AttemptService.php:1085
-#: src/Application/AttemptService.php:1722
+#: src/Application/AttemptService.php:1113
+#: src/Application/AttemptService.php:1672
 #: build/admin-wizard.js:1
 #: build/admin.js:26
 msgid "Email"
 msgstr ""
 
-#: src/Application/AttemptService.php:1086
-#: src/Application/AttemptService.php:1723
+#: src/Application/AttemptService.php:1114
+#: src/Application/AttemptService.php:1673
 #: build/admin-wizard.js:1
 #: build/admin.js:26
 msgid "Phone"
 msgstr ""
 
-#: src/Application/AttemptService.php:1130
+#: src/Application/AttemptService.php:1158
 msgid "Could not open the item. Please restart."
 msgstr ""
 
-#: src/Application/AttemptService.php:1134
+#: src/Application/AttemptService.php:1162
 msgid "Your login session has expired. Please log in again."
 msgstr ""
 
-#: src/Application/AttemptService.php:1137
+#: src/Application/AttemptService.php:1165
 msgid "This item belongs to another user."
 msgstr ""
 
-#: src/Application/AttemptService.php:1151
+#: src/Application/AttemptService.php:1179
 msgid "The submission contains an invalid answer."
 msgstr ""
 
-#: src/Application/AttemptService.php:1155
+#: src/Application/AttemptService.php:1183
 msgid "The submission contains an invalid or duplicate question."
 msgstr ""
 
-#: src/Application/AttemptService.php:1160
+#: src/Application/AttemptService.php:1188
 msgid "The submission contains an invalid answer option."
 msgstr ""
 
-#: src/Application/AttemptService.php:1554
+#: src/Application/AttemptService.php:1582
+#: src/Application/RankingService.php:32
+#: src/Application/RankingService.php:140
 #: src/Application/ResultEmailService.php:228
 #: src/Application/ResultEmailService.php:229
 #: src/Application/ResultEmailService.php:294
 #: build/admin.js:29
-#: build/student.js:26
+#: build/student.js:6
+#: build/student.js:28
 msgid "Participant"
 msgstr ""
 
@@ -671,31 +679,31 @@ msgid "wp_mail delivery failed."
 msgstr ""
 
 #: src/Application/ResultEmailService.php:225
-#: build/student.js:26
+#: build/student.js:28
 msgid "Test result document"
 msgstr ""
 
 #: src/Application/ResultEmailService.php:226
-#: build/student.js:26
+#: build/student.js:28
 msgid "Exam result document"
 msgstr ""
 
 #: src/Application/ResultEmailService.php:230
 #: build/admin-wizard.js:10
 #: build/admin.js:2
-#: build/student.js:11
-#: build/student.js:26
+#: build/student.js:13
+#: build/student.js:28
 msgid "Class"
 msgstr ""
 
 #: src/Application/ResultEmailService.php:232
 #: build/admin.js:26
-#: build/student.js:26
+#: build/student.js:28
 msgid "School"
 msgstr ""
 
 #: src/Application/ResultEmailService.php:234
-#: build/student.js:26
+#: build/student.js:28
 msgid "Submission date"
 msgstr ""
 
@@ -703,7 +711,8 @@ msgstr ""
 #: build/admin-wizard.js:10
 #: build/admin.js:2
 #: build/admin.js:29
-#: build/student.js:26
+#: build/student.js:6
+#: build/student.js:28
 msgid "Duration"
 msgstr ""
 
@@ -716,7 +725,7 @@ msgstr ""
 #: src/Application/ResultEmailService.php:245
 #: src/Application/ResultEmailService.php:284
 #: build/admin.js:31
-#: build/student.js:26
+#: build/student.js:28
 msgid "Success"
 msgstr ""
 
@@ -726,7 +735,7 @@ msgstr ""
 #: build/admin.js:26
 #: build/admin.js:29
 #: build/admin.js:31
-#: build/student.js:26
+#: build/student.js:28
 msgid "Correct"
 msgstr ""
 
@@ -735,7 +744,7 @@ msgstr ""
 #: build/admin.js:26
 #: build/admin.js:29
 #: build/admin.js:31
-#: build/student.js:26
+#: build/student.js:28
 msgid "Wrong"
 msgstr ""
 
@@ -746,15 +755,15 @@ msgstr ""
 #: build/admin.js:29
 #: build/admin.js:31
 #: build/admin.js:32
-#: build/student.js:23
-#: build/student.js:26
+#: build/student.js:25
 #: build/student.js:28
+#: build/student.js:30
 msgid "Blank"
 msgstr ""
 
 #: src/Application/ResultEmailService.php:280
 #: build/admin.js:31
-#: build/student.js:26
+#: build/student.js:28
 msgid "Subject results"
 msgstr ""
 
@@ -763,23 +772,24 @@ msgstr ""
 #: build/admin-pdf-editor.js:8
 #: build/admin.js:2
 #: build/admin.js:31
-#: build/student.js:26
+#: build/student.js:28
 msgid "Subject"
 msgstr ""
 
 #: src/Application/ResultEmailService.php:285
 #: src/Application/ResultEmailService.php:293
-#: build/student.js:26
+#: build/student.js:6
+#: build/student.js:28
 msgid "Rank"
 msgstr ""
 
 #: src/Application/ResultEmailService.php:291
-#: build/student.js:26
+#: build/student.js:28
 msgid "Overall ranking"
 msgstr ""
 
 #: src/Application/ResultEmailService.php:294
-#: build/student.js:26
+#: build/student.js:28
 msgid "Percentile"
 msgstr ""
 
@@ -799,19 +809,19 @@ msgid "Answer"
 msgstr ""
 
 #: src/Application/ResultEmailService.php:326
-#: build/student.js:26
+#: build/student.js:28
 msgid "Participant and exam information"
 msgstr ""
 
 #: src/Application/ResultEmailService.php:328
-#: build/student.js:26
+#: build/student.js:28
 msgid "Result summary"
 msgstr ""
 
 #. translators: %d: Number of hours.
 #: src/Application/ResultEmailService.php:344
-#: build/student.js:9
-#: build/student.js:30
+#: build/student.js:11
+#: build/student.js:32
 #, php-format,js-format
 msgid "%d hour"
 msgid_plural "%d hours"
@@ -822,8 +832,8 @@ msgstr[1] ""
 #: src/Application/ResultEmailService.php:348
 #: build/admin-wizard.js:9
 #: build/admin.js:5
-#: build/student.js:31
-#: build/student.js:32
+#: build/student.js:33
+#: build/student.js:34
 #, php-format,js-format
 msgid "%d minute"
 msgid_plural "%d minutes"
@@ -899,7 +909,7 @@ msgstr ""
 
 #: src/Frontend/Shortcode.php:52
 #: build/admin-pdf-editor.js:6
-#: build/student.js:5
+#: build/student.js:7
 msgid "Preparing…"
 msgstr ""
 
@@ -1035,7 +1045,8 @@ msgstr ""
 #: src/Privacy/PrivacyManager.php:62
 #: build/admin.js:29
 #: build/admin.js:31
-#: build/student.js:26
+#: build/student.js:6
+#: build/student.js:28
 msgid "Score"
 msgstr ""
 
@@ -1053,7 +1064,7 @@ msgid "Some identity information could not be erased. Please try again."
 msgstr ""
 
 #: src/Privacy/PrivacyManager.php:114
-msgid "This site may store the identity fields enabled by the administrator (such as first name, last name, school, class section, email, and phone number), your answers, duration, and score. These fields are encrypted at rest. For exams that require membership, your WordPress user ID is associated with the result. Data is anonymized after the configured retention period and is not sent to third parties."
+msgid "This site may store the identity fields enabled by the administrator (such as first name, last name, school, class section, email, and phone number), your answers, duration, and score. These fields are encrypted at rest. For exams that require membership, your WordPress user ID is associated with the result. When an administrator enables the participant list, your first name, other name initials, score, and duration are published after the exam and result release time. Public exam lists are visible to everyone; membership-required lists are visible to signed-in members. Only the masked public name and its search form are stored unencrypted for this list. Original identity fields remain encrypted. Guest rankings count submissions, not verified individuals. Data is anonymized after the configured retention period and is not sent to third parties."
 msgstr ""
 
 #: src/Rest/AdminController.php:481
@@ -1152,7 +1163,15 @@ msgstr ""
 msgid "The file could not be processed. Please try again."
 msgstr ""
 
-#: src/Rest/PublicController.php:335
+#: src/Rest/PublicController.php:204
+msgid "The participant list is temporarily unavailable."
+msgstr ""
+
+#: src/Rest/PublicController.php:207
+msgid "Too many ranking requests. Please wait a minute."
+msgstr ""
+
+#: src/Rest/PublicController.php:392
 msgid "Too many participation requests were sent. Please wait a moment."
 msgstr ""
 
@@ -1206,7 +1225,7 @@ msgstr ""
 #. translators: %d: Number of questions.
 #: build/admin-pdf-editor.js:4
 #: build/admin.js:37
-#: build/student.js:11
+#: build/student.js:13
 #, js-format
 msgid "%d question"
 msgid_plural "%d questions"
@@ -1272,7 +1291,7 @@ msgstr ""
 #. translators: %d: Question number.
 #: build/admin-pdf-editor.js:7
 #: build/admin.js:32
-#: build/student.js:20
+#: build/student.js:22
 #, js-format
 msgid "Question %d"
 msgstr ""
@@ -1368,8 +1387,8 @@ msgstr ""
 #: build/admin-wizard.js:8
 #: build/admin.js:1
 #: build/admin.js:26
-#: build/student.js:5
-#: build/student.js:10
+#: build/student.js:7
+#: build/student.js:12
 msgid "Exam"
 msgstr ""
 
@@ -1379,8 +1398,8 @@ msgstr ""
 #: build/admin-wizard.js:8
 #: build/admin.js:1
 #: build/admin.js:26
-#: build/student.js:5
-#: build/student.js:10
+#: build/student.js:7
+#: build/student.js:12
 msgid "Test"
 msgstr ""
 
@@ -1491,11 +1510,7 @@ msgid "After completing the exam"
 msgstr ""
 
 #: build/admin-wizard.js:4
-msgid "Only members who submit on time are included in the ranking."
-msgstr ""
-
-#: build/admin-wizard.js:4
-msgid "Set access to “Membership required” to use ranking."
+msgid "Participants who submit on time are included in the ranking. Guest rankings count submissions, not verified individuals."
 msgstr ""
 
 #: build/admin-wizard.js:4
@@ -1513,8 +1528,8 @@ msgid "Class *"
 msgstr ""
 
 #: build/admin-wizard.js:5
-#: build/student.js:11
-#: build/student.js:12
+#: build/student.js:13
+#: build/student.js:14
 msgid "Select"
 msgstr ""
 
@@ -1570,12 +1585,12 @@ msgstr ""
 #: build/admin-wizard.js:5
 #: build/admin-wizard.js:10
 #: build/admin.js:41
-#: build/student.js:11
+#: build/student.js:13
 msgid "Membership required"
 msgstr ""
 
 #: build/admin-wizard.js:5
-#: build/student.js:11
+#: build/student.js:13
 msgid "Exam schedule"
 msgstr ""
 
@@ -1592,7 +1607,7 @@ msgid "End *"
 msgstr ""
 
 #: build/admin-wizard.js:5
-#: build/student.js:11
+#: build/student.js:13
 msgid "Result release"
 msgstr ""
 
@@ -1633,7 +1648,19 @@ msgid "Allow repeat attempts"
 msgstr ""
 
 #: build/admin-wizard.js:5
-msgid "Enable member ranking"
+msgid "Enable ranking"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "Show participant list"
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "After results are released, everyone can see masked names, scores, and durations."
+msgstr ""
+
+#: build/admin-wizard.js:5
+msgid "After results are released, signed-in members can see masked names, scores, and durations."
 msgstr ""
 
 #: build/admin-wizard.js:5
@@ -1825,7 +1852,7 @@ msgid "Publish new version"
 msgstr ""
 
 #: build/admin-wizard.js:9
-#: build/student.js:32
+#: build/student.js:34
 msgid "No time limit"
 msgstr ""
 
@@ -2384,13 +2411,13 @@ msgstr ""
 
 #: build/admin.js:29
 #: build/admin.js:30
-#: build/student.js:11
+#: build/student.js:13
 msgid "Start"
 msgstr ""
 
 #: build/admin.js:29
 #: build/admin.js:30
-#: build/student.js:11
+#: build/student.js:13
 msgid "End"
 msgstr ""
 
@@ -2718,7 +2745,7 @@ msgstr ""
 #: build/admin.js:39
 #: build/admin.js:40
 #: build/admin.js:41
-#: build/student.js:18
+#: build/student.js:20
 msgid "Questions"
 msgstr ""
 
@@ -2846,7 +2873,7 @@ msgstr[1] ""
 
 #. translators: %d: Number of minutes.
 #: build/student.js:4
-#: build/student.js:10
+#: build/student.js:12
 #, js-format
 msgid "%d min"
 msgid_plural "%d min"
@@ -2855,7 +2882,7 @@ msgstr[1] ""
 
 #. translators: %d: Number of seconds.
 #: build/student.js:5
-#: build/student.js:7
+#: build/student.js:9
 #, js-format
 msgid "%d sec"
 msgid_plural "%d sec"
@@ -2863,316 +2890,371 @@ msgstr[0] ""
 msgstr[1] ""
 
 #: build/student.js:5
+msgid "The participant list could not be loaded."
+msgstr ""
+
+#: build/student.js:5
+msgid "Ranking"
+msgstr ""
+
+#: build/student.js:5
+msgid "Participant ranking"
+msgstr ""
+
+#: build/student.js:5
+msgid "Search visible names"
+msgstr ""
+
+#: build/student.js:5
+msgid "Loading ranking…"
+msgstr ""
+
+#. translators: 1: Matching entries, 2: Total ranked submissions.
+#: build/student.js:6
+#, js-format
+msgid "%1$d matches / %2$d ranked submissions"
+msgstr ""
+
+#: build/student.js:6
+#: build/student.js:28
+msgid "Try again"
+msgstr ""
+
+#: build/student.js:6
+msgid "No matching participants."
+msgstr ""
+
+#: build/student.js:6
+msgid "Names are masked. Guest entries represent submissions, not verified individuals."
+msgstr ""
+
+#: build/student.js:6
+msgid "Ranking pages"
+msgstr ""
+
+#: build/student.js:6
+#: build/student.js:24
+msgid "Previous"
+msgstr ""
+
+#. translators: 1: Current page, 2: Total pages.
+#: build/student.js:7
+#, js-format
+msgid "Page %1$d of %2$d"
+msgstr ""
+
+#: build/student.js:7
+#: build/student.js:24
+msgid "Next"
+msgstr ""
+
+#: build/student.js:7
 msgid "Start exam"
 msgstr ""
 
-#: build/student.js:5
+#: build/student.js:7
 msgid "Finish exam"
 msgstr ""
 
-#: build/student.js:5
+#: build/student.js:7
 msgid "Exam completed"
 msgstr ""
 
-#: build/student.js:5
+#: build/student.js:7
 msgid "Start test"
 msgstr ""
 
-#: build/student.js:5
+#: build/student.js:7
 msgid "Finish test"
 msgstr ""
 
-#: build/student.js:5
+#: build/student.js:7
 msgid "Test completed"
 msgstr ""
 
-#: build/student.js:5
+#: build/student.js:7
 msgid "The submission could not be completed."
 msgstr ""
 
-#: build/student.js:5
+#: build/student.js:7
 msgid "The exam is open for participation."
 msgstr ""
 
 #. translators: %s: Countdown until the exam starts.
-#: build/student.js:6
+#: build/student.js:8
 #, js-format
 msgid "Starts in %s"
 msgstr ""
 
 #. translators: %d: Number of days.
-#: build/student.js:8
+#: build/student.js:10
 #, js-format
 msgid "%d day"
 msgid_plural "%d days"
 msgstr[0] ""
 msgstr[1] ""
 
-#: build/student.js:10
+#: build/student.js:12
 msgid "Starting…"
 msgstr ""
 
-#: build/student.js:11
+#: build/student.js:13
 msgid "Free"
 msgstr ""
 
-#: build/student.js:11
+#: build/student.js:13
 msgid "Not set"
 msgstr ""
 
 #. translators: %s: Grade number.
-#: build/student.js:12
+#: build/student.js:14
 #, js-format
 msgid "Grade %s"
 msgstr ""
 
-#: build/student.js:12
+#: build/student.js:14
 msgid "Section"
 msgstr ""
 
-#: build/student.js:12
+#: build/student.js:14
 msgid "Enter without the leading zero"
 msgstr ""
 
-#: build/student.js:12
+#: build/student.js:14
 msgid "Using information from your account."
 msgstr ""
 
-#: build/student.js:12
+#: build/student.js:14
+msgid "Your first name, other name initials, score, and duration will be visible to everyone in the participant list after results are released."
+msgstr ""
+
+#: build/student.js:14
+msgid "Your first name, other name initials, score, and duration will be visible to signed-in members in the participant list after results are released."
+msgstr ""
+
+#: build/student.js:14
 msgid "Class and section are required."
 msgstr ""
 
 #. translators: 1: School class number. 2: Section letter.
-#: build/student.js:14
+#: build/student.js:16
 #, js-format
 msgid "Grade %1$s, section %2$s"
 msgstr ""
 
 #. translators: %s: Assessment type.
-#: build/student.js:15
+#: build/student.js:17
 #, js-format
 msgid "The %s could not be started."
 msgstr ""
 
 #. translators: %s: Assessment type.
-#: build/student.js:16
+#: build/student.js:18
 #, js-format
 msgid "The %s could not be opened."
 msgstr ""
 
 #. translators: %s: Assessment type.
-#: build/student.js:17
+#: build/student.js:19
 #, js-format
 msgid "%s in progress"
 msgstr ""
 
-#: build/student.js:17
+#: build/student.js:19
 msgid "You have exited full screen. Your answers are preserved. Use the button below to return to full screen mode."
 msgstr ""
 
-#: build/student.js:17
-#: build/student.js:18
+#: build/student.js:19
+#: build/student.js:20
 msgid "Time remaining"
 msgstr ""
 
-#: build/student.js:17
+#: build/student.js:19
 msgid "Return to test"
 msgstr ""
 
-#: build/student.js:17
+#: build/student.js:19
 msgid "Return to exam"
 msgstr ""
 
-#: build/student.js:17
+#: build/student.js:19
 msgid "Time is up. Your answers are being submitted…"
 msgstr ""
 
 #. translators: %s: Assessment type.
-#: build/student.js:18
+#: build/student.js:20
 #, js-format
 msgid "Finishing %s…"
 msgstr ""
 
-#: build/student.js:18
+#: build/student.js:20
 msgid "Please wait."
 msgstr ""
 
-#: build/student.js:18
+#: build/student.js:20
 msgid "Unlimited"
 msgstr ""
 
-#: build/student.js:18
+#: build/student.js:20
 msgid "Exit full screen"
 msgstr ""
 
-#: build/student.js:18
+#: build/student.js:20
 msgid "There is no internet connection. Your answers are safe in this browser and will be submitted when the connection returns."
 msgstr ""
 
-#: build/student.js:18
-#: build/student.js:22
-#: build/student.js:29
+#: build/student.js:20
+#: build/student.js:24
+#: build/student.js:31
 msgid "Close"
 msgstr ""
 
 #. translators: 1: Question number. 2: Answer state. 3: Flag state.
-#: build/student.js:19
+#: build/student.js:21
 #, js-format
 msgid "Question %1$d%2$s%3$s"
 msgstr ""
 
-#: build/student.js:19
+#: build/student.js:21
 msgid ", answered"
 msgstr ""
 
-#: build/student.js:19
+#: build/student.js:21
 msgid ", blank"
 msgstr ""
 
-#: build/student.js:19
+#: build/student.js:21
 msgid ", flagged"
 msgstr ""
 
-#: build/student.js:20
+#: build/student.js:22
 msgid "Review later"
 msgstr ""
 
 #. translators: %d: Question number.
-#: build/student.js:21
+#: build/student.js:23
 #, js-format
 msgid "Answer for question %d"
 msgstr ""
 
-#: build/student.js:21
+#: build/student.js:23
 msgid "Clear"
 msgstr ""
 
-#: build/student.js:21
+#: build/student.js:23
 msgid "Correct answer."
 msgstr ""
 
 #. translators: %s: Correct answer option.
-#: build/student.js:22
+#: build/student.js:24
 #, js-format
 msgid "Wrong answer. Correct answer: %s"
 msgstr ""
 
-#: build/student.js:22
-msgid "Previous"
-msgstr ""
-
-#: build/student.js:22
-msgid "Next"
-msgstr ""
-
-#: build/student.js:22
+#: build/student.js:24
 msgid "Answer form"
 msgstr ""
 
-#: build/student.js:22
+#: build/student.js:24
 msgid "Marked for review"
 msgstr ""
 
 #. translators: 1: Answered question count. 2: Total question count.
-#: build/student.js:23
+#: build/student.js:25
 #, js-format
 msgid "Answer form (%1$d/%2$d)"
 msgstr ""
 
-#: build/student.js:23
+#: build/student.js:25
 msgid "Finish"
 msgstr ""
 
-#: build/student.js:23
+#: build/student.js:25
 msgid "Total"
 msgstr ""
 
-#: build/student.js:23
+#: build/student.js:25
 msgid "Answered"
 msgstr ""
 
 #. translators: %d: Number of unanswered questions.
-#: build/student.js:24
+#: build/student.js:26
 #, js-format
 msgid "You have %d unanswered question."
 msgid_plural "You have %d unanswered questions."
 msgstr[0] ""
 msgstr[1] ""
 
-#: build/student.js:24
+#: build/student.js:26
 msgid "You cannot change your answers after finishing."
 msgstr ""
 
-#: build/student.js:24
+#: build/student.js:26
 msgid "Go back"
 msgstr ""
 
-#: build/student.js:24
+#: build/student.js:26
 msgid "Finishing…"
 msgstr ""
 
-#: build/student.js:24
+#: build/student.js:26
 msgid "Confirm and finish"
 msgstr ""
 
-#: build/student.js:24
+#: build/student.js:26
 msgid "The image could not be loaded. Try again."
 msgstr ""
 
-#: build/student.js:24
+#: build/student.js:26
 msgid "Loading image…"
 msgstr ""
 
 #. translators: %d: Question number.
-#: build/student.js:25
+#: build/student.js:27
 #, js-format
 msgid "Question %d image"
 msgstr ""
 
-#: build/student.js:25
+#: build/student.js:27
 msgid "Your answers were saved"
 msgstr ""
 
-#: build/student.js:25
+#: build/student.js:27
 msgid "Results have not been released yet."
 msgstr ""
 
 #. translators: %s: Result release date and time.
-#: build/student.js:26
+#: build/student.js:28
 #, js-format
 msgid "You can view them on %s."
 msgstr ""
 
-#: build/student.js:26
-msgid "Try again"
-msgstr ""
-
-#: build/student.js:26
+#: build/student.js:28
 msgid "Participants"
 msgstr ""
 
-#: build/student.js:26
+#: build/student.js:28
 msgid "Review your answers"
 msgstr ""
 
 #. translators: %s: Question number.
-#: build/student.js:27
+#: build/student.js:29
 #, js-format
 msgid "Question %s"
 msgstr ""
 
 #. translators: %s: Selected answer option.
-#: build/student.js:28
+#: build/student.js:30
 #, js-format
 msgid "Your answer: %s"
 msgstr ""
 
 #. translators: %s: Correct answer option.
-#: build/student.js:29
+#: build/student.js:31
 #, js-format
 msgid "Correct: %s"
 msgstr ""
 
-#: build/student.js:32
+#: build/student.js:34
 msgid "Until the end date"
 msgstr ""

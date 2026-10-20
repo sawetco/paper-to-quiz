@@ -11,6 +11,7 @@ use PaperToQuiz\Infrastructure\Settings;
 
 final class AttemptService {
 	private const RETENTION_CLEANUP_BATCH_SIZE = 100;
+	private RankingService $rankings;
 
 	/**
 	 * Request-scoped memo for AssessmentService::get_revision() results.
@@ -37,6 +38,7 @@ final class AttemptService {
 		private readonly AssessmentService $assessments,
 		private readonly Crypto $crypto
 	) {
+		$this->rankings = new RankingService($db);
 	}
 
 	/**
@@ -147,11 +149,36 @@ final class AttemptService {
 			'duration_seconds'   => $revision['duration_seconds'] ? (int) $revision['duration_seconds'] : null,
 			'allow_repeat'       => (bool) $revision['allow_repeat'],
 			'ranking_enabled'    => (bool) $revision['ranking_enabled'],
+			'ranking_list_enabled' => ! empty($revision['ranking_list_enabled']),
+			'ranking_list_available' => $this->ranking_list_available($record),
 			'participant_fields' => $this->participant_schema($revision),
 			'current_user'       => $this->current_user_data($revision),
 			'latest_attempt_public_id' => $latest_attempt_public_id ?: null,
 			'schedule'           => $this->schedule_payload($record),
 		);
+	}
+
+	private function ranking_list_available(array $record): bool {
+		$revision = $record['revision'];
+		$end = ! empty($revision['window_end_utc']) ? strtotime($revision['window_end_utc'] . ' UTC') : false;
+		$release = ! empty($revision['results_release_at_utc']) ? strtotime($revision['results_release_at_utc'] . ' UTC') : 0;
+		return $record['assessment']['status'] === 'published'
+			&& RankingService::enabled($revision, $record['assessment']['type'])
+			&& ! empty($revision['ranking_list_enabled'])
+			&& in_array($revision['result_visibility'], array('summary', 'detailed'), true)
+			&& $end && time() >= max($end, $release);
+	}
+
+	public function ranking_list(int $assessment_id, int $page, int $per_page, string $search): array|\WP_Error {
+		$record = $this->assessments->get($assessment_id, true);
+		$access = $this->public_access($record, $assessment_id, __('This item is currently unavailable.', 'paper-to-quiz'));
+		if (is_wp_error($access)) {
+			return $access;
+		}
+		if (! $this->ranking_list_available($record)) {
+			return new \WP_Error('paper_to_quiz_ranking_unavailable', __('The participant list is not available.', 'paper-to-quiz'), array('status' => 403));
+		}
+		return $this->rankings->listing((int) $record['revision']['id'], $page, $per_page, $search);
 	}
 
 	public function start(int $assessment_id, array $participant): array|\WP_Error {
@@ -787,7 +814,7 @@ final class AttemptService {
 		$ranked = ! empty($record['revision']['ranking_enabled']);
 		$where  = "t.assessment_id = %d AND t.status IN ('submitted','auto_submitted')";
 		if ($ranked) {
-			$where .= " AND t.participant_type = 'member' AND t.ranking_eligible = 1";
+			$where .= " AND t.ranking_eligible = 1 AND t.anonymized_at IS NULL AND t.integrity_status = 'on_time' AND t.revision_id = %d AND EXISTS (SELECT 1 FROM " . $this->db->table('ranking_entries') . " re WHERE re.attempt_id = t.id AND re.revision_id = t.revision_id)";
 		}
 		return $this->db->wpdb()->get_results(
 			$this->db->wpdb()->prepare(
@@ -802,7 +829,7 @@ final class AttemptService {
 				WHERE {$where}
 				GROUP BY ss.subject_id,s.name,s.sort_order ORDER BY s.sort_order,s.name",
 				__('Subject not specified', 'paper-to-quiz'),
-				$assessment_id
+				...array_merge(array($assessment_id), $ranked ? array((int) $record['revision']['id']) : array())
 			),
 			ARRAY_A
 		) ?: array();
@@ -904,11 +931,12 @@ final class AttemptService {
 				$this->db->table('attempts'),
 				array(
 					'wp_user_id'       => null,
+					'ranking_eligible' => 0,
 					'participant_data' => null,
 					'anonymized_at'    => current_time('mysql', true),
 				),
 				array('id' => $attempt_id),
-				array('%d', '%s', '%s'),
+				array('%d', '%d', '%s', '%s'),
 				array('%d')
 			);
 			if ($deleted === false || $updated === false) {
@@ -1357,7 +1385,7 @@ final class AttemptService {
 			$revision  = $this->revision((int) $attempt['revision_id']);
 			$total     = max(1, (int) $revision['total_points']);
 			$late      = $this->is_past_grace($attempt);
-			$eligible  = ! $late && $attempt['participant_type'] === 'member' && ! empty($revision['ranking_enabled']) && ! empty($attempt['wp_user_id']);
+			$eligible  = ! $late && RankingService::enabled($revision, 'exam') && empty($attempt['anonymized_at']);
 			$submitted = gmdate('Y-m-d H:i:s', $now);
 			$affected = $this->db->write(
 				'finalize_attempt_close',
@@ -1424,21 +1452,19 @@ final class AttemptService {
 			}
 
 			if ($eligible) {
+				$label = ! empty($revision['ranking_list_enabled'])
+					? RankingService::public_label($this->crypto->decrypt_array($attempt['participant_data'])) : null;
 				$ranking_inserted = $this->db->write(
 					'finalize_ranking_insert',
-					fn (): int|bool => $this->db->wpdb()->query(
-						$this->db->wpdb()->prepare(
-							'INSERT IGNORE INTO ' . $this->db->table('ranking_entries') . ' (revision_id,wp_user_id,attempt_id,score,duration_seconds,submitted_at) VALUES (%d,%d,%d,%d,%d,%s)',
-							(int) $attempt['revision_id'],
-							(int) $attempt['wp_user_id'],
-							(int) $attempt['id'],
-							$score,
-							$duration,
-							$submitted
-						)
-					)
+					fn (): int|false => $this->db->wpdb()->insert($this->db->table('ranking_entries'), array(
+						'revision_id' => (int) $attempt['revision_id'],
+						'wp_user_id' => $attempt['wp_user_id'] ? (int) $attempt['wp_user_id'] : null,
+						'attempt_id' => (int) $attempt['id'], 'score' => $score,
+						'duration_seconds' => $duration, 'submitted_at' => $submitted,
+						'public_label' => $label, 'public_search' => $label !== null ? RankingService::search_name($label) : null,
+					))
 				);
-				if (false === $ranking_inserted) {
+				if (1 !== $ranking_inserted) {
 					throw new \RuntimeException('Ranking entry insertion failed.');
 				}
 			}
@@ -1455,7 +1481,8 @@ final class AttemptService {
 
 	private function result_payload(array $attempt): array {
 		$content_revision = $this->revision((int) $attempt['revision_id']);
-		$revision = $this->current_policy($attempt) ?: $content_revision;
+		$policy_record = $this->assessments->get((int) $attempt['assessment_id'], true);
+		$revision = $policy_record['revision'] ?? $content_revision;
 		$visible  = $revision['result_visibility'];
 		$release  = $revision['results_release_at_utc'] ? strtotime((string) $revision['results_release_at_utc'] . ' UTC') : null;
 		$release_pending = $release && time() < $release;
@@ -1483,6 +1510,7 @@ final class AttemptService {
 			'can_retry'        => $can_retry,
 			'integrity_status' => (string) ($attempt['integrity_status'] ?? 'on_time'),
 			'ranking_eligible' => ! empty($attempt['ranking_eligible']),
+			'ranking_list_available' => $policy_record && (int) $revision['id'] === (int) $attempt['revision_id'] && $this->ranking_list_available($policy_record),
 			'score_precision'  => $fractional ? 2 : 0,
 			'answer_key_visible' => $revision['feedback_timing'] !== 'never',
 		);
@@ -1518,9 +1546,9 @@ final class AttemptService {
 			) ?: array();
 		}
 		if (in_array($visible, array('summary', 'detailed'), true)) {
-			$result['subjects'] = $this->subject_scores((int) $attempt['id']);
-			if ($attempt['participant_type'] === 'member' && ! empty($revision['ranking_enabled']) && ! empty($attempt['ranking_eligible'])) {
-				$result['ranking'] = $this->ranking((int) $attempt['revision_id'], (int) $attempt['wp_user_id']);
+			$result['subjects'] = $this->subject_scores((int) $attempt['id'], ! empty($content_revision['ranking_enabled']) && ! empty($revision['ranking_enabled']));
+			if (! empty($content_revision['ranking_enabled']) && ! empty($revision['ranking_enabled']) && ! empty($attempt['ranking_eligible'])) {
+				$result['ranking'] = $this->rankings->rank((int) $attempt['revision_id'], (int) $attempt['id']);
 			}
 		}
 		return $result;
@@ -1559,12 +1587,7 @@ final class AttemptService {
 		);
 	}
 
-	private function current_policy(array $attempt): ?array {
-		$record = $this->assessments->get((int) $attempt['assessment_id'], true);
-		return $record && is_array($record['revision']) ? $record['revision'] : null;
-	}
-
-	private function subject_scores(int $attempt_id): array {
+	private function subject_scores(int $attempt_id, bool $include_ranking = true): array {
 		$attempt = $this->attempt_by_id($attempt_id);
 		$rows = $this->db->wpdb()->get_results(
 			$this->db->wpdb()->prepare(
@@ -1578,7 +1601,7 @@ final class AttemptService {
 			ARRAY_A
 		) ?: array();
 		return array_map(
-			function (array $row) use ($attempt): array {
+			function (array $row) use ($attempt, $include_ranking): array {
 				$result = array(
 				'subject_id' => (int) $row['subject_id'],
 				'name'       => (string) $row['subject_name'],
@@ -1589,88 +1612,15 @@ final class AttemptService {
 				'max_score'  => (int) $row['max_score'],
 				'percentage' => (float) $row['percentage'],
 				);
-				if ($attempt && ! empty($attempt['ranking_eligible'])) {
-					$total = (int) $this->db->wpdb()->get_var(
-						$this->db->wpdb()->prepare(
-							'SELECT COUNT(*) FROM ' . $this->db->table('attempt_subject_scores') . ' ss
-							JOIN ' . $this->db->table('attempts') . ' t ON t.id = ss.attempt_id
-							WHERE ss.revision_id = %d AND ss.subject_id = %d AND t.ranking_eligible = 1',
-							(int) $attempt['revision_id'],
-							(int) $row['subject_id']
-						)
-					);
-					$ahead = (int) $this->db->wpdb()->get_var(
-						$this->db->wpdb()->prepare(
-							'SELECT COUNT(*) FROM ' . $this->db->table('attempt_subject_scores') . ' ss
-							JOIN ' . $this->db->table('attempts') . ' t ON t.id = ss.attempt_id
-							WHERE ss.revision_id = %d AND ss.subject_id = %d AND t.ranking_eligible = 1 AND (
-								ss.score > %d OR
-								(ss.score = %d AND t.duration_seconds < %d) OR
-								(ss.score = %d AND t.duration_seconds = %d AND t.submitted_at < %s)
-							)',
-							(int) $attempt['revision_id'],
-							(int) $row['subject_id'],
-							(int) $row['score'],
-							(int) $row['score'],
-							(int) $attempt['duration_seconds'],
-							(int) $row['score'],
-							(int) $attempt['duration_seconds'],
-							(string) $attempt['submitted_at']
-						)
-					);
-					$rank = $ahead + 1;
-					$result['ranking'] = array(
-						'rank'       => $rank,
-						'total'      => $total,
-						'percentile' => $total ? round((($total - $rank + 1) / $total) * 100, 2) : 100,
-					);
+				if ($include_ranking && $attempt && ! empty($attempt['ranking_eligible'])) {
+					$ranking = $this->rankings->subject_rank($attempt, $row);
+					if ($ranking) {
+						$result['ranking'] = $ranking;
+					}
 				}
 				return $result;
 			},
 			$rows
-		);
-	}
-
-	private function ranking(int $revision_id, int $user_id): ?array {
-		$entry = $this->db->wpdb()->get_row(
-			$this->db->wpdb()->prepare(
-				'SELECT * FROM ' . $this->db->table('ranking_entries') . ' WHERE revision_id = %d AND wp_user_id = %d',
-				$revision_id,
-				$user_id
-			),
-			ARRAY_A
-		);
-		if (! $entry) {
-			return null;
-		}
-		$total = (int) $this->db->wpdb()->get_var(
-			$this->db->wpdb()->prepare(
-				'SELECT COUNT(*) FROM ' . $this->db->table('ranking_entries') . ' WHERE revision_id = %d',
-				$revision_id
-			)
-		);
-		$ahead = (int) $this->db->wpdb()->get_var(
-			$this->db->wpdb()->prepare(
-				'SELECT COUNT(*) FROM ' . $this->db->table('ranking_entries') . '
-				WHERE revision_id = %d AND (
-					score > %d OR
-					(score = %d AND duration_seconds < %d) OR
-					(score = %d AND duration_seconds = %d AND submitted_at < %s)
-				)',
-				$revision_id,
-				(int) $entry['score'],
-				(int) $entry['score'],
-				(int) $entry['duration_seconds'],
-				(int) $entry['score'],
-				(int) $entry['duration_seconds'],
-				$entry['submitted_at']
-			)
-		);
-		$rank = $ahead + 1;
-		return array(
-			'rank'       => $rank,
-			'total'      => $total,
-			'percentile' => $total ? round((($total - $rank + 1) / $total) * 100, 2) : 100,
 		);
 	}
 

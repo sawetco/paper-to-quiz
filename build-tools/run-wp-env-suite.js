@@ -161,6 +161,13 @@ try {
 			env: {
 				PTQ_BASE_URL: selected.url,
 				PTQ_E2E_ASSESSMENT_ID: match[ 1 ],
+				PTQ_E2E_RANKING_PUBLIC: fixture.stdout.match(
+					/PTQ_E2E_RANKING_PUBLIC=(\d+)/
+				)?.[ 1 ],
+				PTQ_E2E_RANKING_MEMBER: fixture.stdout.match(
+					/PTQ_E2E_RANKING_MEMBER=(\d+)/
+				)?.[ 1 ],
+				PTQ_E2E_WP_CONFIG: selected.config,
 			},
 		} );
 	}

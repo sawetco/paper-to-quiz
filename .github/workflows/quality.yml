@@ -37,9 +37,31 @@ jobs:
       - run: npm run plugin-zip
       - name: Extract distribution
         run: unzip paper-to-quiz.zip -d plugin-check-build
-      - uses: wordpress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1.1.9
+      - name: Prepare isolated package check
+        run: |
+          node -e "const fs=require('node:fs'),path=require('node:path');fs.mkdirSync('.wp-env-home',{recursive:true});fs.writeFileSync('.wp-env-home/plugin-check.json',JSON.stringify({core:'WordPress/WordPress#7.1.3',phpVersion:'8.1',port:8894,testsEnvironment:false,plugins:[],mappings:{'wp-content/plugins/paper-to-quiz':path.resolve('plugin-check-build/paper-to-quiz')},config:{WP_ENVIRONMENT_TYPE:'local'}}));"
+      - name: Run Plugin Check with locked tooling
+        env:
+          WP_ENV_HOME: ${{ github.workspace }}/.wp-env-home/plugin-check
+        run: |
+          npx wp-env --config .wp-env-home/plugin-check.json start
+          npx wp-env --config .wp-env-home/plugin-check.json run cli wp plugin install plugin-check --activate
+          npx wp-env --config .wp-env-home/plugin-check.json run cli wp plugin activate paper-to-quiz
+          npx wp-env --config .wp-env-home/plugin-check.json run cli wp plugin check paper-to-quiz --slug=paper-to-quiz --format=json --require=./wp-content/plugins/plugin-check/cli.php > "$RUNNER_TEMP/plugin-check-results.json"
+          cat "$RUNNER_TEMP/plugin-check-results.json"
+          node -e "const fs=require('node:fs');const output=fs.readFileSync(process.env.RUNNER_TEMP+'/plugin-check-results.json','utf8').trim();if(output!=='Success: Checks complete. No errors found.'){const issues=JSON.parse(output);if(!Array.isArray(issues)||issues.length)process.exit(1);}"
+      - if: always()
+        name: Stop package check environment
+        env:
+          WP_ENV_HOME: ${{ github.workspace }}/.wp-env-home/plugin-check
+        run: npx wp-env --config .wp-env-home/plugin-check.json stop
+      - if: failure()
+        name: Upload package check diagnostics
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          build-dir: ./plugin-check-build/paper-to-quiz
+          name: plugin-check-results
+          path: ${{ runner.temp }}/plugin-check-results.json
+          if-no-files-found: ignore
 
   php-syntax:
     runs-on: ubuntu-latest
@@ -68,6 +90,8 @@ jobs:
       - run: npm run env:start
       - run: npm run env:install
       - run: npm run test:php
+      - name: Verify ranking without optional mbstring case conversion
+        run: npx wp-env run cli php -d disable_functions=mb_strtolower wp-content/plugins/paper-to-quiz/vendor/bin/phpunit -c wp-content/plugins/paper-to-quiz/phpunit.xml.dist --filter RankingTest
       - if: always()
         name: Stop wp-env
         run: npm run env:stop

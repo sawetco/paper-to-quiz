@@ -11,6 +11,17 @@ final class PublicController {
 	}
 
 	public function register_routes(): void {
+		register_rest_route('paper-to-quiz/v1', '/assessments/(?P<id>\d+)/ranking', array(
+			'methods' => \WP_REST_Server::READABLE,
+			'callback' => array($this, 'ranking'),
+			'permission_callback' => '__return_true',
+			'args' => array(
+				'id' => $this->positive_integer_arg(),
+				'page' => array('type' => 'integer', 'minimum' => 1, 'maximum' => 1000000, 'default' => 1, 'validate_callback' => 'rest_validate_request_arg'),
+				'per_page' => array('type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'default' => 20, 'validate_callback' => 'rest_validate_request_arg'),
+				'search' => array('type' => 'string', 'maxLength' => 80, 'default' => '', 'sanitize_callback' => 'sanitize_text_field', 'validate_callback' => 'rest_validate_request_arg'),
+			),
+		));
 		register_rest_route(
 			'paper-to-quiz/v1',
 			'/assessments/(?P<id>\d+)/bootstrap',
@@ -148,6 +159,52 @@ final class PublicController {
 				),
 			)
 		);
+	}
+
+	public function ranking(\WP_REST_Request $request): \WP_REST_Response {
+		$id = (int) $request['id'];
+		$limited = $this->ranking_rate_limit($id);
+		$result = is_wp_error($limited) ? $limited : $this->attempts->ranking_list($id, (int) $request['page'], (int) $request['per_page'], (string) $request['search']);
+		$response = is_wp_error($result) ? rest_convert_error_to_response($result) : rest_ensure_response($result);
+		$response->header('Cache-Control', 'private, no-store, max-age=0');
+		if ($response->get_status() === 429) {
+			$response->header('Retry-After', '60');
+		}
+		return $response;
+	}
+
+	/** Atomic fixed-window counter; independent of participation request limits. */
+	private function ranking_rate_limit(int $id): bool|\WP_Error {
+		$ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'unknown';
+		$window = (int) floor(time() / MINUTE_IN_SECONDS);
+		$key = 'paper_to_quiz_ranking_rate_' . substr(hash_hmac('sha256', $id . '|' . $ip . '|' . $window, wp_salt('nonce')), 0, 40);
+		if (wp_using_ext_object_cache()) {
+			$hits = wp_cache_add($key, 1, 'paper_to_quiz_ranking', 2 * MINUTE_IN_SECONDS)
+				? 1 : wp_cache_incr($key, 1, 'paper_to_quiz_ranking');
+		} else {
+			global $wpdb;
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic counters bypass option caches; WordPress expires their transient rows.
+			// Register expiry first, so interrupted requests cannot leave immortal counters.
+			$expires = $wpdb->query($wpdb->prepare(
+				'INSERT IGNORE INTO %i (option_name,option_value,autoload) VALUES (%s,%s,%s)',
+				$wpdb->options, '_transient_timeout_' . $key, (string) (time() + 2 * MINUTE_IN_SECONDS), 'off'
+			));
+			$written = false === $expires ? false : $wpdb->query($wpdb->prepare(
+				'INSERT INTO %i (option_name,option_value,autoload) VALUES (%s,%s,%s)
+				ON DUPLICATE KEY UPDATE option_value = LEAST(121,CAST(option_value AS UNSIGNED) + 1)',
+				$wpdb->options, '_transient_' . $key, '1', 'off'
+			));
+			$hits = false === $written ? false : $wpdb->get_var($wpdb->prepare(
+				'SELECT option_value FROM %i WHERE option_name = %s', $wpdb->options, '_transient_' . $key
+			));
+			$hits = null === $hits ? false : $hits;
+			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		}
+		if (false === $hits) {
+			return new \WP_Error('paper_to_quiz_ranking_limit_unavailable', __('The participant list is temporarily unavailable.', 'paper-to-quiz'), array('status' => 503));
+		}
+		return (int) $hits > 120
+			? new \WP_Error('paper_to_quiz_ranking_rate_limited', __('Too many ranking requests. Please wait a minute.', 'paper-to-quiz'), array('status' => 429)) : true;
 	}
 
 	public function bootstrap(\WP_REST_Request $request): \WP_REST_Response|\WP_Error {

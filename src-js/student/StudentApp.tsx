@@ -7,6 +7,7 @@ import {
 } from '@wordpress/element';
 import { __, _n, sprintf } from '@wordpress/i18n';
 import { studentApi, StudentApiError } from './api';
+import { RankingList } from './RankingList';
 import {
 	deleteDraft,
 	deleteReceipt,
@@ -52,6 +53,8 @@ type Bootstrap = {
 	duration_seconds?: number;
 	allow_repeat: boolean;
 	ranking_enabled: boolean;
+	ranking_list_enabled?: boolean;
+	ranking_list_available?: boolean;
 	participant_fields: Field[];
 	current_user?: Record< string, string | number >;
 	latest_attempt_public_id?: string | null;
@@ -112,6 +115,7 @@ type Result = {
 	can_retry: boolean;
 	integrity_status: 'on_time' | 'late_recovered' | 'expired';
 	ranking_eligible: boolean;
+	ranking_list_available?: boolean;
 	score_precision: 0 | 2;
 	answer_key_visible: boolean;
 	document?: {
@@ -822,24 +826,33 @@ export function StudentApp( {
 	}
 	if ( result ) {
 		return (
-			<ResultView
-				result={ result }
-				attempt={ attempt }
-				token={ token }
-				nonce={ nonce }
-				type={ bootstrap?.type || 'test' }
-				onRetry={ async () => {
-					await deleteDraft( assessmentId );
-					await deleteReceipt( assessmentId );
-					draftRef.current = null;
-					setAttempt( null );
-					setResult( null );
-					setAnswers( {} );
-					setActive( 0 );
-					setFocusMode( false );
-					autoSubmitting.current = false;
-				} }
-			/>
+			<>
+				<ResultView
+					result={ result }
+					attempt={ attempt }
+					token={ token }
+					nonce={ nonce }
+					type={ bootstrap?.type || 'test' }
+					onRetry={ async () => {
+						await deleteDraft( assessmentId );
+						await deleteReceipt( assessmentId );
+						draftRef.current = null;
+						setAttempt( null );
+						setResult( null );
+						setAnswers( {} );
+						setActive( 0 );
+						setFocusMode( false );
+						autoSubmitting.current = false;
+					} }
+				/>
+				{ result.ranking_list_available && (
+					<RankingList
+						assessmentId={ assessmentId }
+						restRoot={ restRoot }
+						nonce={ nonce }
+					/>
+				) }
+			</>
 		);
 	}
 	if ( ! attempt && bootstrap ) {
@@ -1132,6 +1145,26 @@ export function StudentApp( {
 							} ) }
 						</div>
 					) }
+				{ bootstrap.ranking_list_enabled && (
+					<p className="ptq-notice">
+						{ bootstrap.access_mode === 'guest_allowed'
+							? __(
+									'Your first name, other name initials, score, and duration will be visible to everyone in the participant list after results are released.',
+									'paper-to-quiz'
+								)
+							: __(
+									'Your first name, other name initials, score, and duration will be visible to signed-in members in the participant list after results are released.',
+									'paper-to-quiz'
+								) }
+					</p>
+				) }
+				{ bootstrap.ranking_list_available && (
+					<RankingList
+						assessmentId={ assessmentId }
+						restRoot={ restRoot }
+						nonce={ nonce }
+					/>
+				) }
 				<button
 					type="button"
 					className="ptq-primary"

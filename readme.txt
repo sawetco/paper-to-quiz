@@ -4,7 +4,7 @@ Tags: quiz, exam, pdf, education, test
 Requires at least: 6.8
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 1.1.6
+Stable tag: 1.2.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -82,6 +82,12 @@ data export and erasure tools. Administrators can choose how long participant
 identity and contact data is kept before automatic anonymization; anonymous
 scores and statistics remain available.
 
+If the administrator separately enables a participant list, masked names, scores,
+and durations become visible after the exam and result release time. Public exam
+lists are visible to everyone; membership-required lists use the exam's access
+checks. Only the displayed masked name and its search form are stored unencrypted.
+Original identity fields remain encrypted, and anonymization removes list entries.
+
 == Development ==
 
 Human-readable source code and build instructions are included with the plugin.
@@ -89,6 +95,15 @@ The current development source is available at
 https://github.com/sawetco/paper-to-quiz.
 
 == Changelog ==
+
+= 1.2.0 =
+
+* Enable rankings for both public and membership-required, non-repeatable exams.
+* Optionally publish a searchable, paginated participant list with masked names after the exam and result release time.
+* Rank guest submissions without requiring an account; guest entries do not verify unique individuals.
+* Preserve existing results and member rankings without retroactively ranking past guest submissions or enabling public lists.
+* Upgrade ranking storage safely and remove ranking identities consistently during privacy erasure and retention cleanup.
+* Verify WordPress 7.1.3 and WordPress 6.8.8/PHP 8.1 compatibility, release packages, access controls, and ranking regressions.
 
 = 1.1.6 =
 

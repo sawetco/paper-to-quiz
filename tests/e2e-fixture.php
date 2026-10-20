@@ -30,8 +30,8 @@ $cleanup = static function () use ($db, $purge, $title): void {
 		'intval',
 		$db->wpdb()->get_col(
 			$db->wpdb()->prepare(
-				'SELECT DISTINCT assessment_id FROM ' . $db->table('revisions') . ' WHERE title = %s',
-				$title
+				'SELECT DISTINCT assessment_id FROM ' . $db->table('revisions') . ' WHERE title = %s OR title LIKE %s',
+				$title, 'PTQ E2E Ranking %'
 			)
 		) ?: array()
 	);
@@ -41,6 +41,17 @@ $cleanup = static function () use ($db, $purge, $title): void {
 		if (is_wp_error($result)) {
 			throw new RuntimeException('The E2E assessment fixture could not be removed.');
 		}
+	}
+	foreach (array('public', 'member') as $variant) {
+		$page = get_page_by_path('ptq-e2e-ranking-' . $variant);
+		if ($page) {
+			wp_delete_post((int) $page->ID, true);
+		}
+	}
+	$member = get_user_by('login', 'ptq_e2e_ranking_member');
+	if ($member) {
+		require_once ABSPATH . 'wp-admin/includes/user.php';
+		wp_delete_user((int) $member->ID);
 	}
 	$db->wpdb()->query(
 		$db->wpdb()->prepare(
@@ -115,3 +126,4 @@ if (is_wp_error($attached)) {
 }
 
 echo 'PTQ_E2E_ASSESSMENT_ID=' . (int) $created['assessment']['id'] . "\n";
+require __DIR__ . '/ranking-e2e-fixture.php';

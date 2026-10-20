@@ -111,7 +111,7 @@ final class PrivacyManager {
 		wp_add_privacy_policy_content(
 			__('Paper to Quiz', 'paper-to-quiz'),
 			wpautop(
-				__('This site may store the identity fields enabled by the administrator (such as first name, last name, school, class section, email, and phone number), your answers, duration, and score. These fields are encrypted at rest. For exams that require membership, your WordPress user ID is associated with the result. Data is anonymized after the configured retention period and is not sent to third parties.', 'paper-to-quiz')
+				__('This site may store the identity fields enabled by the administrator (such as first name, last name, school, class section, email, and phone number), your answers, duration, and score. These fields are encrypted at rest. For exams that require membership, your WordPress user ID is associated with the result. When an administrator enables the participant list, your first name, other name initials, score, and duration are published after the exam and result release time. Public exam lists are visible to everyone; membership-required lists are visible to signed-in members. Only the masked public name and its search form are stored unencrypted for this list. Original identity fields remain encrypted. Guest rankings count submissions, not verified individuals. Data is anonymized after the configured retention period and is not sent to third parties.', 'paper-to-quiz')
 			)
 		);
 	}
