@@ -49,7 +49,7 @@ jobs:
           npx wp-env --config .wp-env-home/plugin-check.json run cli wp plugin activate paper-to-quiz
           npx wp-env --config .wp-env-home/plugin-check.json run cli wp plugin check paper-to-quiz --slug=paper-to-quiz --format=json --require=./wp-content/plugins/plugin-check/cli.php > "$RUNNER_TEMP/plugin-check-results.json"
           cat "$RUNNER_TEMP/plugin-check-results.json"
-          node -e "const fs=require('node:fs');const issues=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/plugin-check-results.json','utf8'));if(!Array.isArray(issues)||issues.length)process.exit(1);"
+          node -e "const fs=require('node:fs');const output=fs.readFileSync(process.env.RUNNER_TEMP+'/plugin-check-results.json','utf8').trim();if(output!=='Success: Checks complete. No errors found.'){const issues=JSON.parse(output);if(!Array.isArray(issues)||issues.length)process.exit(1);}"
       - if: always()
         name: Stop package check environment
         env:
