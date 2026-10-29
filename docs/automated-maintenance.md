@@ -9,3 +9,5 @@ Failed jobs are retried once. Persistent failures and decisions appear in one as
 Actions use read-only permissions by default. The maintenance job alone has the permissions needed to merge, retry, dispatch and maintain its issue. CODEOWNERS documents responsibility; an independent approval is not required for a sole maintainer. Secrets must stay in GitHub/Vercel settings and never in commits or artifacts.
 
 Product changes prepare a version PR automatically (patch by default; conventional `feat:` commits choose a minor). Breaking changes require a reviewed major. After full checks, the tested ZIP is released to GitHub and SVN; publication completes only after WordPress.org serves identical files. `SVN_USERNAME` and `SVN_PASSWORD` are repository Actions secrets. A failed Release can be rerun for the same version without overwriting an existing different tag.
+
+Public repository CodeQL uses the explicit workflow so generated version/contribution PRs can dispatch the same source analyses. Both language jobs are required, including for bot-generated changes; scheduled scans remain fresh.

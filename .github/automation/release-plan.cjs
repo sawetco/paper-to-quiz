@@ -46,6 +46,6 @@ module.exports=async({github,context,core})=>{
  const pr=(await api.pulls.create({owner,repo,head:'automation/release',base:branch,title:`chore(release): ${next}`,body:'Automatically prepared from tested product changes. Version metadata and distribution channels are validated before publication. This PR is merged only when all required checks succeed.'})).data;
  try{await api.issues.getLabel({owner,repo,name:'automation:release'});}catch(e){if(e.status!==404)throw e;await api.issues.createLabel({owner,repo,name:'automation:release',color:'1d76db'});}
  await api.issues.addLabels({owner,repo,issue_number:pr.number,labels:['automation:release']});
- for(const workflow_id of ['quality.yml','security.yml'])await api.actions.createWorkflowDispatch({owner,repo,workflow_id,ref:'automation/release'});
+ for(const workflow_id of ['quality.yml','security.yml','codeql.yml'])await api.actions.createWorkflowDispatch({owner,repo,workflow_id,ref:'automation/release'});
  await core.summary.addRaw(`Prepared [release ${next}](${pr.html_url}); exact source checks were explicitly dispatched.`).write();
 };

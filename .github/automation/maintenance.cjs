@@ -101,6 +101,7 @@ module.exports = async ({github,context,core}) => {
       // GITHUB_TOKEN writes do not trigger push workflows. Dispatch source-only checks explicitly for the actual merge commit.
       await dispatch(config.qualityWorkflow,defaultBranch);
       if(config.securityWorkflow)await dispatch(config.securityWorkflow,defaultBranch);
+      for(const workflow of config.supplementalWorkflows || [])await dispatch(workflow,defaultBranch);
       if(release)await dispatch('release.yml',defaultBranch);
       else if(config.releaseFiles)await dispatch('release-plan.yml',defaultBranch);
       break; // Serialize merges: the next PR must be tested against this new base.

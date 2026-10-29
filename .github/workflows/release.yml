@@ -68,8 +68,10 @@ jobs:
         with:
           script: |
             const result = await github.rest.checks.listForRef({...context.repo, ref:context.sha, per_page:100});
-            const checks = result.data.check_runs.filter(c=>c.name==='Security checks'&&c.app?.slug==='github-actions').sort((a,b)=>b.id-a.id);
-            if(checks[0]?.conclusion!=='success')throw Error('The exact release source must pass Security checks');
+            for(const name of ['Security checks','Analyze (javascript-typescript)','Analyze (actions)']){
+              const checks=result.data.check_runs.filter(c=>c.name===name&&c.app?.slug==='github-actions').sort((a,b)=>b.id-a.id);
+              if(checks[0]?.conclusion!=='success')throw Error('The exact release source must pass '+name);
+            }
       - name: Create an immutable source tag and draft release
         shell: bash
         run: |

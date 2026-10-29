@@ -1,7 +1,7 @@
 name: Autonomous maintenance
 on:
   workflow_run:
-    workflows: ["Quality", "Release", "Security", "Plan product release"]
+    workflows: ["Quality", "Release", "Security", "CodeQL", "Plan product release"]
     types: [completed]
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
