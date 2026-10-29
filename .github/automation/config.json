@@ -1,0 +1,23 @@
+{
+  "requiredChecks": [
+    "Release readiness",
+    "Security checks"
+  ],
+  "workflowNames": [
+    "Quality",
+    "Release",
+    "Security"
+  ],
+  "qualityWorkflow": "quality.yml",
+  "securityWorkflow": "security.yml",
+  "monitoredWorkflows": [
+    "Plan product release"
+  ],
+  "releaseFiles": [
+    "package.json",
+    "package-lock.json",
+    "paper-to-quiz.php",
+    "readme.txt",
+    "languages/paper-to-quiz.pot"
+  ]
+}

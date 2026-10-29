@@ -1,0 +1,26 @@
+rules:
+  - id: dynamic-javascript-evaluation
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Do not evaluate dynamically constructed source code.
+    patterns:
+      - pattern-either:
+          - pattern: eval($INPUT)
+          - pattern: new Function(...)
+      - pattern-not: eval("...")
+    paths:
+      exclude: ["**/tests/**", "**/test/**", "**/*.test.*", "**/node_modules/**", "**/build/**", "**/.next/**"]
+  - id: disabled-tls-verification
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: TLS certificate verification must remain enabled.
+    pattern: "{rejectUnauthorized: false, ...}"
+    paths:
+      exclude: ["**/tests/**", "**/test/**", "**/*.test.*", "**/node_modules/**"]
+  - id: python-dynamic-evaluation
+    languages: [python]
+    severity: ERROR
+    message: Do not evaluate untrusted Python expressions.
+    pattern: eval($INPUT)
+    paths:
+      exclude: ["**/tests/**", "**/test_*.py"]

@@ -28,3 +28,5 @@ Thumbs.db
 /languages/paper-to-quiz-*.json
 /languages/paper-to-quiz-*.mo
 /languages/paper-to-quiz-*.po
+
+/.package-under-test/

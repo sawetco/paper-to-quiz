@@ -4,6 +4,7 @@ const { spawnSync } = require("node:child_process");
 const { fingerprint } = require("./security-patches");
 
 fingerprint();
+require("../.github/automation/verify-deepmerge.cjs").verify();
 const args = process.argv.slice(2);
 if (args.some((argument) => argument !== "--omit=dev"))
 	throw new Error("Only --omit=dev is supported.");
@@ -25,6 +26,7 @@ for (const [name, issue] of Object.entries(report.vulnerabilities)) {
 	for (const advisory of issue.via) {
 		if (typeof advisory === "object") {
 			const covered =
+                (name === "deepmerge" && advisory.url === "https://github.com/advisories/GHSA-gcqx-w48m-w2h4" && issue.nodes.every(node => node === "node_modules/deepmerge")) ||
 				mitigated.has(advisory.url) &&
 				["braces", "sprintf-js"].includes(name) &&
 				issue.nodes.every((node) => node === `node_modules/${name}`);

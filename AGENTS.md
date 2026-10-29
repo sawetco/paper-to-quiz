@@ -277,3 +277,7 @@ Behavior changes require JS lint, style lint, TypeScript, unit tests, and a
 production build. PHP changes also require syntax checks, Plugin Check/PHPCS as
 applicable, and the relevant local REST regression. A production behavior is
 verified only after checking the actual production environment.
+
+## Autonomous dependency maintenance
+
+See `docs/automated-maintenance.md`. The owner authorized tested minor/patch dependency auto-merges and automatic releases on 29 October 2026. Keep major/API/schema/formula changes under human review. Never weaken required checks to unblock automation. GitHub Actions owns quality and automation; Vercel Git integration owns web delivery. Vercel CI migration is out of scope.

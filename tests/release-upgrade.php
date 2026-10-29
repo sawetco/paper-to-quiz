@@ -51,7 +51,7 @@ if ($phase === 'seed') {
 	return;
 }
 
-paper_to_quiz_release_assert(PAPER_TO_QUIZ_VERSION === '1.2.0' && get_option('paper_to_quiz_db_version') === '1.1.0', 'The 1.2.0 ZIP did not upgrade its schema.');
+paper_to_quiz_release_assert(PAPER_TO_QUIZ_VERSION === (getenv('PTQ_EXPECTED_VERSION') ?: '1.2.0') && get_option('paper_to_quiz_db_version') === '1.1.0', 'The 1.2.0 ZIP did not upgrade its schema.');
 $column = $wpdb->get_row($wpdb->prepare('SHOW COLUMNS FROM %i LIKE %s', $db->table('ranking_entries'), 'wp_user_id'), ARRAY_A);
 paper_to_quiz_release_assert($column['Null'] === 'YES', 'Guest ranking IDs are not nullable.');
 paper_to_quiz_release_assert(Installer::repair_schema(), 'Reapplying the new schema was not idempotent.');

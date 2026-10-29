@@ -1,0 +1,37 @@
+name: Autonomous maintenance
+on:
+  workflow_run:
+    workflows: ["Quality", "Release", "Security", "Plan product release"]
+    types: [completed]
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+  schedule:
+    - cron: "41 3 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: autonomous-maintenance
+  cancel-in-progress: false
+jobs:
+  maintain:
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+      checks: read
+      issues: write
+    steps:
+      # Privileged events always execute the protected default branch, never PR code or artifacts.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          persist-credentials: false
+          sparse-checkout: .github/automation
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            await require('./.github/automation/maintenance.cjs')({github, context, core});
