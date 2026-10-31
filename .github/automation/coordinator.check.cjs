@@ -2,6 +2,8 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
+const actualExists = fs.existsSync;
+fs.existsSync = path => path === '.github/automation/security-review.json' ? false : actualExists(path);
 const maintenance=require('./maintenance.cjs');
 const config=JSON.parse(fs.readFileSync('.github/automation/config.json','utf8'));
 
@@ -10,7 +12,9 @@ function fixture(runs,existing=[]){
  const rest={
   repos:{get:async()=>({data:{default_branch:'main'}}),getBranch:async()=>({data:{commit:{sha:'current-source'}}})},
   pulls:{list:async()=>({data:[]})},
-  actions:{listWorkflowRunsForRepo:async()=>({data:{workflow_runs:runs}}),reRunWorkflowFailedJobs:async p=>calls.retried.push(p)},
+  actions: {
+      listRepoWorkflows: async () => ({data: [...config.workflowNames,...(config.monitoredWorkflows||[])].map((name,id)=>({name,id}))}),
+      listWorkflowRuns: async ({workflow_id}) => ({data: {workflow_runs: workflow_id===0 ? runs : [{head_branch:'main',head_sha:'current-source',event:'push',status:'completed',conclusion:'success'}]}}),listWorkflowRunsForRepo:async()=>({data:{workflow_runs:runs}}),reRunWorkflowFailedJobs:async p=>calls.retried.push(p)},
   issues:{listForRepo:async()=>({data:existing}),create:async p=>calls.created.push(p),update:async p=>calls.updated.push(p)},
  };
  const github={rest,paginate:async(fn,args)=>(await fn(args)).data};
