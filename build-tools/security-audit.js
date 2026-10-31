@@ -31,15 +31,26 @@ for (const [, issue] of issues) {
       issue.via.some(via => typeof via === "string" ? !Object.hasOwn(report.vulnerabilities, via) : !object(via) || typeof via.url !== "string"))
     throw new Error("npm audit returned a malformed advisory.");
 }
-// String via entries are npm dependency references, never standalone evidence.
-function validateReferences(name, ancestors = new Set()) {
-  if (ancestors.has(name)) throw new Error("Cyclic npm audit advisory references.");
-  const next = new Set([...ancestors, name]);
-  for (const via of report.vulnerabilities[name].via) {
-    if (typeof via === "string") validateReferences(via, next);
+// npm can emit cycles for dependent packages. Every reference component must
+// still lead to a concrete advisory, which is classified below exactly once.
+function hasAdvisorySource(name) {
+  const pending = [name];
+  const visited = new Set();
+  while (pending.length) {
+    const current = pending.pop();
+    if (visited.has(current)) continue;
+    visited.add(current);
+    for (const via of report.vulnerabilities[current].via) {
+      if (typeof via !== "string") return true;
+      pending.push(via);
+    }
   }
+  return false;
 }
-for (const [name] of issues) validateReferences(name);
+for (const [name] of issues) {
+  if (!hasAdvisorySource(name))
+    throw new Error("npm audit references have no concrete advisory source.");
+}
 const mitigated = new Set([
 	"https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
 	"https://github.com/advisories/GHSA-hp3w-g68c-fv3c",

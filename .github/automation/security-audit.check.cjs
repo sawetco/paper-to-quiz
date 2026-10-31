@@ -25,3 +25,11 @@ for (const [name,issue,expected] of [
 ]) test(name,()=>assert.equal(run({status:1,stdout:JSON.stringify({vulnerabilities:{foo:issue},metadata:{vulnerabilities:{info:0,low:0,moderate:0,high:1,critical:0,total:1}}})}),expected));
 
 test("known locally fingerprinted braces report succeeds",()=>assert.equal(run({status:1,stdout:JSON.stringify({vulnerabilities:{braces:{via:[{url:"https://github.com/advisories/GHSA-vfj7-8cjw-p6xm"}],nodes:["node_modules/braces"]}},metadata:{vulnerabilities:{info:0,low:0,moderate:0,high:1,critical:0,total:1}}})}),0));
+
+for (const [label,url,expected] of [
+ ["reviewed", "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm", 0],
+ ["unknown", "https://github.com/advisories/GHSA-unknown", 1]
+]) test(`npm dependency cycle with ${label} concrete advisory`,()=>assert.equal(run({status:1,stdout:JSON.stringify({
+ vulnerabilities:{braces:{via:["consumer",{url}],nodes:["node_modules/braces"]},consumer:{via:["braces"],nodes:["node_modules/consumer"]}},
+ metadata:{vulnerabilities:{info:0,low:0,moderate:0,high:2,critical:0,total:2}}
+})}),expected));
