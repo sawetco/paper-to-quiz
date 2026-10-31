@@ -20,7 +20,7 @@ if (! defined('ABSPATH')) {
 	exit;
 }
 
-define('PAPER_TO_QUIZ_VERSION', '1.2.0');
+define('PAPER_TO_QUIZ_VERSION', '1.2.1');
 define('PAPER_TO_QUIZ_DB_VERSION', '1.1.0');
 define('PAPER_TO_QUIZ_FILE', __FILE__);
 define('PAPER_TO_QUIZ_DIR', plugin_dir_path(__FILE__));
