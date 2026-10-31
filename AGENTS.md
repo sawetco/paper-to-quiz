@@ -285,3 +285,5 @@ verified only after checking the actual production environment.
 See `docs/automated-maintenance.md`. The owner authorized tested minor/patch dependency auto-merges and automatic releases on 29 October 2026. Keep major/API/schema/formula changes under human review. Never weaken required checks to unblock automation. GitHub Actions owns quality and automation; Vercel Git integration owns web delivery. Vercel CI migration is out of scope.
 
 The October 30 minimatch/glob backports are applied by postinstall and verified by the audit; see `docs/automated-maintenance.md`. Do not skip install scripts or accept these advisories without installed-source and behavioral verification.
+
+The release planner derives distributable paths from the package files allowlist, including build settings, translations and shipped documentation. Keep the path regression aligned with distribution rules; internal workflow-only edits do not require a new plugin version.

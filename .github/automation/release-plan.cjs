@@ -1,5 +1,6 @@
 'use strict';
 const fs=require('node:fs');
+const {affectsDistribution}=require('./distribution-paths.cjs');
 module.exports=async({github,context,core})=>{
  const {owner,repo}=context.repo,api=github.rest;
  const workflowApi=new github.constructor({auth:process.env.WORKFLOW_TOKEN}).rest;
@@ -19,7 +20,8 @@ module.exports=async({github,context,core})=>{
    core.info(`Dispatched verified release pipeline for ${current}.`);return;
  }
  const comparison=(await api.repos.compareCommitsWithBasehead({owner,repo,basehead:`${latest.tag_name}...${head}`})).data;
- if(!comparison.files?.some(f=>product==='paper'?/^(src\/|src-js\/|paper-to-quiz\.php|uninstall\.php|package(?:-lock)?\.json|composer(?:\.lock|\.json)|build-tools\/)/.test(f.filename):/^(src\/|scripts\/|version\.json)/.test(f.filename))){core.info('No distributable change since latest release.');return;}
+ const shipped=product==='paper'?JSON.parse(fs.readFileSync('package.json')).files:[];
+ if(!comparison.files?.some(f=>affectsDistribution(product,f.filename,shipped) || f.previous_filename && affectsDistribution(product,f.previous_filename,shipped))){core.info('No distributable change since latest release.');return;}
  if(comparison.commits.some(c=>/BREAKING CHANGE|^[\w()-]+!:/m.test(c.commit.message)))throw Error('Breaking release requires the owner to choose and review a major version');
  const parts=old.split('.').map(Number);
  if(comparison.commits.some(c=>/^feat(?:\([^)]*\))?:/m.test(c.commit.message))){parts[1]++;parts[2]=0;}else parts[2]++;

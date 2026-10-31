@@ -37,3 +37,5 @@ and runs real CommonJS/ESM hostile-input and abort regressions in bounded child
 processes. Other advisories and unknown affected versions still fail. Registry
 counts remain visible: a verified local mitigation is not an upstream clean audit.
 Remove each backport only after a compatible upstream upgrade passes the full CI.
+
+The release planner includes every shipped source/documentation path and detects renamed paths. WordPress uses the package.json files allowlist (including its exclusions), so webpack/TypeScript settings, translations and readme/license changes also publish automatically. Stonewards includes all packaged top-level documents and its archive builder. Internal workflow-only changes do not create a product version.
