@@ -31,3 +31,10 @@ test('requires real successful checks from expected app and rejects stale, missi
 test('forked contributions never inherit maintenance write permissions',()=>{
  assert.equal(sameRepository({base:{repo:{full_name:'sawetco/a'}},head:{repo:{full_name:'attacker/a'}}},'sawetco/a'),false);
 });
+
+test('nested override updates preserve package names and all executable metadata',()=>{
+ const before={overrides:{parent:{child:'1.2.3'}},scripts:{postinstall:'node reviewed.js'}};
+ assert.equal(manifestSafe(JSON.stringify(before),JSON.stringify({...before,overrides:{parent:{child:'1.3.0'}}})),true);
+ assert.equal(manifestSafe(JSON.stringify(before),JSON.stringify({...before,overrides:{parent:{child:'2.0.0'}}})),false);
+ assert.equal(manifestSafe(JSON.stringify(before),JSON.stringify({...before,scripts:{postinstall:'node unexpected.js'}})),false);
+});

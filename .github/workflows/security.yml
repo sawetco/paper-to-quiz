@@ -25,7 +25,7 @@ jobs:
           node-version: 24
           package-manager-cache: false
       - name: Test automation safety policy
-        run: node --test .github/automation/policy.test.cjs
+        run: node --test .github/automation/policy.test.cjs .github/automation/coordinator.check.cjs
       - name: Test parsed dependency policies
         run: python .github/automation/test-classifier.py
       - name: Test distribution safety and recovery

@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   plan:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (vars.MAINTENANCE_APP_ID != '' && vars.MAINTENANCE_APP_INSTALLATION_ID != '')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -22,6 +22,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
+      - name: Create a short-lived token for this repository only
+        id: maintenance-app
+        if: (vars.MAINTENANCE_APP_ID != '' && vars.MAINTENANCE_APP_INSTALLATION_ID != '')
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
         with:
+          app-id: ${{ vars.MAINTENANCE_APP_ID }}
+          private-key: ${{ secrets.MAINTENANCE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
+        env:
+          WORKFLOW_TOKEN: ${{ github.token }}
+        with:
+          github-token: ${{ steps.maintenance-app.outputs.token }}
           script: await require('./.github/automation/release-plan.cjs')({github, context, core});

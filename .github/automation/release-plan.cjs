@@ -2,6 +2,7 @@
 const fs=require('node:fs');
 module.exports=async({github,context,core})=>{
  const {owner,repo}=context.repo,api=github.rest;
+ const workflowApi=new github.constructor({auth:process.env.WORKFLOW_TOKEN}).rest;
  const branch=(await api.repos.get({owner,repo})).data.default_branch;
  const head=(await api.repos.getBranch({owner,repo,branch})).data.commit.sha;
  if(context.sha!==head){core.info('A newer default commit exists; let its planner run.');return;}
@@ -14,7 +15,7 @@ module.exports=async({github,context,core})=>{
  if(current!==old){
    const a=current.split('.').map(Number),b=old.split('.').map(Number);
    if(a.some(x=>!Number.isInteger(x))||a.length!==3||!(a[0]>b[0]||a[0]===b[0]&&(a[1]>b[1]||a[1]===b[1]&&a[2]>b[2])))throw Error('Release version must advance');
-   await api.actions.createWorkflowDispatch({owner,repo,workflow_id:'release.yml',ref:branch});
+   await workflowApi.actions.createWorkflowDispatch({owner,repo,workflow_id:'release.yml',ref:branch});
    core.info(`Dispatched verified release pipeline for ${current}.`);return;
  }
  const comparison=(await api.repos.compareCommitsWithBasehead({owner,repo,basehead:`${latest.tag_name}...${head}`})).data;
@@ -44,8 +45,8 @@ module.exports=async({github,context,core})=>{
  try{await api.git.deleteRef({owner,repo,ref:'heads/automation/release'});}catch(e){if(e.status!==404&&e.status!==422)throw e;}
  await api.git.createRef({owner,repo,ref:'refs/heads/automation/release',sha:commit.sha});
  const pr=(await api.pulls.create({owner,repo,head:'automation/release',base:branch,title:`chore(release): ${next}`,body:'Automatically prepared from tested product changes. Version metadata and distribution channels are validated before publication. This PR is merged only when all required checks succeed.'})).data;
- try{await api.issues.getLabel({owner,repo,name:'automation:release'});}catch(e){if(e.status!==404)throw e;await api.issues.createLabel({owner,repo,name:'automation:release',color:'1d76db'});}
- await api.issues.addLabels({owner,repo,issue_number:pr.number,labels:['automation:release']});
- for(const workflow_id of ['quality.yml','security.yml','codeql.yml'])await api.actions.createWorkflowDispatch({owner,repo,workflow_id,ref:'automation/release'});
- await core.summary.addRaw(`Prepared [release ${next}](${pr.html_url}); exact source checks were explicitly dispatched.`).write();
+ try{await workflowApi.issues.getLabel({owner,repo,name:'automation:release'});}catch(e){if(e.status!==404)throw e;await workflowApi.issues.createLabel({owner,repo,name:'automation:release',color:'1d76db'});}
+ await workflowApi.issues.addLabels({owner,repo,issue_number:pr.number,labels:['automation:release']});
+
+ await core.summary.addRaw(`Prepared [release ${next}](${pr.html_url}); normal required PR checks start automatically through the maintenance App.`).write();
 };

@@ -4,7 +4,7 @@ on:
     workflows: ["Quality", "Release", "Security", "CodeQL", "Plan product release"]
     types: [completed]
   pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
   schedule:
     - cron: "41 3 * * *"
   workflow_dispatch:
@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   maintain:
-    if: github.event_name != 'pull_request_target' || github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'github-actions[bot]'
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'github-actions[bot]' || github.event.pull_request.user.login == format('{0}[bot]', vars.MAINTENANCE_APP_SLUG)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -23,6 +23,7 @@ jobs:
       pull-requests: write
       actions: write
       checks: read
+      statuses: read
       issues: write
     steps:
       # Privileged events always execute the protected default branch, never PR code or artifacts.
@@ -31,7 +32,22 @@ jobs:
           ref: main
           persist-credentials: false
           sparse-checkout: .github/automation
+      - name: Create a short-lived token for this repository only
+        id: maintenance-app
+        if: (vars.MAINTENANCE_APP_ID != '' && vars.MAINTENANCE_APP_INSTALLATION_ID != '')
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
+        with:
+          app-id: ${{ vars.MAINTENANCE_APP_ID }}
+          private-key: ${{ secrets.MAINTENANCE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
       - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          MAINTENANCE_APP_SLUG: ${{ vars.MAINTENANCE_APP_SLUG }}
+          MAINTENANCE_APP_TOKEN: ${{ steps.maintenance-app.outputs.token }}
         with:
           script: |
-            await require('./.github/automation/maintenance.cjs')({github, context, core});
+            const appGithub=process.env.MAINTENANCE_APP_TOKEN ? new github.constructor({auth:process.env.MAINTENANCE_APP_TOKEN}) : undefined;
+            await require('./.github/automation/maintenance.cjs')({github, context, core, appGithub});

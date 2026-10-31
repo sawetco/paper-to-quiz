@@ -101,5 +101,9 @@ jobs:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
         run: python .github/automation/publish-wordpress.py
+      - name: Preserve the verified WordPress publication evidence
+        run: |
+          sha256sum paper-to-quiz.zip > SHA256SUMS
+          gh release upload "v$RELEASE_VERSION" wordpress-release-manifest.json SHA256SUMS --clobber
       - name: Publish the completed GitHub release
         run: gh release edit "v$RELEASE_VERSION" --draft=false --latest
