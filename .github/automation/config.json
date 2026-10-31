@@ -1,0 +1,29 @@
+{
+  "requiredChecks": [
+    "Release readiness",
+    "Security checks",
+    "Analyze (javascript-typescript)",
+    "Analyze (actions)"
+  ],
+  "workflowNames": [
+    "Quality",
+    "Release",
+    "Security",
+    "CodeQL"
+  ],
+  "qualityWorkflow": "quality.yml",
+  "securityWorkflow": "security.yml",
+  "monitoredWorkflows": [
+    "Plan product release"
+  ],
+  "releaseFiles": [
+    "package.json",
+    "package-lock.json",
+    "paper-to-quiz.php",
+    "readme.txt",
+    "languages/paper-to-quiz.pot"
+  ],
+  "supplementalWorkflows": [
+    "codeql.yml"
+  ]
+}
