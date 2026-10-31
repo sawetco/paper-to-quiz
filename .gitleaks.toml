@@ -1,0 +1,16 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "A documented Turkish instruction to generate a secret is not a credential"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''docs/README\.tr\.md$''']
+regexes = ['''^en-az-32-baytlik-rastgele-ve-gizli-bir-deger$''']
+
+[[allowlists]]
+description = "The RFC example UUID is an offline editor fixture identifier"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''src-js/admin/PdfEditor\.test\.tsx$''']
+regexes = ['''^123e4567-e89b-42d3-a456-426614174000$''']

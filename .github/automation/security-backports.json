@@ -1,0 +1,282 @@
+{
+  "advisories": {
+    "minimatch": "https://github.com/advisories/GHSA-g3hv-75wg-m249",
+    "glob": "https://github.com/advisories/GHSA-3g3m-2fjr-6pw4"
+  },
+  "packages": {
+    "minimatch@3.1.5": {
+      "unaffected": true,
+      "files": {
+        "minimatch.js": {
+          "original": "746849f267c4868a53729225bd85c7dccd387712136fb305fcc0a3eadd4a3d9d",
+          "patched": "746849f267c4868a53729225bd85c7dccd387712136fb305fcc0a3eadd4a3d9d",
+          "operations": []
+        }
+      }
+    },
+    "minimatch@5.1.9": {
+      "unaffected": true,
+      "files": {
+        "minimatch.js": {
+          "original": "1339bca8b70e33847860daa8fc3ccfa62487e143670da01a3b718d40d5fd424f",
+          "patched": "1339bca8b70e33847860daa8fc3ccfa62487e143670da01a3b718d40d5fd424f",
+          "operations": []
+        }
+      }
+    },
+    "minimatch@9.0.9": {
+      "unaffected": false,
+      "files": {
+        "dist/commonjs/index.js": {
+          "original": "a958a41536f57484cc427a03a10a6a094eb062a004c58261add4dbb6dd77bbda",
+          "patched": "49e27906224839c7994c07fea3a087e7424c205ab033ff70584ee842da2f1e39",
+          "operations": [
+            {
+              "before": "p2 === '..') {",
+              "after": "p2 === '..' || globParts.length >= 512) {",
+              "count": 1
+            },
+            {
+              "before": "secondPhasePreProcess(globParts) {",
+              "after": "secondPhasePreProcess(globParts) {\n        if (globParts.length > 1000) return globParts;",
+              "count": 1
+            }
+          ]
+        },
+        "dist/esm/index.js": {
+          "original": "8772b7fc5d3c741723b3839a43f929d9d9262121c5a74535638fa40c92cc1e6d",
+          "patched": "d3f947fd5ef9a6fdea125924d2a981668d8b827bcfb8020f7c676a37374d821d",
+          "operations": [
+            {
+              "before": "p2 === '..') {",
+              "after": "p2 === '..' || globParts.length >= 512) {",
+              "count": 1
+            },
+            {
+              "before": "secondPhasePreProcess(globParts) {",
+              "after": "secondPhasePreProcess(globParts) {\n        if (globParts.length > 1000) return globParts;",
+              "count": 1
+            }
+          ]
+        }
+      }
+    },
+    "minimatch@10.2.5": {
+      "unaffected": false,
+      "files": {
+        "dist/commonjs/index.js": {
+          "original": "d224f71f20d7c206fcc5b7e9f747324c7698345a0b2c28d717dd9cf698306783",
+          "patched": "fa7f64c7968e74dac20ca5915297b576fcfeb727969d3304d89d3387d1b80016",
+          "operations": [
+            {
+              "before": "p2 === '..') {",
+              "after": "p2 === '..' || globParts.length >= 512) {",
+              "count": 1
+            },
+            {
+              "before": "secondPhasePreProcess(globParts) {",
+              "after": "secondPhasePreProcess(globParts) {\n        if (globParts.length > 1000) return globParts;",
+              "count": 1
+            }
+          ]
+        },
+        "dist/esm/index.js": {
+          "original": "59821ec2ce0d3df968292036e5c831ad322b33e9c33a949ecbc9dfe125d165be",
+          "patched": "f3bf2d7fa2f143bd075a970ec6c525af5e429cba9d16fd1c239752242d8b7b20",
+          "operations": [
+            {
+              "before": "p2 === '..') {",
+              "after": "p2 === '..' || globParts.length >= 512) {",
+              "count": 1
+            },
+            {
+              "before": "secondPhasePreProcess(globParts) {",
+              "after": "secondPhasePreProcess(globParts) {\n        if (globParts.length > 1000) return globParts;",
+              "count": 1
+            }
+          ]
+        }
+      }
+    },
+    "minimatch@10.2.6": {
+      "unaffected": false,
+      "files": {
+        "dist/commonjs/index.js": {
+          "original": "d224f71f20d7c206fcc5b7e9f747324c7698345a0b2c28d717dd9cf698306783",
+          "patched": "fa7f64c7968e74dac20ca5915297b576fcfeb727969d3304d89d3387d1b80016",
+          "operations": [
+            {
+              "before": "p2 === '..') {",
+              "after": "p2 === '..' || globParts.length >= 512) {",
+              "count": 1
+            },
+            {
+              "before": "secondPhasePreProcess(globParts) {",
+              "after": "secondPhasePreProcess(globParts) {\n        if (globParts.length > 1000) return globParts;",
+              "count": 1
+            }
+          ]
+        },
+        "dist/esm/index.js": {
+          "original": "59821ec2ce0d3df968292036e5c831ad322b33e9c33a949ecbc9dfe125d165be",
+          "patched": "f3bf2d7fa2f143bd075a970ec6c525af5e429cba9d16fd1c239752242d8b7b20",
+          "operations": [
+            {
+              "before": "p2 === '..') {",
+              "after": "p2 === '..' || globParts.length >= 512) {",
+              "count": 1
+            },
+            {
+              "before": "secondPhasePreProcess(globParts) {",
+              "after": "secondPhasePreProcess(globParts) {\n        if (globParts.length > 1000) return globParts;",
+              "count": 1
+            }
+          ]
+        }
+      }
+    },
+    "glob@9.3.5": {
+      "unaffected": false,
+      "files": {
+        "dist/cjs/walker.js": {
+          "original": "b3a16383ccc1312ea12ff3b834fad911bce5420856cad639d9e169ad6e2c05a2",
+          "patched": "fd6a4df6223d0227c5e7dfd3ca61cd60afecb5bc643d490cecf07dbc59d25106",
+          "operations": [
+            {
+              "before": "if (this.signal?.aborted)\n            cb();",
+              "after": "if (this.signal?.aborted)\n            return cb();",
+              "count": 4
+            }
+          ]
+        },
+        "dist/mjs/walker.js": {
+          "original": "7b81b11d8cde0d728eafd147aad9f949eee8511b7ca5bb801b4135f5812e9332",
+          "patched": "e43676fd0296ec0192f7856eea2c0f1aa6f21f3c61ddd7be3956dd6a1cc8c9ed",
+          "operations": [
+            {
+              "before": "if (this.signal?.aborted)\n            cb();",
+              "after": "if (this.signal?.aborted)\n            return cb();",
+              "count": 4
+            }
+          ]
+        }
+      }
+    },
+    "glob@10.5.0": {
+      "unaffected": false,
+      "files": {
+        "dist/commonjs/walker.js": {
+          "original": "1138ced9d5429681a1740af32d13391a38184a3376d1d9d56eea64b7a43274a1",
+          "patched": "a5d267e5c9260b09fe2c107f22b89391e5da9c71d23df3290b86bd82acff8cd2",
+          "operations": [
+            {
+              "before": "if (this.signal?.aborted)\n            cb();",
+              "after": "if (this.signal?.aborted)\n            return cb();",
+              "count": 4
+            }
+          ]
+        },
+        "dist/esm/walker.js": {
+          "original": "3e15af549ecc74d8691982d571168fd4b0e38b494c2cbb3edcfb8f97d4036ac6",
+          "patched": "d8f9ad324be2df34ee8d50cdb95218cbd6ce33e5c0b40bd68fb7926e2772693e",
+          "operations": [
+            {
+              "before": "if (this.signal?.aborted)\n            cb();",
+              "after": "if (this.signal?.aborted)\n            return cb();",
+              "count": 4
+            }
+          ]
+        }
+      }
+    },
+    "glob@13.0.6": {
+      "unaffected": false,
+      "files": {
+        "dist/commonjs/walker.js": {
+          "original": "1138ced9d5429681a1740af32d13391a38184a3376d1d9d56eea64b7a43274a1",
+          "patched": "a5d267e5c9260b09fe2c107f22b89391e5da9c71d23df3290b86bd82acff8cd2",
+          "operations": [
+            {
+              "before": "if (this.signal?.aborted)\n            cb();",
+              "after": "if (this.signal?.aborted)\n            return cb();",
+              "count": 4
+            }
+          ]
+        },
+        "dist/esm/walker.js": {
+          "original": "3e15af549ecc74d8691982d571168fd4b0e38b494c2cbb3edcfb8f97d4036ac6",
+          "patched": "d8f9ad324be2df34ee8d50cdb95218cbd6ce33e5c0b40bd68fb7926e2772693e",
+          "operations": [
+            {
+              "before": "if (this.signal?.aborted)\n            cb();",
+              "after": "if (this.signal?.aborted)\n            return cb();",
+              "count": 4
+            }
+          ]
+        },
+        "dist/commonjs/index.min.js": {
+          "original": "3178e109aa75b45d6970a51a718f01e5b5b8f87150563ee6cb4c0e75ec215617",
+          "patched": "f145ff4b2b84552a319287cfea3f050b934a316d3d48327e011bc14c0315b633",
+          "operations": [
+            {
+              "before": "this.signal?.aborted&&s(),this.walkCB2(",
+              "after": "if(this.signal?.aborted)return s();this.walkCB2(",
+              "count": 1
+            },
+            {
+              "before": "this.signal?.aborted&&s(),this.walkCB2Sync(",
+              "after": "if(this.signal?.aborted)return s();this.walkCB2Sync(",
+              "count": 1
+            },
+            {
+              "before": "if(this.signal?.aborted&&i(),this.paused)",
+              "after": "if(this.signal?.aborted)return i();if(this.paused)",
+              "count": 2
+            },
+            {
+              "before": "||l===\"..\")continue;",
+              "after": "||l===\"..\"||t.length>=512)continue;",
+              "count": 1
+            },
+            {
+              "before": "secondPhasePreProcess(t){",
+              "after": "secondPhasePreProcess(t){if(t.length>1000)return t;",
+              "count": 1
+            }
+          ]
+        },
+        "dist/esm/index.min.js": {
+          "original": "9eff492e16fdf9ea47a5f3c3d64784f9238b607f95a278101eb5a4e882f6ea85",
+          "patched": "d56f091040059045f6714bbea7edcf13f24664ae9f6d23189d7fdbdb706630b2",
+          "operations": [
+            {
+              "before": "this.signal?.aborted&&s(),this.walkCB2(",
+              "after": "if(this.signal?.aborted)return s();this.walkCB2(",
+              "count": 1
+            },
+            {
+              "before": "this.signal?.aborted&&s(),this.walkCB2Sync(",
+              "after": "if(this.signal?.aborted)return s();this.walkCB2Sync(",
+              "count": 1
+            },
+            {
+              "before": "if(this.signal?.aborted&&i(),this.paused)",
+              "after": "if(this.signal?.aborted)return i();if(this.paused)",
+              "count": 2
+            },
+            {
+              "before": "||l===\"..\")continue;",
+              "after": "||l===\"..\"||t.length>=512)continue;",
+              "count": 1
+            },
+            {
+              "before": "secondPhasePreProcess(t){",
+              "after": "secondPhasePreProcess(t){if(t.length>1000)return t;",
+              "count": 1
+            }
+          ]
+        }
+      }
+    }
+  }
+}

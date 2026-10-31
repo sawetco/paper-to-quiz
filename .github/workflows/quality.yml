@@ -1,6 +1,8 @@
 name: Quality
 
 on:
+  schedule:
+    - cron: "17 2 * * 3"
   push:
     branches:
       - main
@@ -9,7 +11,7 @@ on:
   workflow_call:
 
 concurrency:
-  group: quality-${{ github.event.pull_request.number || github.ref }}
+  group: quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -62,6 +64,14 @@ jobs:
           name: plugin-check-results
           path: ${{ runner.temp }}/plugin-check-results.json
           if-no-files-found: ignore
+
+      - name: Preserve the exact Plugin Check verified distribution ZIP
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: product-package
+          path: paper-to-quiz.zip
+          if-no-files-found: error
+          retention-days: 14
 
   php-syntax:
     runs-on: ubuntu-latest
@@ -133,3 +143,37 @@ jobs:
             test-results/**
             playwright-report/**
           if-no-files-found: ignore
+
+  package-upgrade:
+    name: Package install and upgrade
+    needs: javascript
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          name: product-package
+          path: .package-under-test
+      - name: Download and verify the immutable upgrade baseline
+        run: |
+          curl --fail --silent --show-error --location https://github.com/sawetco/paper-to-quiz/releases/download/v1.1.6/paper-to-quiz.zip --output .package-under-test/baseline.zip
+          echo '67ae6d92e008f25b40d2efa5b6744692a91c4ecd4a62b09a35e9f734672e48c0  .package-under-test/baseline.zip' | sha256sum --check
+      - run: node .github/automation/test-package.cjs
+
+  readiness:
+    name: Release readiness
+    needs: [javascript, php-syntax, php-unit, compatibility, package-upgrade]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: node -e 'const n=JSON.parse(process.env.RESULTS);if(Object.values(n).some(j=>j.result!=="success"))process.exit(1)'
