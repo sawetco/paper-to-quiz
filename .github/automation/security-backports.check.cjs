@@ -35,3 +35,21 @@ test("backports detach hardlinks, reject tampering and reject unknown source ver
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+
+const { applicable, bunCovered } = require("./security-backports.cjs");
+test("affected semver boundaries and every Bun installed copy must be covered", () => {
+  const item = version => ({ name: "minimatch", version });
+  for (const version of ["3.1.5", "10.2.6", "11.0.0"]) assert.equal(applicable(item(version)), true);
+  for (const version of ["11.0.1", "11.1.0", "12.0.0"]) assert.equal(applicable(item(version)), false);
+  for (const version of ["broken", "11.0.1-beta.1"]) assert.throws(() => applicable(item(version)));
+  for (const [version, expected] of [["7.2.3", false], ["9.0.0", true], ["14.0.1", true], ["14.0.2", false]]) assert.equal(applicable({ name: "glob", version }), expected);
+  const old = item("10.2.6"), vulnerable = item("11.0.0"), fixed = item("11.0.1"), duplicate = item("10.2.6");
+  const advisory = { url: data.advisories.minimatch };
+  assert.equal(bunCovered("minimatch", advisory, [old], [old]), true);
+  assert.equal(bunCovered("minimatch", advisory, [old, vulnerable], [old]), false);
+  assert.equal(bunCovered("minimatch", advisory, [old, duplicate], [old]), false);
+  assert.equal(bunCovered("minimatch", advisory, [old, fixed], [old]), true);
+  assert.equal(bunCovered("minimatch", advisory, [], []), false);
+  assert.equal(bunCovered("minimatch", { url: "unknown" }, [old], [old]), false);
+});

@@ -32,6 +32,8 @@ jobs:
           ref: main
           persist-credentials: false
           sparse-checkout: .github/automation
+      - name: Test maintenance guardrails on trusted source
+        run: node --test .github/automation/maintenance-*.test.cjs .github/automation/security-audit.check.cjs
       - name: Create a short-lived token for this repository only
         id: maintenance-app
         if: (vars.MAINTENANCE_APP_ID != '' && vars.MAINTENANCE_APP_INSTALLATION_ID != '')

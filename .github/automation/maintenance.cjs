@@ -5,7 +5,9 @@ function structuredSafe(kind,path,before,after){
  const result=spawnSync('python3',['.github/automation/classify-manifest.py'],{input:JSON.stringify({kind,path,before,after}),encoding:'utf8',timeout:10000});
  return result.status===0 && result.stdout.trim()==='safe';
 }
-const {manifestSafe,actionPatchSafe,acceptableChecks,sameRepository} = require('./policy.cjs');
+const {manifestSafe,acceptableChecks,sameRepository} = require('./policy.cjs');
+
+const {actionVerifier, checkBlockers} = require('./maintenance-guards.cjs');
 
 module.exports = async ({github,context,core,appGithub}) => {
   const config = JSON.parse(fs.readFileSync('.github/automation/config.json','utf8'));
@@ -15,6 +17,14 @@ module.exports = async ({github,context,core,appGithub}) => {
   const appLogin = process.env.MAINTENANCE_APP_SLUG ? `${process.env.MAINTENANCE_APP_SLUG}[bot]` : '';
   const notes = [];
   const attention = [];
+  let unresolved = false;
+  const verifyActions = actionVerifier(github);
+  const reviewPath = '.github/automation/security-review.json';
+  if (fs.existsSync(reviewPath)) {
+    const review = JSON.parse(fs.readFileSync(reviewPath, 'utf8'));
+    if (!Number.isFinite(Date.parse(review.reviewBefore)) || Date.now() >= Date.parse(review.reviewBefore))
+      attention.push('- Security exception review is overdue; review the advisory evidence in security-review.json.');
+  }
   const getText = async (path,ref) => {
     const {data} = await api.repos.getContent({owner,repo,path,ref});
     if (Array.isArray(data) || data.encoding !== 'base64') throw new Error('Expected file content');
@@ -51,11 +61,7 @@ module.exports = async ({github,context,core,appGithub}) => {
         if (/(^|\/)package\.json$/.test(f.filename)) {
           if (!manifestSafe(await getText(f.filename,changeBase),await getText(f.filename,pr.head.sha))) safe=false;
         } else if (f.filename.startsWith('.github/workflows/')) {
-          if (!actionPatchSafe(f.patch)) safe=false;
-          // Major action versions require review even when the executable diff is only a SHA.
-          if (/from\s+v?(\d+)[\s\S]*?to\s+v?(\d+)/i.test(pr.title)) {
-            const m=pr.title.match(/from\s+v?(\d+)[\s\S]*?to\s+v?(\d+)/i); if(m[1]!==m[2])safe=false;
-          }
+          if (!await verifyActions(await getText(f.filename, changeBase), await getText(f.filename, pr.head.sha))) safe = false;
         } else if (/(^|\/)requirements(?:-[\w-]+)?\.(?:txt|in)$/.test(f.filename)) {
           if(!structuredSafe('pip',f.filename,await getText(f.filename,changeBase),await getText(f.filename,pr.head.sha)))safe=false;
         } else if (f.filename.endsWith('Cargo.toml') || f.filename.endsWith('Cargo.lock')) {
@@ -69,6 +75,7 @@ module.exports = async ({github,context,core,appGithub}) => {
     }
     if (!safe) {attention.push(`- [#${pr.number}](${pr.html_url}): major update or a change outside the automatic dependency policy.`);continue;}
     if (comparison.behind_by > 0 || pr.mergeable_state === 'behind') {
+      unresolved = true;
       if(!appGithub){attention.push(`- [#${pr.number}](${pr.html_url}): finish the maintenance GitHub App installation so branch updates can run CI without human approval.`);continue;}
       try {
         await appGithub.rest.pulls.updateBranch({owner,repo,pull_number:pr.number,expected_head_sha:pr.head.sha});
@@ -79,40 +86,51 @@ module.exports = async ({github,context,core,appGithub}) => {
     if (pr.mergeable === false) {attention.push(`- [#${pr.number}](${pr.html_url}): merge conflict.`);continue;}
     const checks=await github.paginate(api.checks.listForRef,{owner,repo,ref:pr.head.sha,per_page:100});
     const status=(await api.repos.getCombinedStatusForRef({owner,repo,ref:pr.head.sha})).data;
-    if(!acceptableChecks(checks,status.statuses,config.requiredChecks)) {
-      const failed=checks.filter(c=>c.app?.slug==='github-actions' && c.status==='completed' && ['failure','timed_out','cancelled','action_required'].includes(c.conclusion));
-      if(failed.length) {
-        const runs=(await api.actions.listWorkflowRunsForRepo({owner,repo,head_sha:pr.head.sha,per_page:30})).data.workflow_runs;
-        const retry=runs.find(r=>r.status==='completed' && r.conclusion==='failure' && r.run_attempt<2 && config.workflowNames.includes(r.name));
-        if(retry) {
-          await api.actions.reRunWorkflowFailedJobs({owner,repo,run_id:retry.id});
+    if (!acceptableChecks(checks, status.statuses, config.requiredChecks)) {
+      unresolved = true;
+      // Anchor grace to this head, not editable PR metadata or issue activity.
+      const headCommit = (await api.repos.getCommit({owner, repo, ref: pr.head.sha})).data;
+      const problems = checkBlockers(checks, status.statuses, config.requiredChecks, headCommit.commit?.committer?.date || pr.created_at);
+      if (problems.length) {
+        const runs = (await api.actions.listWorkflowRunsForRepo({owner, repo, head_sha: pr.head.sha, per_page: 100})).data.workflow_runs;
+        const retry = runs.find(r => r.status === 'completed' && r.conclusion === 'failure' && r.run_attempt < 2 && config.workflowNames.includes(r.name));
+        if (retry) {
+          await api.actions.reRunWorkflowFailedJobs({owner, repo, run_id: retry.id});
           notes.push(`Retried failed jobs for #${pr.number} once.`);
-        } else attention.push(`- [#${pr.number}](${pr.html_url}): checks still fail after the bounded retry. [Inspect checks](${pr.html_url}/checks).`);
+        } else {
+          attention.push(`- [#${pr.number}](${pr.html_url}): ${problems.join('; ')}. [Inspect checks](${pr.html_url}/checks).`);
+        }
       }
       continue;
     }
     // Re-read immediately before merge: never merge a SHA other than the one we classified and tested.
     const fresh=(await api.pulls.get({owner,repo,pull_number:pr.number})).data;
-    if(fresh.head.sha!==pr.head.sha || fresh.base.sha!==pr.base.sha)continue;
+    if (fresh.head.sha !== pr.head.sha || fresh.base.sha !== pr.base.sha) { unresolved = true; continue; }
     try {
       const result=(await api.pulls.merge({owner,repo,pull_number:pr.number,sha:pr.head.sha,merge_method:'squash'})).data;
       if(!result.merged)throw new Error('Not merged');
       notes.push(`Merged tested ${release?'release':'dependency'} PR #${pr.number}.`);
       // GITHUB_TOKEN merges do not trigger push workflows. Dispatch source-only checks explicitly for the actual merge commit.
-      await dispatch(config.qualityWorkflow,defaultBranch);
+      if (!contributions) await dispatch(config.qualityWorkflow, defaultBranch);
       if(config.securityWorkflow)await dispatch(config.securityWorkflow,defaultBranch);
       for(const workflow of config.supplementalWorkflows || [])await dispatch(workflow,defaultBranch);
       if(release)await dispatch('release.yml',defaultBranch);
       else if(config.releaseFiles)await dispatch('release-plan.yml',defaultBranch);
+      unresolved = true;
       break; // Serialize merges: the next PR must be tested against this new base.
     } catch {attention.push(`- [#${pr.number}](${pr.html_url}): GitHub blocked the merge; inspect branch requirements.`);}
   }
   // Daily fallback catches production/quality failures without a new commit. Routine successes stay quiet.
-  const recent=(await api.actions.listWorkflowRunsForRepo({owner,repo,per_page:60})).data.workflow_runs;
-  for(const name of [...config.workflowNames,...(config.monitoredWorkflows||[])]) {
-    const run=recent.find(r=>r.name===name && r.head_branch===defaultBranch && r.event!=='pull_request');
-    if(run && run.status==='completed' && run.head_sha===defaultHead && ['failure','timed_out','action_required'].includes(run.conclusion)) {
-      if(run.run_attempt<2) {await api.actions.reRunWorkflowFailedJobs({owner,repo,run_id:run.id});notes.push(`Retried ${name} once.`);}
+  const workflows = await github.paginate(api.actions.listRepoWorkflows, {owner, repo, per_page: 100});
+  for (const name of [...config.workflowNames, ...(config.monitoredWorkflows || [])]) {
+    const workflow = workflows.find(w => w.name === name);
+    if (!workflow) { unresolved = true; attention.push(`- ${name}: monitored workflow is missing.`); continue; }
+    const recent = (await api.actions.listWorkflowRuns({owner, repo, workflow_id: workflow.id, branch: defaultBranch, per_page: 100})).data.workflow_runs;
+    const run = recent.find(r => r.head_branch === defaultBranch && r.event !== 'pull_request');
+    if (!run || run.head_sha !== defaultHead || run.status !== 'completed') unresolved = true;
+    if(run && run.status==='completed' && run.head_sha===defaultHead && ['failure','timed_out','action_required','cancelled','startup_failure','stale'].includes(run.conclusion)) {
+      if(run.run_attempt<2 && run.conclusion==="failure") {await api.actions.reRunWorkflowFailedJobs({owner,repo,run_id:run.id});unresolved = true;
+        notes.push(`Retried ${name} once.`);}
       else attention.push(`- [${name}](${run.html_url}): failed again and needs investigation.`);
     }
   }
@@ -125,6 +143,6 @@ module.exports = async ({github,context,core,appGithub}) => {
     const body=`${marker}\nRoutine passing updates are handled automatically. Only the following items need a decision or a repair:\n\n${unique.join('\n')}\n\nLast inspected default commit: \`${defaultHead.slice(0,12)}\`. No credentials or user data are included.`;
     if(issue) {if(issue.body!==body)await api.issues.update({owner,repo,issue_number:issue.number,body});}
     else await api.issues.create({owner,repo,title,body,assignees:[owner]});
-  } else if(issue)await api.issues.update({owner,repo,issue_number:issue.number,state:'closed',state_reason:'completed'});
+  } else if (issue && !unresolved)await api.issues.update({owner,repo,issue_number:issue.number,state:'closed',state_reason:'completed'});
   await core.summary.addHeading('Autonomous maintenance').addRaw(notes.length?notes.join('\n'):'No automatic changes were necessary.').addRaw(`\nActionable items: ${unique.length}.`).write();
 };

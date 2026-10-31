@@ -1,0 +1,27 @@
+'use strict';
+const {test}=require('node:test'); const assert=require('node:assert/strict');
+const {actionVerifier,checkBlockers}=require('./maintenance-guards.cjs');
+const a='a'.repeat(40),b='b'.repeat(40),c='c'.repeat(40);
+const workflow=(sha,repo='actions/example')=>`jobs:\n  build:\n    steps:\n      - uses: ${repo}@${sha} # v1\n`;
+function verifier(from,to,extra=[]) {let calls=0;const fn=actionVerifier({rest:{repos:{listTags:async()=>{calls++;return {data:[{name:from,commit:{sha:a}},{name:to,commit:{sha:b}},...extra]}}}}});return {fn,calls:()=>calls};}
+for(const [from,to,expected] of [['v1.2.3','v1.2.4',true],['v1.2.3','v1.3.0',true],['v0.1.0','v0.1.1',true],['v1.2.3','v2.0.0',false],['v0.1.0','v0.2.0',false],['v1.2.3','v1.2.2',false],['v1','v1.3.0',false],['v1.2.3','v1.3.0-beta.1',false]]) test(`authoritative tags ${from} -> ${to}`,async()=>{assert.equal(await verifier(from,to).fn(workflow(a),workflow(b)),expected)});
+test('missing tag fails closed',async()=>assert.equal(await verifier('v1.2.3','v1.3.0').fn(workflow(a),workflow(c)),false));
+test('ambiguous stable tags fail closed',async()=>assert.equal(await verifier('v1.2.3','v1.3.0',[{name:'v2.0.0',commit:{sha:b}}]).fn(workflow(a),workflow(b)),false));
+test('v and non-v aliases of same version are not ambiguous',async()=>assert.equal(await verifier('v1.2.3','v1.3.0',[{name:'1.3.0',commit:{sha:b}}]).fn(workflow(a),workflow(b)),true));
+test('all changed actions checked; cache reused across files',async()=>{const v=verifier('v1.2.3','v1.3.0');assert.equal(await v.fn(workflow(a)+workflow(a),workflow(b)+workflow(c)),false);assert.equal(await v.fn(workflow(a),workflow(b)),true);assert.equal(v.calls(),1)});
+test('source injection and repository substitution rejected',async()=>{const v=verifier('v1.2.3','v1.3.0');assert.equal(await v.fn(workflow(a),workflow(b)+'      - run: evil\n'),false);assert.equal(await v.fn(workflow(a),workflow(b,'evil/example')),false)});
+test('API errors fail closed',async()=>{const fn=actionVerifier({rest:{repos:{listTags:async()=>{throw Error('403')}}}});assert.equal(await fn(workflow(a),workflow(b)),false)});
+test('bounded tag pagination fails closed rather than accepting incomplete catalog',async()=>{let calls=0;const fn=actionVerifier({rest:{repos:{listTags:async()=>{calls++;return {data:Array.from({length:100},()=>({name:'v1.2.3',commit:{sha:a}}))}}}}});assert.equal(await fn(workflow(a),workflow(b)),false);assert.equal(calls,20)});
+test('pagination finds stable version beyond first page',async()=>{const fn=actionVerifier({rest:{repos:{listTags:async({page})=>({data:page===1?Array.from({length:100},()=>({name:'v1',commit:{sha:a}})):[{name:'v1.2.3',commit:{sha:a}},{name:'v1.2.4',commit:{sha:b}}]})}}});assert.equal(await fn(workflow(a),workflow(b)),true)});
+const now=Date.parse('2026-10-31T12:00:00Z'),young='2026-10-31T11:00:00Z',old='2026-10-29T12:00:00Z';
+const check=(conclusion,status='completed',id=1)=>({id,name:'Required',app:{slug:'github-actions'},status,conclusion});
+test('missing checks grace then escalation',()=>{assert.deepEqual(checkBlockers([],[],['Required'],young,now),[]);assert.match(checkBlockers([],[],['Required'],old,now).join(),/missing/)});
+for(const conclusion of ['skipped','neutral','startup_failure','stale','cancelled','failure','timed_out','action_required',null])test(`terminal ${conclusion} escalates`,()=>assert.ok(checkBlockers([check(conclusion)],[],['Required'],young,now).length));
+test('pending grace and 24-hour escalation',()=>{assert.deepEqual(checkBlockers([check(null,'in_progress')],[],['Required'],young,now),[]);assert.match(checkBlockers([check(null,'in_progress')],[],['Required'],old,now).join(),/24 hours/)});
+test('external failure/error escalates',()=>{for(const state of ['failure','error'])assert.ok(checkBlockers([check('success')],[{context:'external',state}],['Required'],young,now).length)});
+test('newest successful check supersedes old failure',()=>assert.deepEqual(checkBlockers([check('failure'),check('success','completed',2)],[],['Required'],old,now),[]));
+test('uses-looking shell heredoc content is never treated as an Action',async()=>{const v=verifier('v1.2.3','v1.2.4');const before=`steps:\n  - run: |\n      cat <<'EOF'\n      uses: actions/example@${a}\n      EOF\n`+workflow(a);const after=before.replaceAll(a,b);assert.equal(await v.fn(before,after),false)});
+test('normal multiline run script does not block a legitimate Action update',async()=>{const prefix='steps:\n  - run: |\n      echo hello\n';assert.equal(await verifier('v1.2.3','v1.2.4').fn(prefix+workflow(a),prefix+workflow(b)),true)});
+test('multiline quoted scalar content fails closed',async()=>{const v=verifier('v1.2.3','v1.2.4');const before=`run: "echo\n  uses: actions/example@${a}\n"\n`+workflow(a);assert.equal(await v.fn(before,before.replaceAll(a,b)),false)});
+test('uses-looking environment and flow-map values are not Actions',async()=>{const v=verifier('v1.2.3','v1.2.4');for(const extra of [`jobs:\n  build:\n    env:\n      uses: actions/example@${a}\n`,`jobs:\n  build:\n    env: {\n      uses: actions/example@${a}\n    }\n`])assert.equal(await v.fn(extra+workflow(a),(extra+workflow(a)).replaceAll(a,b)),false)});
+test('reusable job Action pin is supported',async()=>{const before=`jobs:\n  build:\n    uses: actions/example/workflow.yml@${a}\n`;assert.equal(await verifier('v1.2.3','v1.2.4').fn(before,before.replace(a,b)),true)});
