@@ -112,13 +112,15 @@ development-only release/test runners (including the metadata checker and wp-env
 matrix runner), development dependencies, and repository metadata also stay out
 of the archive.
 
-GitHub Releases is the versioned binary distribution channel. After the
-version constants, package metadata, changelog, and POT template are synchronized
-and the `main` quality workflow passes, push the matching `v*` tag. The
-`.github/workflows/release.yml` workflow rebuilds the production package,
-checks production dependencies and path portability, and creates or replaces
-the installable `paper-to-quiz.zip` asset on that GitHub release. GitHub
-Packages is not used for the WordPress installation ZIP.
+GitHub Releases and WordPress.org are the versioned distribution channels. The
+release planner prepares an App-authored version PR from product changes on
+`main`. Required source, package, compatibility and security gates must pass
+before automatic merge and publication. `release.yml` downloads the tested ZIP,
+creates a draft GitHub release, attests the archive, publishes the same files to
+WordPress SVN, verifies the public WordPress.org ZIP, and then publishes the
+immutable GitHub release with checksums and a distribution manifest. Do not
+replace a published release asset or send untested source directly to SVN.
+See `docs/automated-maintenance.md` for recovery and credential configuration.
 
 PDF.js contains a Node fallback whose `import.meta.url` would otherwise embed
 the build machine's absolute path. `build-tools/pdfjs-browser-loader.js`
@@ -281,3 +283,5 @@ verified only after checking the actual production environment.
 ## Autonomous dependency maintenance
 
 See `docs/automated-maintenance.md`. The owner authorized tested minor/patch dependency auto-merges and automatic releases on 29 October 2026. Keep major/API/schema/formula changes under human review. Never weaken required checks to unblock automation. GitHub Actions owns quality and automation; Vercel Git integration owns web delivery. Vercel CI migration is out of scope.
+
+The October 30 minimatch/glob backports are applied by postinstall and verified by the audit; see `docs/automated-maintenance.md`. Do not skip install scripts or accept these advisories without installed-source and behavioral verification.

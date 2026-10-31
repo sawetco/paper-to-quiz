@@ -57,7 +57,7 @@
 		"test:e2e": "node build-tools/run-wp-env-suite.js wp71 e2e",
 		"test:e2e:wp68": "node build-tools/run-wp-env-suite.js wp68 e2e",
 		"plugin-zip": "wp-scripts plugin-zip",
-		"postinstall": "node build-tools/security-patches.js && node .github/automation/apply-deepmerge.cjs",
+		"postinstall": "node build-tools/security-patches.js && node .github/automation/apply-deepmerge.cjs && node .github/automation/security-backports.cjs --apply",
 		"security:audit": "node build-tools/security-audit.js"
 	},
 	"dependencies": {
@@ -121,7 +121,8 @@
 		"markdown-it": "14.3.3",
 		"systeminformation": "5.33.16",
 		"body-parser": "2.4.0",
-		"fast-uri": "3.1.9"
+		"fast-uri": "3.1.9",
+		"follow-redirects": "1.16.2"
 	},
 	"engines": {
 		"node": "^24.18.0 || >=26.0.0"

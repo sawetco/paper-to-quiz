@@ -1,3 +1,4 @@
+const backports = require("../.github/automation/security-backports.cjs").verify();
 "use strict";
 
 const { spawnSync } = require("node:child_process");
@@ -25,7 +26,7 @@ const unhandled = [];
 for (const [name, issue] of Object.entries(report.vulnerabilities)) {
 	for (const advisory of issue.via) {
 		if (typeof advisory === "object") {
-			const covered =
+			const covered = backports.npm(name, advisory, issue.nodes) ||
                 (name === "deepmerge" && advisory.url === "https://github.com/advisories/GHSA-gcqx-w48m-w2h4" && issue.nodes.every(node => node === "node_modules/deepmerge")) ||
 				mitigated.has(advisory.url) &&
 				["braces", "sprintf-js"].includes(name) &&
@@ -38,7 +39,7 @@ console.log(
 	`Raw npm audit: ${JSON.stringify(report.metadata.vulnerabilities)}`,
 );
 console.log(
-	"Two upstream advisories have locally verified mitigations; npm still reports their original versions.",
+	"Reviewed upstream advisories have locally verified mitigations; npm still reports their original versions.",
 );
 if (unhandled.length) {
 	console.error(unhandled.join("\n"));
