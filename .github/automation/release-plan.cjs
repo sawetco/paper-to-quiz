@@ -25,11 +25,7 @@ module.exports=async({github,context,core})=>{
  if(comparison.commits.some(c=>/^feat(?:\([^)]*\))?:/m.test(c.commit.message))){parts[1]++;parts[2]=0;}else parts[2]++;
  const next=parts.join('.'),files={};
  if(product==='paper'){
-   const manifest=JSON.parse(fs.readFileSync('package.json'));manifest.version=next;files['package.json']=JSON.stringify(manifest,null,'\t')+'\n';
-   const lock=JSON.parse(fs.readFileSync('package-lock.json'));lock.version=next;lock.packages[''].version=next;files['package-lock.json']=JSON.stringify(lock,null,'\t')+'\n';
-   files['paper-to-quiz.php']=fs.readFileSync('paper-to-quiz.php','utf8').replace(`Version: ${old}`,`Version: ${next}`).replace(`PAPER_TO_QUIZ_VERSION', '${old}'`,`PAPER_TO_QUIZ_VERSION', '${next}'`);
-   files['readme.txt']=fs.readFileSync('readme.txt','utf8').replace(`Stable tag: ${old}`,`Stable tag: ${next}`).replace('== Changelog ==',`== Changelog ==\n\n= ${next} =\n* Tested maintenance and dependency updates. See the GitHub release notes for details.`);
-   files['languages/paper-to-quiz.pot']=fs.readFileSync('languages/paper-to-quiz.pot','utf8').replace(`Project-Id-Version: Paper to Quiz ${old}`,`Project-Id-Version: Paper to Quiz ${next}`);
+   Object.assign(files,preparePaperRelease(current,next));
  }else{
    files['version.json']=JSON.stringify({version:next},null,2)+'\n';
    for(const p of ['src/StonewardsXRayPlugin.cs','scripts/Install-Stonewards-XRay.ps1','README.md'])files[p]=fs.readFileSync(p,'utf8').replaceAll(old,next);
@@ -50,3 +46,33 @@ module.exports=async({github,context,core})=>{
 
  await core.summary.addRaw(`Prepared [release ${next}](${pr.html_url}); normal required PR checks start automatically through the maintenance App.`).write();
 };
+
+
+function updatePluginHeader(source,current,next){
+ const pattern=/^([ \t]*\*[ \t]*Version:[ \t]*)(\S+)([ \t]*)$/m;
+ const match=source.match(pattern);
+ if(!match || match[2]!==current)throw Error('Plugin header version does not match the release baseline');
+ return source.replace(pattern,(_line,prefix,_old,suffix)=>prefix+next+suffix);
+}
+function preparePaperRelease(current,next,root=process.cwd()){
+ const path=require('node:path'),os=require('node:os');
+ const read=file=>fs.readFileSync(path.join(root,file),'utf8');
+ const files={},manifest=JSON.parse(read('package.json')),lock=JSON.parse(read('package-lock.json'));
+ if(manifest.version!==current || lock.version!==current || lock.packages[''].version!==current)throw Error('Release baseline metadata differs');
+ manifest.version=next;files['package.json']=JSON.stringify(manifest,null,'\t')+'\n';
+ lock.version=next;lock.packages[''].version=next;files['package-lock.json']=JSON.stringify(lock,null,'\t')+'\n';
+ files['paper-to-quiz.php']=updatePluginHeader(read('paper-to-quiz.php'),current,next).replace(`PAPER_TO_QUIZ_VERSION', '${current}'`,`PAPER_TO_QUIZ_VERSION', '${next}'`);
+ files['readme.txt']=read('readme.txt').replace(`Stable tag: ${current}`,`Stable tag: ${next}`).replace('== Changelog ==',`== Changelog ==\n\n= ${next} =\n* Tested maintenance and dependency updates. See the GitHub release notes for details.`);
+ files['languages/paper-to-quiz.pot']=read('languages/paper-to-quiz.pot').replace(`Project-Id-Version: Paper to Quiz ${current}`,`Project-Id-Version: Paper to Quiz ${next}`);
+ // Validate the complete proposed snapshot BEFORE creating remote blobs or a PR.
+ const temporary=fs.mkdtempSync(path.join(os.tmpdir(),'ptq-release-metadata-'));
+ try{
+  for(const [name,content]of Object.entries(files)){const target=path.join(temporary,name);fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,content);}
+  fs.copyFileSync(path.join(root,'third-party-licenses.txt'),path.join(temporary,'third-party-licenses.txt'));
+  const errors=require('../../build-tools/check-release-metadata.js').checkMetadata(temporary,`v${next}`);
+  if(errors.length)throw Error(errors.join('\n'));
+ }finally{fs.rmSync(temporary,{recursive:true,force:true});}
+ return files;
+}
+module.exports.updatePluginHeader=updatePluginHeader;
+module.exports.preparePaperRelease=preparePaperRelease;
