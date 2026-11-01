@@ -22,8 +22,10 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: 24
+          node-version: 26
           package-manager-cache: false
+      - name: Record Node.js version
+        run: node --version
       - name: Test automation safety policy
         run: node --test .github/automation/distribution-paths.check.cjs .github/automation/release-plan.check.cjs .github/automation/security-backports.check.cjs .github/automation/policy.test.cjs .github/automation/coordinator.check.cjs .github/automation/maintenance-*.check.cjs .github/automation/security-audit.check.cjs
       - name: Test parsed dependency policies

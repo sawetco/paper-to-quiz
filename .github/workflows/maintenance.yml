@@ -32,6 +32,12 @@ jobs:
           ref: main
           persist-credentials: false
           sparse-checkout: .github/automation
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 26
+          package-manager-cache: false
+      - name: Record Node.js version
+        run: node --version
       - name: Test maintenance guardrails on trusted source
         run: node --test .github/automation/maintenance-*.check.cjs
       - name: Create a short-lived token for this repository only

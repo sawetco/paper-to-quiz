@@ -24,8 +24,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: 26
           cache: npm
+      - name: Record Node.js version
+        run: node --version
       - run: npm ci
       - run: npm run security:audit -- --omit=dev
       - run: npm run security:audit
@@ -96,8 +98,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: 26
           cache: npm
+      - name: Record Node.js version
+        run: node --version
       - run: npm ci
       - run: npm run build
       - run: npm run env:start
@@ -129,8 +133,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: 26
           cache: npm
+      - name: Record Node.js version
+        run: node --version
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: node build-tools/run-wp-env-suite.js ${{ matrix.target }} integration
@@ -158,8 +164,10 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
-          node-version: 24
+          node-version: 26
           cache: npm
+      - name: Record Node.js version
+        run: node --version
       - run: npm ci
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
@@ -177,6 +185,12 @@ jobs:
     if: always()
     runs-on: ubuntu-24.04
     steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 26
+          package-manager-cache: false
+      - name: Record Node.js version
+        run: node --version
       - env:
           RESULTS: ${{ toJSON(needs) }}
         run: node -e 'const n=JSON.parse(process.env.RESULTS);if(Object.values(n).some(j=>j.result!=="success"))process.exit(1)'
