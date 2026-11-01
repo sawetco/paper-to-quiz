@@ -72,8 +72,12 @@ guards to braces 3.0.3 and width/precision bounds to sprintf-js 1.0.3.
 it prints raw npm counts because registry audit still flags the original versions.
 The security regression runs hostile inputs in a bounded subprocess. Do not skip
 install scripts. These development helpers stay outside the plugin ZIP.
-The patched simple-git 4 override also needs the version-checked named-export
-adapter in wp-env 11.17.0; remove that adapter when wp-env supports it upstream.
+wp-env 12.0.0 uses the simple-git 4 named export upstream. Its two git-source
+helpers are pinned by source fingerprints and the exact package version in the
+security verifier; do not restore the obsolete wp-env 11.17.0 adapter.
+WordPress scripts 37 uses webpack-dev-server 6; keep its reviewed 6.1 override
+aligned rather than forcing the older v5 API. No custom SockJS/proxy middleware
+is configured by this project.
 Jest is installed explicitly and uses `test-unit-jest` with the published
 WordPress preset; ESLint uses the flat Jest configuration.
 Keep Babel Core 7 and the WordPress Babel preset 8 together for this retained

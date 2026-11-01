@@ -7,18 +7,6 @@ const crypto = require("node:crypto");
 // Temporary, fail-closed mitigations until these packages publish fixes.
 const changes = [
 	[
-		"@wordpress/env/lib/download-sources.js",
-		"const SimpleGit = require( 'simple-git' );",
-		"const { simpleGit: SimpleGit } = require( 'simple-git' );",
-		1,
-	],
-	[
-		"@wordpress/env/lib/runtime/docker/download-wp-phpunit.js",
-		"const SimpleGit = require( 'simple-git' );",
-		"const { simpleGit: SimpleGit } = require( 'simple-git' );",
-		1,
-	],
-	[
 		"braces/lib/parse.js",
 		"      stack.push(block);",
 		"      if (stack.length >= 128) throw new RangeError('PTQ: brace nesting limit');\n      stack.push(block);",
@@ -73,7 +61,7 @@ function apply(checkOnly = false) {
 	for (const [name, version] of [
 		["braces", "3.0.3"],
 		["sprintf-js", "1.0.3"],
-		["@wordpress/env", "11.17.0"],
+		["@wordpress/env", "12.0.0"],
 		["simple-git", "4.0.2"],
 	]) {
 		if (
@@ -101,7 +89,14 @@ function apply(checkOnly = false) {
 
 function fingerprint() {
 	apply(true);
+	// wp-env 12.0.0 already imports simpleGit by name (upstream gitHead
+	// 8d30f92cbbde3ddf781c8799443c649befbbcb88). Pin the reviewed source
+	// instead of retaining the obsolete 11.17.0 compatibility rewrite.
 	const expected = {
+		"@wordpress/env/lib/runtime/docker/download-wp-phpunit.js":
+			"7cb2a798baf8b945463b6e9534b53c2dc45608d7aee451132f3559c4decc8ed6",
+		"@wordpress/env/lib/download-sources.js":
+			"fc69bc9664025cb3b930d0baebebfd7ec20f9e7abe2d3fec14ec165a5d9064c3",
 		"braces/lib/parse.js":
 			"f87ff5f71835ec0b82eb5b75cd949ff064a603397307f4ec70fa73e1fd5a6c7b",
 		"braces/lib/compile.js":
