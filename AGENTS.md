@@ -54,9 +54,11 @@ the plugin header version before committing a release.
 
 ## Local development
 
-The package manager is npm. Preserve `package-lock.json`. Use Node.js 24.18+
-(or 26+) with npm 11.16+ for the current WordPress development tooling. CI uses
-Node.js 24. React remains externalized at the WordPress React 18 runtime.
+The package manager is npm. Preserve `package-lock.json`. Use Node.js 26
+(the `.nvmrc` and CI default) with npm 11.16+ for the current WordPress
+development tooling. Node.js 24.18+ remains accepted within the 24.x
+compatibility line; unrelated future majors are not implicitly supported.
+React remains externalized at the WordPress React 18 runtime.
 
 Security overrides in `package.json` pin vulnerable transitive development
 tools brought in by `@wordpress/scripts` and `@wordpress/env`. Keep overrides
