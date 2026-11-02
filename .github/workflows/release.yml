@@ -70,7 +70,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install --yes --no-install-recommends subversion
           svn --version --quiet
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: product-package
           path: .
