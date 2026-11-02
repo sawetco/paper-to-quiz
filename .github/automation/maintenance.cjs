@@ -7,7 +7,7 @@ function structuredSafe(kind,path,before,after){
 }
 const {manifestSafe,acceptableChecks,sameRepository} = require('./policy.cjs');
 
-const {actionVerifier, checkBlockers} = require('./maintenance-guards.cjs');
+const {checkBlockers} = require('./maintenance-guards.cjs');
 
 const { queuePlan, headWaiting } = require("./maintenance-queue.cjs");
 
@@ -20,7 +20,7 @@ module.exports = async ({github,context,core,appGithub}) => {
   const notes = [];
   const attention = [];
   let unresolved = false;
-  const verifyActions = actionVerifier(github);
+  const manualReview = new Set();
   const reviewPath = '.github/automation/security-review.json';
   if (fs.existsSync(reviewPath)) {
     const review = JSON.parse(fs.readFileSync(reviewPath, 'utf8'));
@@ -49,6 +49,13 @@ module.exports = async ({github,context,core,appGithub}) => {
     if (pr.user.login !== 'dependabot[bot]' && !release && !contributions) continue;
     const files = await github.paginate(api.pulls.listFiles,{owner,repo,pull_number:pr.number,per_page:100});
     if((release && !pr.labels.some(l=>l.name==='automation:release')) || (contributions && !pr.labels.some(l=>l.name==='automation:contributions')))continue;
+    // Workflow changes replace executable code, including in privileged jobs.
+    // Publisher versions and passing checks cannot authorize automatic merging.
+    if (files.some(f => [f.filename, f.previous_filename].some(path => path?.startsWith('.github/workflows/')))) {
+      manualReview.add(pr.number);
+      attention.push(`- [#${pr.number}](${pr.html_url}): GitHub Actions/workflow changes require explicit human review and manual merge.`);
+      continue;
+    }
     const comparison=(await api.repos.compareCommitsWithBasehead({owner,repo,basehead:`${pr.base.sha}...${pr.head.sha}`})).data;
     const changeBase=comparison.merge_base_commit?.sha;
     if(!changeBase){attention.push(`- [#${pr.number}](${pr.html_url}): cannot determine the reviewed change base.`);continue;}
@@ -67,8 +74,6 @@ module.exports = async ({github,context,core,appGithub}) => {
         if (f.status !== 'modified') {safe=false;break;}
         if (/(^|\/)package\.json$/.test(f.filename)) {
           if (!manifestSafe(await getText(f.filename,changeBase),await getText(f.filename,pr.head.sha))) safe=false;
-        } else if (f.filename.startsWith('.github/workflows/')) {
-          if (!await verifyActions(await getText(f.filename, changeBase), await getText(f.filename, pr.head.sha))) safe = false;
         } else if (/(^|\/)requirements(?:-[\w-]+)?\.(?:txt|in)$/.test(f.filename)) {
           if(!structuredSafe('pip',f.filename,await getText(f.filename,changeBase),await getText(f.filename,pr.head.sha)))safe=false;
         } else if (f.filename.endsWith('Cargo.toml') || f.filename.endsWith('Cargo.lock')) {
@@ -78,7 +83,7 @@ module.exports = async ({github,context,core,appGithub}) => {
         } else if (!/(^|\/)(package-lock\.json|pnpm-lock\.yaml|bun\.lock|composer\.lock|Cargo\.lock)$/.test(f.filename)) safe=false;
       }
       // Lockfile-only groups must state a minor/patch update, not silently bundle a major.
-      if(!files.some(f=>/(package\.json|requirements.*\.(?:txt|in)|Cargo\.(toml|lock)|composer\.json|workflows\/)/.test(f.filename))) safe=false;
+      if(!files.some(f=>/(package\.json|requirements.*\.(?:txt|in)|Cargo\.(toml|lock)|composer\.json)/.test(f.filename))) safe=false;
     }
     if (!safe) {attention.push(`- [#${pr.number}](${pr.html_url}): major update or a change outside the automatic dependency policy.`);continue;}
     candidates.push({ pr, comparison, release, contributions });
@@ -104,7 +109,7 @@ module.exports = async ({github,context,core,appGithub}) => {
     ? context.payload?.inputs?.priority_pr : "";
   const priority = /^[1-9][0-9]*$/.test(priorityInput || "") ? Number(priorityInput) : 0;
   const selected = priority ? candidates.filter(c => c.pr.number === priority) : candidates;
-  if (priority && !selected.length)
+  if (priority && !selected.length && !manualReview.has(priority))
     attention.push(`- #${priority}: urgent selection is not eligible under the automatic policy; review manually.`);
   for (const candidate of selected)
     candidate.updateBlocked = !!issue?.body?.includes(

@@ -193,8 +193,47 @@ function dependencyFixture({checks=[],statuses=[],age=72,action=false,from='v1.2
   return f;
 }
 const green=config.requiredChecks.map((name,id)=>({id,name,app:{slug:'github-actions'},status:'completed',conclusion:'success'}));
-for(const kind of ['manifest','action'])test(`${kind} legitimate minor/patch updates still merge expected SHA`,async()=>{const f=dependencyFixture({checks:green,action:kind==='action'});await f.execute();assert.equal(f.calls.merged.length,1);assert.equal(f.calls.merged[0].sha,'dependency-head');assert.ok(f.calls.dispatched.length);});
-for(const [from,to,title] of [['v1.2.3','v2.0.0','Routine dependency update'],['v0.1.0','v0.2.0','Bump example from v0.1.0 to v0.2.0']])test(`unsafe Action ${from}→${to} never merges regardless of title`,async()=>{const f=dependencyFixture({checks:green,action:true,from,to,title});await f.execute();assert.equal(f.calls.merged.length,0);assert.ok(f.calls.updated[0].body.includes('major update'));});
+test('compatible application dependency update still merges the tested SHA',async()=>{
+  const f=dependencyFixture({checks:green});await f.execute();
+  assert.equal(f.calls.merged.length,1);assert.equal(f.calls.merged[0].sha,'dependency-head');
+  assert.ok(f.calls.dispatched.length);
+});
+for(const [from,to] of [['v1.2.3','v1.2.4'],['v1.2.3','v1.3.0'],['v0.1.0','v0.1.1'],['v1.2.3','v2.0.0']]) {
+  for(const urgent of [false,true]) test(`tagged Action ${from} -> ${to}, urgent=${urgent}, requires one human-review entry`,async()=>{
+    const f=dependencyFixture({checks:green,action:true,from,to,existing:[]});
+    // Even a privileged workflow's same-major pinned update stays outside the queue.
+    f.rest.pulls.listFiles=async()=>({data:[
+      {filename:'.github/workflows/maintenance.yml',status:'modified'},
+      {filename:'.github/workflows/release.yml',status:'modified'},
+      {filename:'package.json',status:'modified'},
+    ]});
+    let tagReads=0,checkReads=0,branchUpdates=0;
+    f.rest.repos.listTags=async()=>{tagReads++;return {data:[{name:from,commit:{sha:'a'.repeat(40)}},{name:to,commit:{sha:'b'.repeat(40)}}]}};
+    f.rest.checks.listForRef=async()=>{checkReads++;return {data:green}};
+    const summary={addHeading(){return this},addRaw(){return this},async write(){}};
+    const execute=()=>maintenance({github:f.github,
+      appGithub:{rest:{pulls:{updateBranch:async()=>{branchUpdates++}}}},
+      context:{repo:{owner:'sawetco',repo:'fixture'},eventName:'workflow_dispatch',ref:'refs/heads/main',payload:{inputs:{priority_pr:urgent?'8':''}}},
+      core:{summary}});
+    await execute();
+    assert.equal(f.calls.merged.length,0);assert.equal(f.calls.dispatched.length,0);
+    assert.equal(f.calls.retried.length,0);assert.equal(branchUpdates,0);
+    assert.equal(tagReads,0);assert.equal(checkReads,0);
+    assert.equal(f.calls.created.length,1);
+    const body=f.calls.created[0].body;
+    assert.match(body,/explicit human review and manual merge/);
+    assert.equal(body.split('\n').filter(line=>line.startsWith('- ')).length,1);
+    f.rest.issues.listForRepo=async()=>({data:[{...existingIssue,body}]});
+    await execute();
+    assert.equal(f.calls.created.length,1);assert.equal(f.calls.updated.length,0);
+  });
+}
+for(const status of ['added','removed','renamed']) test(`workflow ${status} requires human review`,async()=>{
+  const f=dependencyFixture({checks:green,action:true});
+  f.rest.pulls.listFiles=async()=>({data:[{filename:status==='renamed'?'archived-ci.yml':'.github/workflows/ci.yml',previous_filename:status==='renamed'?'.github/workflows/ci.yml':undefined,status}]});
+  await f.execute();assert.equal(f.calls.merged.length,0);
+  assert.match(f.calls.updated[0].body,/explicit human review/);
+});
 test('fresh missing checks do not spam or close unresolved issue',async()=>{const f=dependencyFixture({age:1});await f.execute();assert.equal(f.calls.created.length,0);assert.equal(f.calls.updated.length,0);assert.equal(f.calls.merged.length,0)});
 test('aged missing checks escalate without closing issue',async()=>{const f=dependencyFixture();await f.execute();assert.match(f.calls.updated[0].body,/missing/);assert.equal(f.calls.updated[0].state,undefined)});
 for(const conclusion of ['skipped','neutral','startup_failure','stale'])test(`terminal required ${conclusion} escalates end to end`,async()=>{const f=dependencyFixture({checks:green.map(c=>({...c,conclusion}))});await f.execute();assert.equal(f.calls.merged.length,0);assert.match(f.calls.updated[0].body,new RegExp(conclusion))});

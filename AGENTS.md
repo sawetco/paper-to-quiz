@@ -288,7 +288,7 @@ verified only after checking the actual production environment.
 
 ## Autonomous dependency maintenance
 
-See `docs/automated-maintenance.md`. The owner authorized tested minor/patch dependency auto-merges and automatic releases on 29 October 2026. Keep major/API/schema/formula changes under human review. Never weaken required checks to unblock automation. GitHub Actions owns quality and automation; Vercel Git integration owns web delivery. Vercel CI migration is out of scope.
+See `docs/automated-maintenance.md`. The owner authorized tested minor/patch dependency auto-merges and automatic releases on 29 October 2026. Keep major/API/schema/formula changes under human review. GitHub Actions/workflow updates, including same-major tagged SHA changes, require explicit human review and manual merge; they are never eligible for the automatic queue or urgent-selection override. Never weaken required checks to unblock automation. GitHub Actions owns quality and automation; Vercel Git integration owns web delivery. Vercel CI migration is out of scope.
 
 The October 30 minimatch/glob backports are applied by postinstall and verified by the audit; see `docs/automated-maintenance.md`. Do not skip install scripts or accept these advisories without installed-source and behavioral verification.
 
