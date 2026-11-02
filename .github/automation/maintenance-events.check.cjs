@@ -4,7 +4,12 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const workflow=fs.readFileSync('.github/workflows/maintenance.yml','utf8');
 const expression=workflow.split('\n').find(l=>l.startsWith('    if: ')).slice(8);
-const guard=new Function('github','vars','format',`return (${expression});`);
+// Keep the static truth-table model bound to the exact shipped workflow expression.
+const expectedExpression="(github.event_name != 'pull_request_target' || github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'github-actions[bot]' || github.event.pull_request.user.login == format('{0}[bot]', vars.MAINTENANCE_APP_SLUG)) && (github.event.action != 'labeled' || github.event.label.name == 'automation:release' || github.event.label.name == 'automation:contributions')";
+test('workflow guard matches the audited static model',()=>assert.equal(expression,expectedExpression));
+function guard(github,vars,format) {
+  return (github.event_name != 'pull_request_target' || github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'github-actions[bot]' || github.event.pull_request.user.login == format('{0}[bot]', vars.MAINTENANCE_APP_SLUG)) && (github.event.action != 'labeled' || github.event.label.name == 'automation:release' || github.event.label.name == 'automation:contributions');
+}
 function allowed(event_name,action,login='dependabot[bot]',label='unrelated') {
   return guard({event_name,event:{workflow_run:{name:'Quality',conclusion:'success'},action,label:{name:label},pull_request:{user:{login}}}},{MAINTENANCE_APP_SLUG:'maint'},(_,slug)=>`${slug}[bot]`);
 }
