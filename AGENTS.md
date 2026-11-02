@@ -293,3 +293,5 @@ See `docs/automated-maintenance.md`. The owner authorized tested minor/patch dep
 The October 30 minimatch/glob backports are applied by postinstall and verified by the audit; see `docs/automated-maintenance.md`. Do not skip install scripts or accept these advisories without installed-source and behavioral verification.
 
 The release planner derives distributable paths from the package files allowlist, including build settings, translations and shipped documentation. Keep the path regression aligned with distribution rules; internal workflow-only edits do not require a new plugin version.
+
+Maintenance may waive Release freshness only with exact-head published-baseline and distribution-path evidence; it must retain pending/failed publication attention and all required source-check gates. Run `node --test .github/automation/maintenance-*.check.cjs` for coordinator changes.

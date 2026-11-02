@@ -9,6 +9,8 @@ const {manifestSafe,acceptableChecks,sameRepository} = require('./policy.cjs');
 
 const {checkBlockers} = require('./maintenance-guards.cjs');
 
+const { releaseNotRequired } = require('./maintenance-release.cjs');
+
 const { queuePlan, headWaiting } = require("./maintenance-queue.cjs");
 
 module.exports = async ({github,context,core,appGithub}) => {
@@ -209,7 +211,19 @@ module.exports = async ({github,context,core,appGithub}) => {
     if (!workflow) { unresolved = true; attention.push(`- ${name}: monitored workflow is missing.`); continue; }
     const recent = (await api.actions.listWorkflowRuns({owner, repo, workflow_id: workflow.id, branch: defaultBranch, per_page: 100})).data.workflow_runs;
     const run = recent.find(r => r.head_branch === defaultBranch && r.event !== 'pull_request');
-    if (!run || run.head_sha !== defaultHead || run.status !== 'completed') unresolved = true;
+    const optionalRelease = name === 'Release' && repo === 'paper-to-quiz';
+    // A release failure does not disappear merely because an internal commit
+    // advanced main. Do not automatically retry publication for an older SHA.
+    if (optionalRelease && run && run.head_sha !== defaultHead && run.status === 'completed' &&
+        ['failure','timed_out','action_required','cancelled','startup_failure','stale'].includes(run.conclusion)) {
+      attention.push(`- [${name}](${run.html_url}): latest publication failed and needs investigation.`);
+    }
+    let fresh = run?.head_sha === defaultHead && run.status === 'completed' &&
+      (!optionalRelease || run.conclusion === 'success');
+    if (!fresh && optionalRelease && (!run || run.status === 'completed' && run.conclusion === 'success')) {
+      fresh = await releaseNotRequired({ api, owner, repo, head: defaultHead, pulls });
+    }
+    if (!fresh) unresolved = true;
     if(run && run.status==='completed' && run.head_sha===defaultHead && ['failure','timed_out','action_required','cancelled','startup_failure','stale'].includes(run.conclusion)) {
       if(run.run_attempt<2 && run.conclusion==="failure") {await api.actions.reRunWorkflowFailedJobs({owner,repo,run_id:run.id});unresolved = true;
         notes.push(`Retried ${name} once.`);}
