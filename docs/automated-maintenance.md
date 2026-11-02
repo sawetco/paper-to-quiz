@@ -1,6 +1,6 @@
 # Automated maintenance
 
-Dependabot checks dependencies weekly. The trusted default-branch coordinator classifies dependency-only changes, waits for every required check from GitHub Actions, updates outdated branches, and squash-merges compatible minor/patch updates one at a time. Major versions, 0.x minor changes, manifest script changes, Rust source/build configuration edits, conflicts and repeated failures require human review. It never executes PR code with its write token.
+Dependabot checks dependencies weekly. The trusted default-branch coordinator classifies dependency-only changes, waits for every required check from GitHub Actions, updates outdated branches, and squash-merges compatible minor/patch updates one at a time. GitHub Actions/workflow changes (including same-major tagged SHA updates in privileged workflows), major versions, 0.x minor changes, manifest script changes, Rust source/build configuration edits, conflicts and repeated failures require human review. Workflow changes receive one attention entry per PR and require explicit human review and manual merge; urgent selection does not override this rule. Routine application dependency updates retain their existing checks and eligibility rules. It never executes PR code with its write token.
 
 Quality and Security are explicitly dispatched after a workflow-token merge because GitHub suppresses ordinary push workflows for those writes. Production still waits for the actual merged commit checks in Vercel. Scheduled data/formula changes keep their existing human review policy.
 
