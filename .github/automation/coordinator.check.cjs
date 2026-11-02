@@ -46,6 +46,10 @@ test('an outdated dependency PR is classified against its merge base before the 
  f.rest.pulls.listFiles=async()=>({data:[{filename:'package.json',status:'modified'}]});
  f.rest.repos.compareCommitsWithBasehead=async()=>({data:{merge_base_commit:{sha:'reviewed-base'},behind_by:1}});
  f.rest.repos.getContent=async({ref})=>{refs.push(ref);const value=ref==='reviewed-base'?{dependencies:{a:'1.2.3'}}:ref==='dependency-head'?{dependencies:{a:'1.2.4'}}:{dependencies:{a:'1.2.3'},scripts:{postinstall:'node newly-reviewed-main.js'}};return {data:{encoding:'base64',content:Buffer.from(JSON.stringify(value)).toString('base64')}};};
+
+  f.rest.checks = { listForRef: async () => ({ data: [] }) };
+  f.rest.repos.getCombinedStatusForRef = async () => ({ data: { statuses: [] } });
+  f.rest.repos.getCommit = async () => ({ data: { commit: { committer: { date: "2020-01-01" } } } });
  const updates=[];const appGithub={rest:{pulls:{updateBranch:async p=>updates.push(p)}}};
  const summary={addHeading(){return this;},addRaw(){return this;},async write(){}};
  await maintenance({github:f.github,appGithub,context:{repo:{owner:'sawetco',repo:'fixture'}},core:{summary}});

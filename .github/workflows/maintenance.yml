@@ -8,6 +8,11 @@ on:
   schedule:
     - cron: "41 3 * * *"
   workflow_dispatch:
+    inputs:
+      priority_pr:
+        description: "Optional operator-reviewed urgent security PR number; all safety checks still apply"
+        required: false
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -15,7 +20,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   maintain:
-    if: github.event_name != 'pull_request_target' || github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'github-actions[bot]' || github.event.pull_request.user.login == format('{0}[bot]', vars.MAINTENANCE_APP_SLUG)
+    if: (github.event_name != 'pull_request_target' || github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'github-actions[bot]' || github.event.pull_request.user.login == format('{0}[bot]', vars.MAINTENANCE_APP_SLUG)) && (github.event.action != 'labeled' || github.event.label.name == 'automation:release' || github.event.label.name == 'automation:contributions')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
