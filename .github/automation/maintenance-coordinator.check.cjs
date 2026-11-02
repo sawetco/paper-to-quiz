@@ -147,6 +147,9 @@ test("an outdated dependency PR is classified against its merge base before the 
       },
     };
   };
+  f.rest.checks = { listForRef: async () => ({ data: [] }) };
+  f.rest.repos.getCombinedStatusForRef = async () => ({ data: { statuses: [] } });
+  f.rest.repos.getCommit = async () => ({ data: { commit: { committer: { date: "2020-01-01" } } } });
   const updates = [];
   const appGithub = {
     rest: { pulls: { updateBranch: async (p) => updates.push(p) } },
@@ -212,3 +215,117 @@ test('security review expiry creates attention and preserves issue at boundary',
   } finally {reviewUnderTest=undefined;}
 });
 test('non-failure terminal monitor state escalates without invalid failed-jobs retry',async()=>{const f=fixture([{...failed,conclusion:'cancelled',run_attempt:1}],[existingIssue]);await f.execute();assert.equal(f.calls.retried.length,0);assert.ok(f.calls.updated[0].body)});
+
+async function queueFixture({ pending = false, failedUpdate = false, existing = [], behind = true, conflict = false, age = 1 } = {}) {
+  const f = dependencyFixture({ checks: green, existing, age });
+  const original = (await f.rest.pulls.get()).data;
+  const prs = [8,9,10].map(number => ({ ...original, number,
+    head: { ...original.head, sha: `head-${number}` },
+    mergeable: number === 8 && conflict ? false : true,
+  }));
+  f.rest.pulls.list = async () => ({ data: prs });
+  f.rest.pulls.get = async ({ pull_number }) => ({ data: prs.find(p=>p.number===pull_number) });
+  f.rest.repos.compareCommitsWithBasehead = async () => ({ data: {merge_base_commit:{sha:'reviewed-base'},behind_by:behind?1:0} });
+  f.rest.checks.listForRef = async ({ref}) => ({ data: pending && ref==='head-8' ? green.map(c=>({...c,status:'in_progress',conclusion:null})) : green });
+  f.calls.branchUpdates=[];
+  const appGithub={rest:{pulls:{updateBranch:async p=>{
+    f.calls.branchUpdates.push(p);
+    if(failedUpdate) throw Error('uncertain API outcome');
+  }}}};
+  const summary={addHeading(){return this},addRaw(){return this},async write(){}};
+  f.execute=(event={})=>maintenance({github:f.github,appGithub,context:{repo:{owner:'sawetco',repo:'fixture'},...event},core:{summary}});
+  return f;
+}
+test('three behind safe PRs cause exactly one SHA-guarded update',async()=>{
+  const f=await queueFixture(); await f.execute();
+  assert.deepEqual(f.calls.branchUpdates.map(p=>[p.pull_number,p.expected_head_sha]),[[8,'head-8']]);
+  assert.equal(f.calls.merged.length,0);
+});
+test('next event while selected PR runs checks cannot update another PR',async()=>{
+  const f=await queueFixture({pending:true}); await f.execute(); await f.execute();
+  assert.equal(f.calls.branchUpdates.length,0); assert.equal(f.calls.merged.length,0);
+});
+test('unknown branch-update outcome consumes one attempt and persists exact-head failure marker',async()=>{
+  const f=await queueFixture({failedUpdate:true}); await f.execute();
+  assert.equal(f.calls.branchUpdates.length,1);
+  assert.match(f.calls.created[0].body,/maintenance-update-failed:8:head-8/);
+  const next=await queueFixture({existing:[{...existingIssue,body:f.calls.created[0].body}]});
+  await next.execute(); assert.equal(next.calls.branchUpdates[0].pull_number,9);
+});
+test('changed head is eligible after earlier exact-head update failure',async()=>{
+  const f=await queueFixture({existing:[{...existingIssue,body:'<!-- autonomous-maintenance:v1 --> <!-- maintenance-update-failed:8:old-head -->'}]});
+  await f.execute(); assert.equal(f.calls.branchUpdates[0].pull_number,8);
+});
+test('known conflict cannot starve later candidates',async()=>{
+  const f=await queueFixture({conflict:true}); await f.execute();
+  assert.equal(f.calls.branchUpdates[0].pull_number,9);
+});
+test('stuck pending head escalates and allows another head to progress',async()=>{
+  const f=await queueFixture({pending:true,age:25}); await f.execute();
+  assert.equal(f.calls.branchUpdates[0].pull_number,9);
+  assert.match(f.calls.created[0].body,/pending beyond 24 hours/);
+});
+test('last required completion permits exactly one merge and retains explicit postmerge checks',async()=>{
+  const f=await queueFixture({behind:false}); await f.execute();
+  assert.equal(f.calls.merged.length,1); assert.equal(f.calls.branchUpdates.length,0);
+  for(const workflow of [config.qualityWorkflow,config.securityWorkflow,...config.supplementalWorkflows||[]])
+    assert.ok(f.calls.dispatched.some(p=>p.workflow_id===workflow));
+});
+
+test('operator urgent selection can progress despite another running PR, without weakening checks',async()=>{
+  const f=await queueFixture({pending:true});
+  await f.execute({eventName:'workflow_dispatch',ref:'refs/heads/main',payload:{inputs:{priority_pr:'9'}}});
+  assert.deepEqual(f.calls.branchUpdates.map(p=>p.pull_number),[9]);
+  const running=await queueFixture({pending:true});
+  await running.execute({eventName:'workflow_dispatch',ref:'refs/heads/main',payload:{inputs:{priority_pr:'8'}}});
+  assert.equal(running.calls.branchUpdates.length,0);
+});
+test('priority input on nondefault dispatch or untrusted event cannot bypass queue',async()=>{
+  for(const event of [{eventName:'workflow_dispatch',ref:'refs/heads/feature'},{eventName:'pull_request_target',ref:'refs/heads/main'}]){
+    const f=await queueFixture({pending:true});
+    await f.execute({...event,payload:{inputs:{priority_pr:'9'}}});
+    assert.equal(f.calls.branchUpdates.length,0);
+  }
+});
+
+test('adversarial newer green and running arrivals do not starve the older behind fix across passes',async()=>{
+  const f=await queueFixture();
+  const original=(await f.rest.pulls.list()).data;
+  let epoch=0;
+  f.rest.pulls.list=async()=>({data:[original[0],...Array.from({length:epoch+1},(_,i)=>({
+    ...original[1],number:100+i,head:{...original[1].head,sha:`routine-${i}`}
+  }))]});
+  f.rest.pulls.get=async({pull_number})=>({data:(await f.rest.pulls.list()).data.find(p=>p.number===pull_number)});
+  f.rest.repos.compareCommitsWithBasehead=async({basehead})=>({data:{merge_base_commit:{sha:'reviewed-base'},behind_by:basehead.endsWith('head-8')&&epoch===0?1:0}});
+  f.rest.checks.listForRef=async({ref})=>({data:ref==='head-8'&&epoch>0&&epoch<12
+    ?green.map(c=>({...c,status:'in_progress',conclusion:null}))
+    :ref.startsWith('routine-')&&Number(ref.split('-')[1])%2
+      ?green.map(c=>({...c,status:'in_progress',conclusion:null})):green});
+  await f.execute();
+  assert.deepEqual(f.calls.branchUpdates.map(p=>p.pull_number),[8]);
+  for(epoch=1;epoch<12;epoch++){
+    await f.execute();
+    assert.equal(f.calls.branchUpdates.length,1);
+    assert.equal(f.calls.merged.length,0);
+  }
+  await f.execute();
+  assert.equal(f.calls.merged[0].pull_number,8);
+  assert.equal(f.calls.merged[0].sha,'head-8');
+  assert.equal(f.calls.merged.length,1);
+});
+test('skipping a failed exact head never updates the next head while its checks run',async()=>{
+  const f=await queueFixture({existing:[{...existingIssue,body:'<!-- autonomous-maintenance:v1 --> <!-- maintenance-update-failed:8:head-8 -->'}]});
+  f.rest.checks.listForRef=async({ref})=>({data:ref==='head-9'?green.map(c=>({...c,status:'in_progress',conclusion:null})):green});
+  await f.execute();
+  assert.equal(f.calls.branchUpdates.length,0);
+});
+
+test('one failed-job retry reserves the pass across several failing PRs',async()=>{
+  const f=await queueFixture({behind:false,age:25});
+  f.rest.checks.listForRef=async()=>({data:green.map(c=>({...c,conclusion:'failure'}))});
+  f.rest.actions.listWorkflowRunsForRepo=async()=>({data:{workflow_runs:[{...failed,run_attempt:1}]}});
+  await f.execute();
+  assert.equal(f.calls.retried.length,1);
+  assert.equal(f.calls.branchUpdates.length,0);
+  assert.equal(f.calls.merged.length,0);
+});
