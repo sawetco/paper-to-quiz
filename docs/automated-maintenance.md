@@ -39,3 +39,5 @@ counts remain visible: a verified local mitigation is not an upstream clean audi
 Remove each backport only after a compatible upstream upgrade passes the full CI.
 
 The release planner includes every shipped source/documentation path and detects renamed paths. WordPress uses the package.json files allowlist (including its exclusions), so webpack/TypeScript settings, translations and readme/license changes also publish automatically. Stonewards includes all packaged top-level documents and its archive builder. Internal workflow-only changes do not create a product version.
+
+Release freshness is optional only when exact default-head metadata matches the latest published stable release and a complete, non-diverged comparison proves no distributable paths changed, using the release planner's package allowlist classifier. An open release PR, a version awaiting publication, pending publication, or missing/ambiguous API evidence keeps attention unresolved. Older failed publication runs remain actionable; they are not automatically retried against an older source. Quality, Security, CodeQL and the release planner still require current-head runs.
