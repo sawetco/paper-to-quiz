@@ -36,7 +36,9 @@ jobs:
         with:
           ref: main
           persist-credentials: false
-          sparse-checkout: .github/automation
+          sparse-checkout: |
+            .github/automation
+            .github/workflows
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 26
