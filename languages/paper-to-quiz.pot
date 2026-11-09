@@ -1836,10 +1836,6 @@ msgid "Correct-answer timing matches the result release date"
 msgstr ""
 
 #: build/admin-wizard.js:8
-msgid "Ranking is single-attempt and membership-based"
-msgstr ""
-
-#: build/admin-wizard.js:8
 msgid "Publish exam"
 msgstr ""
 

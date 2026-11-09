@@ -19,16 +19,17 @@ async function completeExam( page: Page ) {
 	).toBeVisible();
 }
 
-test( 'persists public ranking and independently controls list publication', async ( {
+test( 'allows publishing a public ranked exam with scheduled results', async ( {
 	page,
 } ) => {
+	test.setTimeout( 90_000 );
 	await page.goto( '/wp-login.php' );
 	await page.getByLabel( 'Username or Email Address' ).fill( 'admin' );
 	await page
 		.getByLabel( 'Password', { exact: true } )
 		.fill( 'paper-to-quiz-integration' );
 	await Promise.all( [
-		page.waitForURL( /wp-admin/ ),
+		page.waitForURL( /wp-admin/, { waitUntil: 'domcontentloaded' } ),
 		page.getByRole( 'button', { name: 'Log In' } ).click(),
 	] );
 	const url = `/wp-admin/admin.php?page=paper-to-quiz-exams&assessment=${ process.env.PTQ_E2E_RANKING_PUBLIC }`;
@@ -65,6 +66,20 @@ test( 'persists public ranking and independently controls list publication', asy
 	await page.goto( url );
 	await expect( ranking ).toBeChecked();
 	await expect( list ).toBeChecked();
+	await expect( page.getByLabel( 'Access', { exact: true } ) ).toHaveValue(
+		'guest_allowed'
+	);
+	await expect(
+		page.getByLabel( 'Result release', { exact: true } )
+	).not.toHaveValue( '' );
+	await page.getByRole( 'button', { name: 'Save and continue' } ).click();
+	await page.getByRole( 'button', { name: 'Select questions' } ).click();
+	await expect( page.locator( '.konvajs-content' ).first() ).toBeVisible();
+	await page.getByRole( 'button', { name: 'Save selections' } ).click();
+	await page.getByRole( 'button', { name: 'Save answer key' } ).click();
+	await expect(
+		page.getByRole( 'button', { name: 'Publish new version' } )
+	).toBeEnabled();
 } );
 
 test( 'guest and member submissions respect release, access, masking, search, and pagination', async ( {
