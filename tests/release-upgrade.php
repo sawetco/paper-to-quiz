@@ -29,7 +29,9 @@ $revision_row = array('revision_no' => 1, 'lifecycle' => 'published', 'title' =>
 	'feedback_timing' => 'after_submit', 'result_visibility' => 'summary', 'participant_fields_json' => '{}', 'created_at' => $now);
 
 if ($phase === 'seed') {
-	paper_to_quiz_release_assert(PAPER_TO_QUIZ_VERSION === '1.1.6' && PAPER_TO_QUIZ_DB_VERSION === '1.0.0', 'The baseline ZIP was not installed.');
+	$baseline = getenv('PTQ_BASELINE_VERSION') ?: '1.1.6';
+	$baseline_schemas = array('1.1.6' => '1.0.0', '1.2.6' => '1.1.0');
+	paper_to_quiz_release_assert(PAPER_TO_QUIZ_VERSION === $baseline && PAPER_TO_QUIZ_DB_VERSION === ($baseline_schemas[$baseline] ?? null), 'The baseline ZIP was not installed.');
 	$member = wp_insert_user(array('user_login' => 'ptq_zip_upgrade_' . wp_generate_password(8, false, false), 'user_pass' => wp_generate_password(32), 'role' => 'subscriber'));
 	paper_to_quiz_release_assert(! is_wp_error($member), 'The baseline member fixture failed.');
 	paper_to_quiz_release_assert(1 === $wpdb->insert($db->table('assessments'), $assessment_row), 'The baseline assessment failed.');
@@ -46,12 +48,16 @@ if ($phase === 'seed') {
 	)), 'The baseline attempt failed.');
 	$attempt = (int) $wpdb->insert_id;
 	paper_to_quiz_release_assert(1 === $wpdb->insert($db->table('ranking_entries'), array('revision_id' => $revision, 'attempt_id' => $attempt, 'wp_user_id' => (int) $member, 'score' => 9000, 'duration_seconds' => 60, 'submitted_at' => $now)), 'The baseline ranking failed.');
+	paper_to_quiz_release_assert(1 === $wpdb->insert($db->table('questions'), array('revision_id' => $revision, 'client_key' => wp_generate_uuid4(), 'ordinal' => 1, 'source_page' => 1, 'crop_x' => 0, 'crop_y' => 0, 'crop_width' => 1, 'crop_height' => 1, 'correct_option' => 'A', 'points' => 9000, 'created_at' => $now, 'updated_at' => $now)), 'The baseline question failed.');
+	paper_to_quiz_release_assert(1 === $wpdb->insert($db->table('answers'), array('attempt_id' => $attempt, 'question_id' => (int) $wpdb->insert_id, 'selected_option' => 'A', 'is_correct' => 1, 'awarded_points' => 9000, 'answered_at' => $now)), 'The baseline answer failed.');
 	paper_to_quiz_release_assert(add_option($state_option, array('assessment' => $assessment, 'revision' => $revision, 'attempt' => $attempt, 'member' => (int) $member), '', false), 'The upgrade fixture state failed.');
 	echo "PTQ_RELEASE_BASELINE=ready\n";
 	return;
 }
 
-paper_to_quiz_release_assert(PAPER_TO_QUIZ_VERSION === (getenv('PTQ_EXPECTED_VERSION') ?: '1.2.0') && get_option('paper_to_quiz_db_version') === '1.1.0', 'The 1.2.0 ZIP did not upgrade its schema.');
+paper_to_quiz_release_assert(PAPER_TO_QUIZ_VERSION === getenv('PTQ_EXPECTED_VERSION') && get_option('paper_to_quiz_db_version') === PAPER_TO_QUIZ_DB_VERSION, 'The ZIP did not install its declared schema.');
+$queue_columns = $wpdb->get_col($wpdb->prepare('SHOW COLUMNS FROM %i', $db->table('attempts')));
+paper_to_quiz_release_assert(! array_diff(array('pending_submission', 'submission_retry_at', 'submission_failures'), $queue_columns), 'The submission queue columns are missing.');
 $column = $wpdb->get_row($wpdb->prepare('SHOW COLUMNS FROM %i LIKE %s', $db->table('ranking_entries'), 'wp_user_id'), ARRAY_A);
 paper_to_quiz_release_assert($column['Null'] === 'YES', 'Guest ranking IDs are not nullable.');
 paper_to_quiz_release_assert(Installer::repair_schema(), 'Reapplying the new schema was not idempotent.');
@@ -67,6 +73,8 @@ $state = get_option($state_option);
 paper_to_quiz_release_assert(is_array($state), 'Baseline fixture state is missing.');
 $old = $wpdb->get_row($wpdb->prepare('SELECT * FROM %i WHERE attempt_id = %d', $db->table('ranking_entries'), $state['attempt']), ARRAY_A);
 paper_to_quiz_release_assert((int) $old['wp_user_id'] === $state['member'] && (int) $old['score'] === 9000 && null === $old['public_label'], 'The member ranking changed or its identity was automatically published.');
+$old_answer = $wpdb->get_row($wpdb->prepare('SELECT selected_option,awarded_points FROM %i WHERE attempt_id=%d', $db->table('answers'), $state['attempt']), ARRAY_A);
+paper_to_quiz_release_assert($old_answer['selected_option'] === 'A' && (int) $old_answer['awarded_points'] === 9000, 'The upgrade changed the existing answer or its points.');
 paper_to_quiz_release_assert('0' === (string) $wpdb->get_var($wpdb->prepare('SELECT ranking_list_enabled FROM %i WHERE id = %d', $db->table('revisions'), $state['revision'])), 'The upgrade enabled an existing participant list.');
 
 $storage = new EncryptedStorage();
@@ -84,7 +92,10 @@ $question = (int) $wpdb->insert_id;
 wp_set_current_user(0);
 $started = $attempts->start($assessment, array('first_name' => 'Release', 'last_name' => 'Guest'));
 paper_to_quiz_release_assert(is_array($started), 'The installed ZIP could not start a guest attempt.');
-$result = $attempts->submit($started['public_id'], $started['token'], false, wp_generate_uuid4(), array(array('question_id' => $question, 'option' => 'A')));
+$receipt = $attempts->submit($started['public_id'], $started['token'], false, wp_generate_uuid4(), array(array('question_id' => $question, 'option' => 'A')), true);
+paper_to_quiz_release_assert(is_array($receipt) && $receipt['status'] === 'processing', 'The installed ZIP did not save a durable submission.');
+do_action('paper_to_quiz_process_submissions');
+$result = $attempts->result($started['public_id'], $started['token']);
 paper_to_quiz_release_assert(is_array($result) && $result['ranking_eligible'] && $result['ranking']['total'] === 1, 'The installed ZIP could not rank a guest submission.');
 paper_to_quiz_release_assert(false !== $wpdb->update($db->table('revisions'), array('window_end_utc' => gmdate('Y-m-d H:i:s', time() - 60)), array('id' => $revision)), 'The synthetic exam could not finish.');
 $list = $attempts->ranking_list($assessment, 1, 20, 'release');
