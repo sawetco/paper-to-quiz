@@ -1633,15 +1633,6 @@ function PublishStep( {
 						? record.revision.feedback_timing === 'scheduled'
 						: record.revision.feedback_timing !== 'scheduled',
 				],
-				[
-					__(
-						'Ranking is single-attempt and membership-based',
-						'paper-to-quiz'
-					),
-					record.revision.ranking_enabled !== '1' ||
-						( record.revision.access_mode === 'login_required' &&
-							record.revision.allow_repeat !== '1' ),
-				],
 			] as const );
 	const checks =
 		record.assessment.type === 'exam'
