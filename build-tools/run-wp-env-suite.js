@@ -167,6 +167,9 @@ try {
 				PTQ_E2E_RANKING_MEMBER: fixture.stdout.match(
 					/PTQ_E2E_RANKING_MEMBER=(\d+)/
 				)?.[ 1 ],
+				PTQ_E2E_RANKING_REVIEW: fixture.stdout.match(
+					/PTQ_E2E_RANKING_REVIEW=(\d+)/
+				)?.[ 1 ],
 				PTQ_E2E_WP_CONFIG: selected.config,
 			},
 		} );

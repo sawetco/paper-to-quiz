@@ -31,6 +31,10 @@ test( 'loads only when opened and retains global rank while searching and paging
 	expect( request ).not.toHaveBeenCalled();
 	fireEvent.click( screen.getByRole( 'button', { name: 'Ranking' } ) );
 	expect( await screen.findByText( 'İpek M. Y.' ) ).toBeVisible();
+	expect(
+		screen.getByRole( 'searchbox', { name: 'Search by name' } )
+	).toBeVisible();
+	expect( screen.getByRole( 'status' ) ).toHaveTextContent( '21 results' );
 	expect( screen.getByText( '23' ) ).toBeVisible();
 	fireEvent.click( screen.getByRole( 'button', { name: 'Next' } ) );
 	await waitFor( () =>
@@ -77,9 +81,7 @@ test( 'escapes public labels and handles an empty search', async () => {
 	fireEvent.change( screen.getByRole( 'searchbox' ), {
 		target: { value: 'missing' },
 	} );
-	expect(
-		await screen.findByText( 'No matching participants.' )
-	).toBeVisible();
+	expect( await screen.findByText( 'No results found.' ) ).toBeVisible();
 } );
 
 test( 'offers a retry after an unavailable list without showing stale rows', async () => {

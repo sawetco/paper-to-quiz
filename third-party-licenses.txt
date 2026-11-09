@@ -6,7 +6,7 @@ components retain their original licenses; their attribution is provided below.
 
 ## PDF.js (pdfjs-dist)
 
-- **Bundled file:** `build/pdf.worker.min.js`
+- **Bundled file:** `build/pdf.worker.*.min.js`
 - **Source package:** [pdfjs-dist](https://www.npmjs.com/package/pdfjs-dist) version 6.5.438
 - **Upstream project:** [mozilla/pdf.js](https://github.com/mozilla/pdf.js)
 - **Copyright:** Copyright 2024 Mozilla Foundation (bundled worker license notice).

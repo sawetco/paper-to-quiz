@@ -29,12 +29,12 @@ if (is_wp_error($member)) {
 	throw new RuntimeException('The synthetic ranking member could not be created.');
 }
 $attempt_service = new AttemptService($db, $service, new Crypto());
-foreach (array('public' => 'guest_allowed', 'member' => 'login_required') as $variant => $access) {
+foreach (array('public' => 'guest_allowed', 'member' => 'login_required', 'review' => 'guest_allowed') as $variant => $access) {
 	$ranked = $service->save(array(
 		'type' => 'exam', 'title' => 'PTQ E2E Ranking ' . $variant,
 		'class_id' => (int) $class['id'], 'subject_ids' => array((int) $subject['id']),
 		'access_mode' => $access, 'options' => array('A', 'B', 'C', 'D'), 'total_points' => 10000,
-		'allow_repeat' => false, 'ranking_enabled' => true, 'ranking_list_enabled' => true,
+		'allow_repeat' => false, 'ranking_enabled' => true, 'ranking_list_enabled' => $variant !== 'review',
 		'window_start_utc' => gmdate('Y-m-d H:i:s', time() - HOUR_IN_SECONDS),
 		'window_end_utc' => gmdate('Y-m-d H:i:s', time() + HOUR_IN_SECONDS),
 		'results_release_at_utc' => gmdate('Y-m-d H:i:s', time() + 2 * HOUR_IN_SECONDS),
@@ -60,6 +60,10 @@ foreach (array('public' => 'guest_allowed', 'member' => 'login_required') as $va
 	$published = $service->publish($ranked_id);
 	if (is_wp_error($key) || is_wp_error($published)) {
 		throw new RuntimeException('The synthetic ranked exam could not be published.');
+	}
+	if ($variant === 'review') {
+		echo 'PTQ_E2E_RANKING_REVIEW=' . $ranked_id . "\n";
+		continue;
 	}
 	if ($variant === 'public') {
 		wp_set_current_user(0);

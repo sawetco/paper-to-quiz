@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from '@wordpress/element';
-import { __, sprintf } from '@wordpress/i18n';
+import { __, _n, sprintf } from '@wordpress/i18n';
 import { studentApi } from './api';
 import { formatDuration, formatScore } from '../shared/format';
 
@@ -13,7 +13,6 @@ type RankingPage = {
 	page: number;
 	total: number;
 	total_pages: number;
-	participant_total: number;
 };
 
 export function RankingList( {
@@ -100,7 +99,7 @@ export function RankingList( {
 							{ __( 'Participant ranking', 'paper-to-quiz' ) }
 						</h2>
 						<label htmlFor={ `${ id }-search` }>
-							{ __( 'Search visible names', 'paper-to-quiz' ) }
+							{ __( 'Search by name', 'paper-to-quiz' ) }
 							<input
 								id={ `${ id }-search` }
 								type="search"
@@ -116,14 +115,16 @@ export function RankingList( {
 							{ busy &&
 								__( 'Loading ranking…', 'paper-to-quiz' ) }
 							{ data &&
+								data.total > 0 &&
 								sprintf(
-									/* translators: 1: Matching entries, 2: Total ranked submissions. */
-									__(
-										'%1$d matches / %2$d ranked submissions',
+									/* translators: %d: Number of results. */
+									_n(
+										'%d result',
+										'%d results',
+										data.total,
 										'paper-to-quiz'
 									),
-									data.total,
-									data.participant_total
+									data.total
 								) }
 						</div>
 						{ error && (
@@ -139,92 +140,68 @@ export function RankingList( {
 						) }
 						{ data && data.items.length === 0 && (
 							<p>
-								{ __(
-									'No matching participants.',
-									'paper-to-quiz'
-								) }
+								{ __( 'No results found.', 'paper-to-quiz' ) }
 							</p>
 						) }
 						{ data && data.items.length > 0 && (
-							<>
-								<p id={ `${ id }-notice` }>
-									{ __(
-										'Names are masked. Guest entries represent submissions, not verified individuals.',
-										'paper-to-quiz'
-									) }
-								</p>
-								<div
-									className="ptq-ranking-list__table"
-									role="region"
-									aria-labelledby={ `${ id }-heading` }
-									tabIndex={ 0 }
-								>
-									<table
-										aria-labelledby={ `${ id }-heading` }
-										aria-describedby={ `${ id }-notice` }
-									>
-										<thead>
-											<tr>
-												<th scope="col">
-													{ __(
-														'Rank',
-														'paper-to-quiz'
+							<div
+								className="ptq-ranking-list__table"
+								role="region"
+								aria-labelledby={ `${ id }-heading` }
+								tabIndex={ 0 }
+							>
+								<table aria-labelledby={ `${ id }-heading` }>
+									<thead>
+										<tr>
+											<th scope="col">
+												{ __(
+													'Rank',
+													'paper-to-quiz'
+												) }
+											</th>
+											<th scope="col">
+												{ __(
+													'Name',
+													'paper-to-quiz'
+												) }
+											</th>
+											<th scope="col">
+												{ __(
+													'Score',
+													'paper-to-quiz'
+												) }
+											</th>
+											<th scope="col">
+												{ __(
+													'Duration',
+													'paper-to-quiz'
+												) }
+											</th>
+										</tr>
+									</thead>
+									<tbody>
+										{ data.items.map( ( item, index ) => (
+											<tr key={ `${ page }-${ index }` }>
+												<td>{ item.rank }</td>
+												<td>{ item.display_name }</td>
+												<td>
+													{ formatScore(
+														item.score,
+														item.score % 100 === 0
+															? 0
+															: 2
 													) }
-												</th>
-												<th scope="col">
-													{ __(
-														'Participant',
-														'paper-to-quiz'
+												</td>
+												<td>
+													{ formatDuration(
+														item.duration_seconds
 													) }
-												</th>
-												<th scope="col">
-													{ __(
-														'Score',
-														'paper-to-quiz'
-													) }
-												</th>
-												<th scope="col">
-													{ __(
-														'Duration',
-														'paper-to-quiz'
-													) }
-												</th>
+												</td>
 											</tr>
-										</thead>
-										<tbody>
-											{ data.items.map(
-												( item, index ) => (
-													<tr
-														key={ `${ page }-${ index }` }
-													>
-														<td>{ item.rank }</td>
-														<td>
-															{
-																item.display_name
-															}
-														</td>
-														<td>
-															{ formatScore(
-																item.score,
-																item.score %
-																	100 ===
-																	0
-																	? 0
-																	: 2
-															) }
-														</td>
-														<td>
-															{ formatDuration(
-																item.duration_seconds
-															) }
-														</td>
-													</tr>
-												)
-											) }
-										</tbody>
-									</table>
-								</div>
-							</>
+										) ) }
+									</tbody>
+								</table>
+							</div>
 						) }
 						{ data && data.total_pages > 1 && (
 							<nav

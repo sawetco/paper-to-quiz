@@ -141,9 +141,10 @@ for every translatable chunk so WordPress language-pack JSON is installed
 before a lazy module evaluates. Keep explicit `webpackChunkName` values and
 stable `[name].js` filenames for those translatable chunks. Name the shared PDF
 editor vendor chunk `admin-pdf-editor-vendors` and include its content hash in
-the filename so a plugin update cannot reuse stale PDF.js/Konva code. Anonymous
-numeric chunk names break this contract. `npm run check:build-portability`
-enforces both the workspace-path and chunk-name rules.
+the filename. The PDF.js worker also uses a content-hashed filename so the
+browser loads the worker that matches the current PDF.js API after an update.
+Anonymous numeric chunk names break this contract.
+`npm run check:build-portability` enforces the workspace-path and filename rules.
 
 Encrypted data format and upgrade behavior:
 
@@ -187,7 +188,7 @@ This regenerates the POT template in the cli container. `make-pot` needs a
 raised PHP memory limit to parse the large bundled JS without fataling on the
 128 MB default, so the script invokes it as
 `php -d memory_limit=512M ... wp i18n make-pot` and excludes
-`build/pdf.worker.min.js` (a vendored worker with no translatable strings).
+`build/pdf.worker.*.min.js` (a vendored worker with no translatable strings).
 Translations installed from WordPress.org are loaded through WordPress core;
 the plugin must not override `load_textdomain_mofile` with bundled catalogs.
 
@@ -224,6 +225,9 @@ wp eval-file wp-content/plugins/paper-to-quiz/tests/data-regression.php
 ## Product invariants
 
 - Published revisions are immutable; edits use a separate working revision.
+- Existing assessments with a source PDF and saved questions can save their
+  information and jump directly to publishing checks without opening the PDF
+  editor or rewriting the question and answer key data.
 - Started attempts remain tied to their original `revision_id`.
 - Administrator `paper_to_quiz_*` capabilities are reconciled idempotently for existing active installations.
 - Tests are public, timeless, unranked, and repeatable without limit.

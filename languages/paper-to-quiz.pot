@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-20T14:05:41+00:00\n"
+"POT-Creation-Date: 2026-11-09T12:50:54+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: paper-to-quiz\n"
@@ -301,7 +301,7 @@ msgstr ""
 
 #: src/Application/AssessmentService.php:1308
 #: src/Application/AssessmentService.php:1485
-#: build/admin-wizard.js:4
+#: build/admin-wizard.js:2
 msgid "Select at least one subject."
 msgstr ""
 
@@ -379,7 +379,7 @@ msgid "Exam start and end dates are required."
 msgstr ""
 
 #: src/Application/AssessmentService.php:1409
-#: build/admin-wizard.js:4
+#: build/admin-wizard.js:2
 msgid "The exam end date must be after the start date."
 msgstr ""
 
@@ -654,7 +654,6 @@ msgstr ""
 #: src/Application/ResultEmailService.php:229
 #: src/Application/ResultEmailService.php:294
 #: build/admin.js:29
-#: build/student.js:6
 #: build/student.js:28
 msgid "Participant"
 msgstr ""
@@ -1370,18 +1369,6 @@ msgid "Review and publish"
 msgstr ""
 
 #: build/admin-wizard.js:1
-#: build/admin.js:33
-msgid "Back to list"
-msgstr ""
-
-#. translators: %s: Item type.
-#: build/admin-wizard.js:2
-#: build/admin.js:17
-#, js-format
-msgid "Edit %s"
-msgstr ""
-
-#: build/admin-wizard.js:2
 #: build/admin-wizard.js:3
 #: build/admin-wizard.js:4
 #: build/admin-wizard.js:8
@@ -1392,7 +1379,7 @@ msgstr ""
 msgid "Exam"
 msgstr ""
 
-#: build/admin-wizard.js:2
+#: build/admin-wizard.js:1
 #: build/admin-wizard.js:3
 #: build/admin-wizard.js:4
 #: build/admin-wizard.js:8
@@ -1403,63 +1390,75 @@ msgstr ""
 msgid "Test"
 msgstr ""
 
-#. translators: %s: Assessment type.
-#: build/admin-wizard.js:3
-#, js-format
-msgid "New %s"
-msgstr ""
-
-#: build/admin-wizard.js:3
-msgid "Creation steps"
-msgstr ""
-
-#: build/admin-wizard.js:3
-msgid "Loading question editor…"
-msgstr ""
-
-#: build/admin-wizard.js:3
-msgid "Exam saved and published."
-msgstr ""
-
-#: build/admin-wizard.js:3
-msgid "Test saved and published."
-msgstr ""
-
-#: build/admin-wizard.js:3
-msgid "Back"
-msgstr ""
-
 #. translators: %s: Item type.
-#: build/admin-wizard.js:4
+#: build/admin-wizard.js:2
 #: build/admin.js:20
 #, js-format
 msgid "Enter a %s name."
 msgstr ""
 
-#: build/admin-wizard.js:4
+#: build/admin-wizard.js:2
 msgid "Select a class."
 msgstr ""
 
-#: build/admin-wizard.js:4
+#: build/admin-wizard.js:2
 #: build/admin.js:3
 msgid "Total points must be at least 1."
 msgstr ""
 
-#: build/admin-wizard.js:4
+#: build/admin-wizard.js:2
 msgid "Enter the exam start date."
 msgstr ""
 
-#: build/admin-wizard.js:4
+#: build/admin-wizard.js:2
 msgid "Enter the exam end date."
 msgstr ""
 
-#: build/admin-wizard.js:4
+#: build/admin-wizard.js:2
 msgid "Draft saved."
 msgstr ""
 
-#: build/admin-wizard.js:4
+#: build/admin-wizard.js:2
 #: build/admin.js:19
 msgid "The record could not be saved."
+msgstr ""
+
+#: build/admin-wizard.js:2
+#: build/admin.js:33
+msgid "Back to list"
+msgstr ""
+
+#. translators: %s: Item type.
+#: build/admin-wizard.js:3
+#: build/admin.js:17
+#, js-format
+msgid "Edit %s"
+msgstr ""
+
+#. translators: %s: Assessment type.
+#: build/admin-wizard.js:4
+#, js-format
+msgid "New %s"
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Creation steps"
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Loading question editor…"
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Exam saved and published."
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Test saved and published."
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Back"
 msgstr ""
 
 #: build/admin-wizard.js:4
@@ -1471,6 +1470,10 @@ msgstr ""
 
 #: build/admin-wizard.js:4
 msgid "Save and continue"
+msgstr ""
+
+#: build/admin-wizard.js:4
+msgid "Check"
 msgstr ""
 
 #: build/admin-wizard.js:4
@@ -1804,7 +1807,7 @@ msgid "All questions have a valid subject"
 msgstr ""
 
 #: build/admin-wizard.js:8
-msgid "All correct answers are entered"
+msgid "All correct answers match the available options"
 msgstr ""
 
 #: build/admin-wizard.js:8
@@ -1929,6 +1932,7 @@ msgstr ""
 #: build/admin.js:25
 #: build/admin.js:40
 #: build/admin.js:41
+#: build/student.js:6
 msgid "Name"
 msgstr ""
 
@@ -2425,6 +2429,7 @@ msgid "Status"
 msgstr ""
 
 #: build/admin.js:29
+#: build/student.js:6
 msgid "No results found."
 msgstr ""
 
@@ -2898,30 +2903,24 @@ msgid "Participant ranking"
 msgstr ""
 
 #: build/student.js:5
-msgid "Search visible names"
+msgid "Search by name"
 msgstr ""
 
 #: build/student.js:5
 msgid "Loading ranking…"
 msgstr ""
 
-#. translators: 1: Matching entries, 2: Total ranked submissions.
+#. translators: %d: Number of results.
 #: build/student.js:6
 #, js-format
-msgid "%1$d matches / %2$d ranked submissions"
-msgstr ""
+msgid "%d result"
+msgid_plural "%d results"
+msgstr[0] ""
+msgstr[1] ""
 
 #: build/student.js:6
 #: build/student.js:28
 msgid "Try again"
-msgstr ""
-
-#: build/student.js:6
-msgid "No matching participants."
-msgstr ""
-
-#: build/student.js:6
-msgid "Names are masked. Guest entries represent submissions, not verified individuals."
 msgstr ""
 
 #: build/student.js:6

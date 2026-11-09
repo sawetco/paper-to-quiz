@@ -23,6 +23,9 @@ const missingStableChunks = requiredStableChunks.filter(
 const vendorChunks = buildFiles.filter( ( fileName ) =>
 	/^admin-pdf-editor-vendors\.[a-f0-9]+\.js$/.test( fileName )
 );
+const pdfWorkers = buildFiles.filter( ( fileName ) =>
+	/^pdf\.worker(?:\..+)?\.min\.js$/.test( fileName )
+);
 
 if ( leakedFiles.length > 0 ) {
 	console.error( 'Build contains the local workspace path:', leakedFiles );
@@ -43,6 +46,17 @@ if ( vendorChunks.length !== 1 ) {
 	console.error(
 		'Build must contain one content-hashed PDF editor vendor chunk:',
 		vendorChunks
+	);
+	process.exitCode = 1;
+}
+
+if (
+	pdfWorkers.length !== 1 ||
+	! /^pdf\.worker\.[a-f0-9]+\.min\.js$/.test( pdfWorkers[ 0 ] )
+) {
+	console.error(
+		'Build must contain one content-hashed PDF worker:',
+		pdfWorkers
 	);
 	process.exitCode = 1;
 }
