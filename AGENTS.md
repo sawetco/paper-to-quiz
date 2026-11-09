@@ -214,6 +214,10 @@ The guarded `tests/release-upgrade.php` fixture verifies actual ZIP clean instal
 and upgrades from 1.1.6 in an unmapped disposable wp-env; never replace a mapped
 source plugin with an older ZIP. The migration branch additionally
 runs its MySQL prefix migration regression.
+With the disposable WordPress 7.1 environment running on port 8888, set
+`PTQ_TEST_CLI_CONTAINER` to its wp-env CLI container and run
+`node tests/submission-burst.mjs`. It verifies three simultaneous deadlines and
+then concurrent public and personal reads from rankings with over 3,000 entries.
 Never run the regression scripts against production or against real data.
 
 The data regression script creates and then removes temporary plugin records:
@@ -247,6 +251,20 @@ wp eval-file wp-content/plugins/paper-to-quiz/tests/data-regression.php
 - Preserve schema 1.1.0 in rollback fixes; never downgrade nullable guest rows
   to the old mandatory-user ranking schema.
 - Selecting an answer does not write to the server; submission is atomic and idempotent.
+- Exam clients request deferred submission through the existing submit route.
+  HTTP 202 confirms the validated snapshot and server receipt time are durable.
+  The per-site worker grades bounded batches, retains failed snapshots for
+  retry, writes each scored answer snapshot in groups, and uses the receipt
+  time for duration and deadline eligibility.
+  Legacy synchronous callers and test submissions keep their existing contract.
+  Ensure WP-Cron runs at least once per minute on sites with few visits. Drain
+  the submission queue before rolling back to a release without a worker.
+- Result review displays answer text immediately and fetches a protected
+  question image only when the student opens that question's image control.
+- Refreshes at exam start and result release are spread over several seconds.
+  A completed receipt loads the result directly. Public ranking pages calculate
+  tied ranks without querying for every unfiltered row, and a personal result
+  reads all subject positions together. Ranking data is never shared-cacheable.
 - Access, schedule, and submission decisions use server UTC, never client time.
 - Source PDFs and question images remain in encrypted private storage.
 - Each revision stores its selected subject IDs; every question subject must be
@@ -267,6 +285,11 @@ wp eval-file wp-content/plugins/paper-to-quiz/tests/data-regression.php
   Preserve the unique attempt and revision/member indexes and verify nullability
   and uniqueness before advancing the schema version. The PTQ2 encryption
   migration remains separate from this additive schema upgrade.
+- Schema `1.2.0` adds a submission snapshot, retry state, and worker scan index
+  to attempts, plus an assessment/token index for restoring a guest result.
+  `finish_requested_at` records the server receipt time. The worker
+  clears the snapshot only in the transaction that commits final answers,
+  scores, and ranking eligibility.
 - Historical database-prefix migration requirements belong only to
   `legacy-migration-support`; the clean source still performs the bounded PTQ1
   to PTQ2 encryption upgrade described above.

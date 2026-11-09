@@ -340,8 +340,9 @@ final class RankingTest extends TestCase {
 		$rankings = new RankingService($this->db);
 		$queries = $this->db->wpdb()->num_queries;
 		$list = $rankings->listing($revision_id, 1, 2, '');
-		$this->assertSame(3, $this->db->wpdb()->num_queries - $queries);
+		$this->assertSame(2, $this->db->wpdb()->num_queries - $queries);
 		$this->assertSame(array(1, 1), array_column($list['items'], 'rank'));
+		$this->assertSame(array(1), array_column($rankings->listing($revision_id, 2, 1, '')['items'], 'rank'));
 		$this->assertSame(array(3, 4), array_column($rankings->listing($revision_id, 2, 2, '')['items'], 'rank'));
 		$this->assertSame(3, $rankings->listing($revision_id, 1, 20, 'OZGUR')['items'][0]['rank']);
 		$this->assertSame(4, $rankings->listing($revision_id, 1, 20, 'ıpek')['items'][0]['rank']);

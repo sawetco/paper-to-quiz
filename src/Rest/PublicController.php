@@ -116,6 +116,7 @@ final class PublicController {
 					$this->attempt_args(),
 					array(
 						'automatic'     => array('type' => 'boolean', 'default' => false),
+						'deferred'      => array('type' => 'boolean', 'default' => false),
 						'submission_id' => array('type' => 'string', 'format' => 'uuid', 'required' => true),
 						'answers'       => array(
 							'type'     => 'array',
@@ -268,14 +269,28 @@ final class PublicController {
 			$this->token($request),
 			(bool) $request->get_param('automatic'),
 			sanitize_text_field((string) $request->get_param('submission_id')),
-			(array) $request->get_param('answers')
+			(array) $request->get_param('answers'),
+			(bool) $request->get_param('deferred')
 		);
-		return is_wp_error($result) ? $result : rest_ensure_response($result);
+		return $this->submission_response($result);
 	}
 
 	public function result(\WP_REST_Request $request): \WP_REST_Response|\WP_Error {
 		$result = $this->attempts->result((string) $request['public_id'], $this->token($request));
-		return is_wp_error($result) ? $result : rest_ensure_response($result);
+		return $this->submission_response($result);
+	}
+
+	private function submission_response(array|\WP_Error $result): \WP_REST_Response|\WP_Error {
+		if (is_wp_error($result)) {
+			return $result;
+		}
+		$response = rest_ensure_response($result);
+		$response->header('Cache-Control', 'private, no-store, max-age=0');
+		if ($result['status'] === 'processing') {
+			$response->set_status(202);
+			$response->header('Retry-After', '8');
+		}
+		return $response;
 	}
 
 	public function question_image(\WP_REST_Request $request): BinaryResponse|\WP_Error {

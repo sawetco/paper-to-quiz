@@ -223,6 +223,41 @@ final class AttemptWriteTest extends TestCase {
 		}
 	}
 
+	public function test_deferred_submission_survives_a_failed_worker_and_can_be_retried(): void {
+		$fixture = $this->seed_fixture(true);
+		$this->seed_answer('A');
+		[$db, $failing] = $this->services_failing('finalize_attempt_close');
+		$wpdb = $db->wpdb();
+		$table = $db->table('attempts');
+		$read = static fn (): array => $wpdb->get_row(
+			$wpdb->prepare('SELECT * FROM %i WHERE id=%d', $table, $fixture['attempt_id']),
+			ARRAY_A
+		);
+		$receipt = $failing->submit($fixture['public_id'], $fixture['token'], false, wp_generate_uuid4(), array(
+			array('question_id' => $fixture['question_id'], 'option' => 'B'),
+		), true);
+		$this->assertIsArray($receipt);
+		$this->assertSame('processing', $receipt['status']);
+		$saved = $read();
+		$failing->process_submissions();
+		$this->assertTrue($this->failure_seen);
+		$failed = $read();
+		$this->assertSame($saved['pending_submission'], $failed['pending_submission']);
+		$this->assertSame('in_progress', $failed['status']);
+		$this->assertSame(1, (int) $failed['submission_failures']);
+		$this->assertGreaterThan($saved['submission_retry_at'], $failed['submission_retry_at']);
+		$this->assertSame('A', $wpdb->get_var($wpdb->prepare('SELECT selected_option FROM %i WHERE attempt_id=%d', $db->table('answers'), $fixture['attempt_id'])));
+
+		$this->assertSame(1, $wpdb->update($table, array('submission_retry_at' => gmdate('Y-m-d H:i:s', time() - 1)), array('id' => $fixture['attempt_id'])));
+		[, $healthy] = $this->services_failing('unused_operation');
+		$healthy->process_submissions();
+		$final = $read();
+		$this->assertSame('submitted', $final['status']);
+		$this->assertSame($saved['finish_requested_at'], $final['submitted_at']);
+		$this->assertNull($final['pending_submission']);
+		$this->assertSame('B', $wpdb->get_var($wpdb->prepare('SELECT selected_option FROM %i WHERE attempt_id=%d', $db->table('answers'), $fixture['attempt_id'])));
+	}
+
 	/**
 	 * @return array{0:Database,1:AttemptService}
 	 */

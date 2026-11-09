@@ -221,7 +221,7 @@ final class AssessmentService {
 		);
 	}
 
-	public function get(int $assessment_id, bool $published = false): ?array {
+	public function get(int $assessment_id, bool $published = false, bool $include_details = true): ?array {
 		$assessment = $this->db->wpdb()->get_row(
 			$this->db->wpdb()->prepare(
 				'SELECT * FROM ' . $this->db->table('assessments') . ' WHERE id = %d',
@@ -237,8 +237,8 @@ final class AssessmentService {
 			? (int) $assessment['published_revision_id']
 			: (int) ($assessment['current_draft_revision_id'] ?: $assessment['published_revision_id']);
 
-		$revision  = $revision_id ? $this->get_revision($revision_id) : null;
-		$questions = $revision_id ? $this->questions($revision_id, true) : array();
+		$revision  = $revision_id ? $this->get_revision($revision_id, $include_details) : null;
+		$questions = $revision_id && $include_details ? $this->questions($revision_id, true) : array();
 
 		return array(
 			'assessment' => $assessment,
@@ -247,7 +247,7 @@ final class AssessmentService {
 		);
 	}
 
-	public function get_revision(int $revision_id): ?array {
+	public function get_revision(int $revision_id, bool $include_details = true): ?array {
 		$row = $this->db->wpdb()->get_row(
 			$this->db->wpdb()->prepare(
 				'SELECT r.*, c.name class_name, c.color class_color FROM ' . $this->db->table('revisions') . ' r
@@ -263,6 +263,9 @@ final class AssessmentService {
 
 		$row['options']            = json_decode((string) $row['options_json'], true) ?: array();
 		$row['participant_fields'] = json_decode((string) $row['participant_fields_json'], true) ?: array();
+		if (! $include_details) {
+			return $row;
+		}
 		$row['subject_ids']         = $this->sanitize_subject_ids(
 			json_decode((string) ($row['subject_ids_json'] ?? ''), true)
 		);

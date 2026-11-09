@@ -66,9 +66,21 @@ only the deliberately published masked name and its search form are stored unenc
 Old guest results are not backfilled, and existing exams never publish a list automatically.
 Privacy erasure and retention cleanup remove list identities while retaining anonymous results.
 
+### Busy exam deadlines
+
+Paper to Quiz saves exam submissions before it grades them. Students see a
+confirmation while WordPress works through the queue. Keep WordPress Cron
+running; if your host disables it, configure a server cron to run due
+WordPress events at least once per minute. Before a large event, test the
+expected traffic on staging and check your host's PHP and database limits.
+Exclude Paper to Quiz REST routes from shared page or CDN caches: they use
+live access checks, and some responses include personal results.
+
 If a ranking release needs an emergency rollback, disable its list UI and route in a
 forward fix that retains schema 1.1.0. Do not reinstall an older schema writer that makes
 ranking user IDs mandatory: guest ranking rows intentionally contain SQL NULL values.
+Before switching to a version without the submission worker, let all accepted
+submissions finish processing.
 
 ## Installation
 

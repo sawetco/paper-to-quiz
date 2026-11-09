@@ -49,6 +49,8 @@ final class Uninstaller {
 		wp_clear_scheduled_hook(Cleanup::CONTINUATION_HOOK);
 		wp_clear_scheduled_hook('paper_to_quiz_process_result_emails');
 		wp_clear_scheduled_hook('paper_to_quiz_process_encryption_migration');
+		wp_clear_scheduled_hook('paper_to_quiz_process_submissions');
+		wp_clear_scheduled_hook('paper_to_quiz_continue_submissions');
 	}
 
 	private static function drop_tables(): void {

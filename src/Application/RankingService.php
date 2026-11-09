@@ -59,50 +59,43 @@ final class RankingService {
 
 	public function rank(int $revision_id, int $attempt_id): ?array {
 		$wpdb = $this->db->wpdb();
-		$entry = $wpdb->get_row($wpdb->prepare(
-			'SELECT e.score,e.duration_seconds,e.submitted_at FROM ' . $this->source() . '
-			WHERE e.revision_id = %d AND e.attempt_id = %d AND ' . $this->eligible(),
+		$row = $wpdb->get_row($wpdb->prepare(
+			'SELECT COUNT(*) total,SUM(CASE WHEN ' . $this->ahead_of('e', 'oe') . ' THEN 1 ELSE 0 END) ahead
+			FROM ' . $this->source() . ' JOIN (' . $this->source('oe', 'ot') . ') ON oe.revision_id = e.revision_id
+			WHERE e.revision_id = %d AND oe.attempt_id = %d AND ' . $this->eligible() . ' AND ' . $this->eligible('ot'),
 			$revision_id, $attempt_id
 		), ARRAY_A);
-		if (! $entry) {
-			return null;
-		}
-		$total = (int) $wpdb->get_var($wpdb->prepare(
-			'SELECT COUNT(*) FROM ' . $this->source() . ' WHERE e.revision_id = %d AND ' . $this->eligible(), $revision_id
-		));
-		$ahead = (int) $wpdb->get_var($wpdb->prepare(
-			'SELECT COUNT(*) FROM ' . $this->source() . ' WHERE e.revision_id = %d AND ' . $this->eligible() . '
-			AND (e.score > %d OR (e.score = %d AND e.duration_seconds < %d)
-			OR (e.score = %d AND e.duration_seconds = %d AND e.submitted_at < %s))',
-			$revision_id, (int) $entry['score'], (int) $entry['score'], (int) $entry['duration_seconds'],
-			(int) $entry['score'], (int) $entry['duration_seconds'], $entry['submitted_at']
-		));
-		return $this->position($ahead, $total);
+		return empty($row['total']) ? null : $this->position((int) $row['ahead'], (int) $row['total']);
 	}
 
-	public function subject_rank(array $attempt, array $subject): ?array {
+	private function ahead_of(string $entry, string $other): string {
+		return "({$entry}.score > {$other}.score OR ({$entry}.score = {$other}.score AND {$entry}.duration_seconds < {$other}.duration_seconds)
+			OR ({$entry}.score = {$other}.score AND {$entry}.duration_seconds = {$other}.duration_seconds AND {$entry}.submitted_at < {$other}.submitted_at))";
+	}
+
+	/** Read all of an attempt's subject positions in one query. */
+	public function subject_ranks(array $attempt): array {
 		$wpdb = $this->db->wpdb();
-		$source = $this->source() . ' JOIN ' . $this->db->table('attempt_subject_scores') . ' ss ON ss.attempt_id = e.attempt_id AND ss.revision_id = e.revision_id';
-		$where = ' WHERE e.revision_id = %d AND ss.subject_id = %d AND ' . $this->eligible();
-		$args = array((int) $attempt['revision_id'], (int) $subject['subject_id']);
-		$total = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $source . $where, $args));
-		if (! $total || ! $this->rank_entry_exists((int) $attempt['id'])) {
-			return null;
+		$table = $this->db->table('attempt_subject_scores');
+		$rows = $wpdb->get_results($wpdb->prepare(
+			'SELECT ss.subject_id,COUNT(*) total,SUM(CASE WHEN ss.score > own.score
+			OR (ss.score = own.score AND e.duration_seconds < %d)
+			OR (ss.score = own.score AND e.duration_seconds = %d AND e.submitted_at < %s)
+			THEN 1 ELSE 0 END) ahead
+			FROM ' . $this->source() . ' JOIN ' . $table . ' ss ON ss.attempt_id = e.attempt_id AND ss.revision_id = e.revision_id
+			JOIN ' . $table . ' own ON own.revision_id = ss.revision_id AND own.subject_id = ss.subject_id AND own.attempt_id = %d
+			WHERE e.revision_id = %d AND ' . $this->eligible() . '
+			AND EXISTS (SELECT 1 FROM ' . $this->source('oe', 'ot') . ' WHERE oe.attempt_id = own.attempt_id
+			AND oe.revision_id = own.revision_id AND ' . $this->eligible('ot') . ')
+			GROUP BY ss.subject_id',
+			(int) $attempt['duration_seconds'], (int) $attempt['duration_seconds'], (string) $attempt['submitted_at'],
+			(int) $attempt['id'], (int) $attempt['revision_id']
+		), ARRAY_A) ?: array();
+		$ranks = array();
+		foreach ($rows as $row) {
+			$ranks[(int) $row['subject_id']] = $this->position((int) $row['ahead'], (int) $row['total']);
 		}
-		$ahead = (int) $wpdb->get_var($wpdb->prepare(
-			'SELECT COUNT(*) FROM ' . $source . $where . '
-			AND (ss.score > %d OR (ss.score = %d AND e.duration_seconds < %d)
-			OR (ss.score = %d AND e.duration_seconds = %d AND e.submitted_at < %s))',
-			array_merge($args, array((int) $subject['score'], (int) $subject['score'], (int) $attempt['duration_seconds'],
-				(int) $subject['score'], (int) $attempt['duration_seconds'], $attempt['submitted_at']))
-		));
-		return $this->position($ahead, $total);
-	}
-
-	private function rank_entry_exists(int $attempt_id): bool {
-		return (bool) $this->db->wpdb()->get_var($this->db->wpdb()->prepare(
-			'SELECT 1 FROM ' . $this->source() . ' WHERE e.attempt_id = %d AND ' . $this->eligible(), $attempt_id
-		));
+		return $ranks;
 	}
 
 	private function position(int $ahead, int $total): array {
@@ -110,7 +103,7 @@ final class RankingService {
 		return array('rank' => $rank, 'total' => $total, 'percentile' => $total ? round((($total - $rank + 1) / $total) * 100, 2) : 100);
 	}
 
-	/** Three bounded queries, no participant decryption or per-row database calls. */
+	/** Unfiltered pages need at most one look-up for a tie across the page boundary. */
 	public function listing(int $revision_id, int $page, int $per_page, string $search): array {
 		$page = max(1, min(1000000, $page));
 		$per_page = max(1, min(100, $per_page));
@@ -119,20 +112,42 @@ final class RankingService {
 		$args = array($revision_id);
 		$total = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $this->source() . $where, $args));
 		$search = self::search_name($search);
+		$offset = ($page - 1) * $per_page;
+		$matched = $total;
+		$position = '';
 		if ($search !== '') {
 			$where .= ' AND e.public_search LIKE %s';
 			$args[] = '%' . $wpdb->esc_like($search) . '%';
+			$matched = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $this->source() . $where, $args));
+			$position = ',(SELECT COUNT(*) + 1 FROM ' . $this->source('e2', 't2') . ' WHERE e2.revision_id = e.revision_id AND '
+				. $this->eligible('t2') . ' AND ' . $this->ahead_of('e2', 'e') . ') ranking_position';
 		}
-		$matched = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $this->source() . $where, $args));
-		$rows = $wpdb->get_results($wpdb->prepare(
-			'SELECT e.public_label,e.score,e.duration_seconds,
-			(SELECT COUNT(*) + 1 FROM ' . $this->source('e2', 't2') . ' WHERE e2.revision_id = e.revision_id AND ' . $this->eligible('t2') . '
-			AND (e2.score > e.score OR (e2.score = e.score AND e2.duration_seconds < e.duration_seconds)
-			OR (e2.score = e.score AND e2.duration_seconds = e.duration_seconds AND e2.submitted_at < e.submitted_at))) ranking_position
+		$rows = $offset >= $matched ? array() : ($wpdb->get_results($wpdb->prepare(
+			'SELECT e.public_label,e.score,e.duration_seconds,e.submitted_at' . $position . '
 			FROM ' . $this->source() . $where . '
 			ORDER BY e.score DESC,e.duration_seconds ASC,e.submitted_at ASC,e.id ASC LIMIT %d OFFSET %d',
-			array_merge($args, array($per_page, ($page - 1) * $per_page))
-		), ARRAY_A) ?: array();
+			array_merge($args, array($per_page, $offset))
+		), ARRAY_A) ?: array());
+		if ($rows && $search === '') {
+			$rank = 1;
+			if ($offset > 0) {
+				$rank = 1 + (int) $wpdb->get_var($wpdb->prepare(
+					'SELECT COUNT(*) FROM ' . $this->source() . ' JOIN (SELECT %d score,%d duration_seconds,%s submitted_at) boundary
+					WHERE e.revision_id = %d AND ' . $this->eligible() . ' AND ' . $this->ahead_of('e', 'boundary'),
+					(int) $rows[0]['score'], (int) $rows[0]['duration_seconds'], $rows[0]['submitted_at'], $revision_id
+				));
+			}
+			$previous = null;
+			foreach ($rows as $index => &$row) {
+				$order = array($row['score'], $row['duration_seconds'], $row['submitted_at']);
+				if ($index > 0 && $order !== $previous) {
+					$rank = $offset + $index + 1;
+				}
+				$row['ranking_position'] = $rank;
+				$previous = $order;
+			}
+			unset($row);
+		}
 		return array(
 			'revision_id' => $revision_id, 'page' => $page, 'per_page' => $per_page,
 			'total' => $matched, 'total_pages' => (int) ceil($matched / $per_page), 'participant_total' => $total,

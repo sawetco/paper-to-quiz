@@ -73,6 +73,8 @@ final class Plugin {
 		add_action('paper_to_quiz_attempt_completed', array($email_service, 'enqueue'));
 		add_action('paper_to_quiz_process_result_emails', array($email_service, 'process'));
 		add_action('paper_to_quiz_process_encryption_migration', array($encryption_migration, 'run'));
+		add_action('paper_to_quiz_process_submissions', array($attempt_service, 'process_submissions'));
+		add_action('paper_to_quiz_continue_submissions', array($attempt_service, 'process_submissions'));
 
 		$shortcode->register();
 		$privacy->register();
