@@ -1,6 +1,6 @@
 {
 	"name": "paper-to-quiz",
-	"version": "1.2.3",
+	"version": "1.2.4",
 	"private": true,
 	"description": "Convert PDF exams and worksheets into secure, image-based WordPress quizzes.",
 	"license": "GPL-2.0-or-later",
@@ -69,8 +69,8 @@
 		"@wordpress/components": "^43.0.0",
 		"@wordpress/element": "^10.0.0",
 		"@wordpress/i18n": "^7.0.0",
-		"konva": "^10.9.0",
-		"pdfjs-dist": "^6.4.299",
+		"konva": "^10.9.1",
+		"pdfjs-dist": "^6.5.438",
 		"react-konva": "^18.2.16"
 	},
 	"devDependencies": {

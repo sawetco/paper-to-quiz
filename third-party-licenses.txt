@@ -7,9 +7,9 @@ components retain their original licenses; their attribution is provided below.
 ## PDF.js (pdfjs-dist)
 
 - **Bundled file:** `build/pdf.worker.min.js`
-- **Source package:** [pdfjs-dist](https://www.npmjs.com/package/pdfjs-dist) version 6.4.299
+- **Source package:** [pdfjs-dist](https://www.npmjs.com/package/pdfjs-dist) version 6.5.438
 - **Upstream project:** [mozilla/pdf.js](https://github.com/mozilla/pdf.js)
-- **Copyright:** © Mozilla and individual contributors.
+- **Copyright:** Copyright 2024 Mozilla Foundation (bundled worker license notice).
 - **License:** Apache License, Version 2.0 — https://www.apache.org/licenses/LICENSE-2.0
 
 > License compatibility note: the Apache License 2.0 is one-way compatible with
