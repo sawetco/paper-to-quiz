@@ -9,7 +9,7 @@ import {
 	within,
 } from '@testing-library/react';
 import { StudentApp } from './StudentApp';
-import { studentApi } from './api';
+import { studentApi, StudentApiError as ApiFailure } from './api';
 import {
 	deleteDraft,
 	deleteReceipt,
@@ -560,6 +560,11 @@ describe( 'StudentApp offline recovery lifecycle', () => {
 		const view = renderStudentApp();
 		await screen.findByRole( 'heading', { name: 'Test result document' } );
 		expect(
+			apiMock.mock.calls.some( ( call ) =>
+				/\/attempts\/[^/]+$/.test( String( call[ 1 ] ) )
+			)
+		).toBe( false );
+		expect(
 			apiMock.mock.calls.some(
 				( call ) =>
 					String( call[ 1 ] ).endsWith( '/attempts' ) &&
@@ -570,6 +575,111 @@ describe( 'StudentApp offline recovery lifecycle', () => {
 		expect( readDraftMock ).toHaveBeenCalledWith( ASSESSMENT_ID );
 		expect( readReceiptMock ).toHaveBeenCalledWith( ASSESSMENT_ID );
 
+		view.unmount();
+	} );
+
+	it( 'spreads result release requests and backs off after an outage', async () => {
+		jest.useFakeTimers();
+		const jitter = jest.spyOn( Math, 'random' ).mockReturnValue( 0.5 );
+		const visibility = jest
+			.spyOn( document, 'visibilityState', 'get' )
+			.mockReturnValue( 'visible' );
+		const readResult = jest
+			.fn()
+			.mockResolvedValueOnce(
+				createResult( {
+					visibility: 'hidden',
+					release_pending: true,
+					release_at: '2026-08-31T09:10:01.000Z',
+				} )
+			)
+			.mockRejectedValueOnce( new Error( 'Temporarily unavailable' ) )
+			.mockResolvedValueOnce( createResult() );
+		apiMock.mockImplementation( ( ...args ) =>
+			String( args[ 1 ] ).endsWith( '/result' )
+				? readResult()
+				: Promise.resolve(
+						createBootstrap( {
+							latest_attempt_public_id: PUBLIC_ID,
+						} )
+					)
+		);
+		try {
+			await act( async () => {
+				renderStudentApp();
+			} );
+			expect( readResult ).toHaveBeenCalledTimes( 1 );
+			await act( async () => {
+				await jest.advanceTimersByTimeAsync( 8_999 );
+			} );
+			expect( readResult ).toHaveBeenCalledTimes( 1 );
+			await act( async () => {
+				await jest.advanceTimersByTimeAsync( 1 );
+			} );
+			expect( readResult ).toHaveBeenCalledTimes( 2 );
+			await act( async () => {
+				await jest.advanceTimersByTimeAsync( 12_999 );
+			} );
+			expect( readResult ).toHaveBeenCalledTimes( 2 );
+			await act( async () => {
+				await jest.advanceTimersByTimeAsync( 1 );
+			} );
+			expect( readResult ).toHaveBeenCalledTimes( 3 );
+			expect(
+				screen.getByRole( 'heading', { name: 'Test result document' } )
+			).toBeInTheDocument();
+		} finally {
+			visibility.mockRestore();
+			jitter.mockRestore();
+			jest.useRealTimers();
+		}
+	} );
+
+	it( 'fetches only the question image opened in a detailed result', async () => {
+		readReceiptMock.mockResolvedValue( {
+			assessmentId: ASSESSMENT_ID,
+			publicId: PUBLIC_ID,
+			revisionId: REVISION_ID,
+			completedAt: 1,
+			expiresAt: Number.MAX_SAFE_INTEGER,
+		} );
+		const defaultApi = apiMock.getMockImplementation()!;
+		apiMock.mockImplementation( ( ...args ) => {
+			const path = String( args[ 1 ] );
+			if ( /\/attempts\/[^/]+$/.test( path ) ) {
+				return Promise.resolve(
+					createAttempt( { status: 'submitted' } )
+				);
+			}
+			if ( path.endsWith( '/result' ) ) {
+				return Promise.resolve(
+					createResult( {
+						visibility: 'detailed',
+						answers: [
+							{ question_id: QUESTION_ONE, ordinal: 1 },
+							{ question_id: QUESTION_TWO, ordinal: 2 },
+						],
+					} )
+				);
+			}
+			return defaultApi( ...args );
+		} );
+
+		const view = renderStudentApp();
+		const controls = await screen.findAllByText( 'Show question image' );
+		expect( controls ).toHaveLength( 2 );
+		expect( globalThis.fetch ).not.toHaveBeenCalled();
+
+		const first = controls[ 0 ].closest( 'details' )!;
+		first.open = true;
+		fireEvent( first, new Event( 'toggle' ) );
+		await waitFor( () =>
+			expect( globalThis.fetch ).toHaveBeenCalledTimes( 1 )
+		);
+		expect( globalThis.fetch ).toHaveBeenCalledWith(
+			`/wp-json/paper-to-quiz/v1/attempts/${ PUBLIC_ID }/questions/${ QUESTION_ONE }/image`,
+			expect.objectContaining( { credentials: 'same-origin' } )
+		);
 		view.unmount();
 	} );
 
@@ -586,9 +696,12 @@ describe( 'StudentApp offline recovery lifecycle', () => {
 			if ( path.endsWith( '/bootstrap' ) ) {
 				return Promise.resolve( createBootstrap() );
 			}
-			if ( /\/attempts\/[^/]+$/.test( path ) ) {
+			if ( path.endsWith( '/missing-attempt/result' ) ) {
 				return Promise.reject(
-					new Error( 'Attempt no longer exists' )
+					Object.assign(
+						new ApiFailure( 'Attempt no longer exists', 401, null ),
+						{ status: 401 }
+					)
 				);
 			}
 			return Promise.reject(

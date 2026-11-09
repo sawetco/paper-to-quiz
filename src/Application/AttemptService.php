@@ -98,7 +98,7 @@ final class AttemptService {
 	}
 
 	public function bootstrap(int $assessment_id): array|\WP_Error {
-		$record = $this->assessments->get($assessment_id, true);
+		$record = $this->assessments->get($assessment_id, true, has_filter('paper_to_quiz_can_access_assessment'));
 		$access = $this->public_access($record, $assessment_id, __('This item is currently unavailable.', 'paper-to-quiz'));
 		if (is_wp_error($access)) {
 			return $access;
@@ -109,7 +109,8 @@ final class AttemptService {
 		if (is_user_logged_in()) {
 			$latest_attempt_public_id = $this->db->wpdb()->get_var(
 				$this->db->wpdb()->prepare(
-					'SELECT public_id FROM ' . $this->db->table('attempts') . " WHERE assessment_id = %d AND wp_user_id = %d AND status IN ('submitted','auto_submitted') ORDER BY id DESC LIMIT 1",
+					'SELECT public_id FROM ' . $this->db->table('attempts') . " WHERE assessment_id = %d AND wp_user_id = %d
+					AND (status IN ('submitted','auto_submitted') OR (status = 'in_progress' AND pending_submission IS NOT NULL)) ORDER BY id DESC LIMIT 1",
 					$assessment_id,
 					get_current_user_id()
 				)
@@ -129,7 +130,7 @@ final class AttemptService {
 				$placeholders = implode(',', array_fill(0, count($token_hashes), '%s'));
 				$query = 'SELECT public_id FROM ' . $this->db->table('attempts')
 					. " WHERE assessment_id = %d AND participant_type = 'guest'"
-					. " AND status IN ('submitted','auto_submitted')"
+					. " AND (status IN ('submitted','auto_submitted') OR (status = 'in_progress' AND pending_submission IS NOT NULL))"
 					. " AND token_hash IN ({$placeholders}) ORDER BY id DESC LIMIT 1";
 				$latest_attempt_public_id = $this->db->wpdb()->get_var(
 					$this->db->wpdb()->prepare($query, $assessment_id, ...$token_hashes)
@@ -137,6 +138,9 @@ final class AttemptService {
 			}
 		}
 
+		$question_count = $record['questions'] ? count($record['questions']) : (int) $this->db->wpdb()->get_var(
+			$this->db->wpdb()->prepare('SELECT COUNT(*) FROM ' . $this->db->table('questions') . ' WHERE revision_id = %d', (int) $revision['id'])
+		);
 		return array(
 			'id'                 => $assessment_id,
 			'type'               => $record['assessment']['type'],
@@ -145,7 +149,7 @@ final class AttemptService {
 			'class_name'         => (string) ($revision['class_name'] ?? ''),
 			'class_color'        => (string) ($revision['class_color'] ?? ''),
 			'access_mode'        => $revision['access_mode'],
-			'question_count'     => count($record['questions']),
+			'question_count'     => $question_count,
 			'duration_seconds'   => $revision['duration_seconds'] ? (int) $revision['duration_seconds'] : null,
 			'allow_repeat'       => (bool) $revision['allow_repeat'],
 			'ranking_enabled'    => (bool) $revision['ranking_enabled'],
@@ -170,7 +174,7 @@ final class AttemptService {
 	}
 
 	public function ranking_list(int $assessment_id, int $page, int $per_page, string $search): array|\WP_Error {
-		$record = $this->assessments->get($assessment_id, true);
+		$record = $this->assessments->get($assessment_id, true, has_filter('paper_to_quiz_can_access_assessment'));
 		$access = $this->public_access($record, $assessment_id, __('This item is currently unavailable.', 'paper-to-quiz'));
 		if (is_wp_error($access)) {
 			return $access;
@@ -347,11 +351,24 @@ final class AttemptService {
 		if (is_wp_error($open)) {
 			return $open;
 		}
-		$result = $this->save_answer($attempt, $question_id, $option, $flagged, $mutation_id);
-		if (! is_wp_error($result)) {
+		$this->db->begin();
+		try {
+			if (! $this->attempt_accepts_answers((int) $attempt['id'])) {
+				$this->db->rollback();
+				return $this->attempt_closed_error();
+			}
+			$result = $this->save_answer($attempt, $question_id, $option, $flagged, $mutation_id);
+			if (is_wp_error($result)) {
+				$this->db->rollback();
+				return $result;
+			}
 			$this->touch_attempt((int) $attempt['id']);
+			$this->db->commit();
+			return $result;
+		} catch (\Throwable) {
+			$this->db->rollback();
+			return $this->answer_save_error();
 		}
-		return $result;
 	}
 
 	public function answer_many(string $public_id, string $token, array $items): array|\WP_Error {
@@ -378,14 +395,17 @@ final class AttemptService {
 		$responses = array();
 		$this->db->begin();
 		try {
+			if (! $this->attempt_accepts_answers((int) $attempt['id'])) {
+				$this->db->rollback();
+				return $this->attempt_closed_error();
+			}
 			foreach ($latest as $question_id => $item) {
 				$result = $this->save_answer(
 					$attempt,
 					$question_id,
 					isset($item['option']) && $item['option'] !== '' ? (string) $item['option'] : null,
 					! empty($item['flagged']),
-					sanitize_text_field((string) ($item['mutation_id'] ?? '')),
-					true
+					sanitize_text_field((string) ($item['mutation_id'] ?? ''))
 				);
 				if (is_wp_error($result)) {
 					$this->db->rollback();
@@ -404,8 +424,8 @@ final class AttemptService {
 	}
 
 	private function validate_open_attempt(array $attempt): bool|\WP_Error {
-		if ($attempt['status'] !== 'in_progress') {
-			return new \WP_Error('paper_to_quiz_attempt_closed', __('This item has already been completed.', 'paper-to-quiz'), array('status' => 409));
+		if ($attempt['status'] !== 'in_progress' || $this->submission_pending($attempt)) {
+			return $this->attempt_closed_error();
 		}
 		if ($this->is_past_grace($attempt)) {
 			try {
@@ -418,7 +438,16 @@ final class AttemptService {
 		return true;
 	}
 
-	private function save_answer(array $attempt, int $question_id, ?string $option, bool $flagged, string $mutation_id, bool $inside_transaction = false): array|\WP_Error {
+	private function attempt_closed_error(): \WP_Error {
+		return new \WP_Error('paper_to_quiz_attempt_closed', __('This item has already been completed.', 'paper-to-quiz'), array('status' => 409));
+	}
+
+	private function attempt_accepts_answers(int $id): bool {
+		$row = $this->lock_attempt($id);
+		return $row && $row['status'] === 'in_progress' && ! $this->submission_pending($row);
+	}
+
+	private function save_answer(array $attempt, int $question_id, ?string $option, bool $flagged, string $mutation_id): array|\WP_Error {
 		$question = $this->db->wpdb()->get_row(
 			$this->db->wpdb()->prepare(
 				'SELECT q.*, r.options_json, r.feedback_timing FROM ' . $this->db->table('questions') . ' q
@@ -484,14 +513,9 @@ final class AttemptService {
 			if (false === $inserted || 1 !== (int) $inserted) {
 				/*
 				 * A concurrent request may have won the unique (attempt, question)
-				 * insert. Re-read the row and update it inside the current batch
-				 * transaction, or a short fallback transaction for a single answer.
+				 * insert (e.g. an older plugin worker). Re-read the row inside the
+				 * attempt transaction and update the existing answer.
 				 */
-				$transaction_started = false;
-				if (! $inside_transaction) {
-					$this->db->begin();
-					$transaction_started = true;
-				}
 				try {
 					$conflict_id = $this->db->wpdb()->get_var(
 						$this->db->wpdb()->prepare(
@@ -501,9 +525,6 @@ final class AttemptService {
 						)
 					);
 					if (! $conflict_id) {
-						if ($transaction_started) {
-							$this->db->rollback();
-						}
 						return $this->answer_save_error();
 					}
 
@@ -514,13 +535,7 @@ final class AttemptService {
 					if (false === $updated) {
 						throw new \RuntimeException('Answer conflict update failed.');
 					}
-					if ($transaction_started) {
-						$this->db->commit();
-					}
 				} catch (\Throwable $error) {
-					if ($transaction_started) {
-						$this->db->rollback();
-					}
 					return $this->answer_save_error();
 				}
 			}
@@ -562,13 +577,14 @@ final class AttemptService {
 		);
 	}
 
-	public function submit(string $public_id, string $token, bool $automatic = false, string $submission_id = '', array $answers = array()): array|\WP_Error {
+	public function submit(string $public_id, string $token, bool $automatic = false, string $submission_id = '', array $answers = array(), bool $deferred = false): array|\WP_Error {
+		$received_at = time();
 		$attempt = $this->authenticate($public_id, $token);
 		if (is_wp_error($attempt)) {
 			return $attempt;
 		}
-		if ($attempt['status'] !== 'in_progress') {
-			return $this->result_payload($attempt);
+		if ($attempt['status'] !== 'in_progress' || $this->submission_pending($attempt)) {
+			return $this->submission_result($attempt);
 		}
 		if (! wp_is_uuid($submission_id)) {
 			return new \WP_Error('paper_to_quiz_submission_id', __('The submission ID is invalid.', 'paper-to-quiz'), array('status' => 400));
@@ -584,18 +600,125 @@ final class AttemptService {
 			if ((int) $duplicate['id'] !== (int) $attempt['id']) {
 				return new \WP_Error('paper_to_quiz_submission_conflict', __('The submission ID has been used in another attempt.', 'paper-to-quiz'), array('status' => 409));
 			}
-			return $this->result_payload($duplicate);
+			return $this->submission_result($duplicate);
 		}
-		$valid = $this->validate_submission_answers($attempt, $answers);
+		$valid = $this->validate_submission_answers($attempt, $answers, $deferred);
 		if (is_wp_error($valid)) {
 			return $valid;
 		}
 		try {
+			if ($deferred) {
+				return $this->accept_submission($attempt, $automatic, $submission_id, $answers, $received_at);
+			}
 			$attempt = $this->finalize($attempt, $automatic, $submission_id, $answers);
 		} catch (\Throwable $error) {
 			return $this->finalize_error($error);
 		}
-		return $this->result_payload($attempt);
+		return $this->submission_result($attempt);
+	}
+
+	private function accept_submission(array $attempt, bool $automatic, string $submission_id, array $answers, int $received_at): array|\WP_Error {
+		$payload = wp_json_encode(array('automatic' => $automatic, 'answers' => $answers));
+		if (! is_string($payload)) {
+			throw new \RuntimeException('The submission snapshot could not be encoded.');
+		}
+		$wpdb = $this->db->wpdb();
+		$received = gmdate('Y-m-d H:i:s', $received_at);
+		$previous_suppression = $wpdb->suppress_errors(true);
+		try {
+			$written = $this->db->write('submission_accept', fn (): int|false => $wpdb->query($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The conditional write claims the attempt exactly once.
+				'UPDATE %i SET submission_id=%s,finish_requested_at=%s,pending_submission=%s,submission_retry_at=%s,last_activity_at=%s
+				WHERE id=%d AND status=\'in_progress\' AND submission_id IS NULL',
+				$this->db->table('attempts'), $submission_id, $received, $payload, $received, $received, (int) $attempt['id']
+			)));
+		} finally {
+			$wpdb->suppress_errors($previous_suppression);
+		}
+		if ($written === 1) {
+			return $this->pending_result($received);
+		}
+		$current = $this->attempt_by_id((int) $attempt['id']);
+		if ($current && ($current['status'] !== 'in_progress' || $this->submission_pending($current))) {
+			return $this->submission_result($current);
+		}
+		if ($wpdb->get_var($wpdb->prepare('SELECT id FROM %i WHERE submission_id=%s', $this->db->table('attempts'), $submission_id))) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- A concurrent request may have just claimed this ID.
+			return new \WP_Error('paper_to_quiz_submission_conflict', __('The submission ID has been used in another attempt.', 'paper-to-quiz'), array('status' => 409));
+		}
+		throw new \RuntimeException('The submission snapshot was not stored.');
+	}
+
+	private function submission_pending(array $attempt): bool {
+		return $attempt['status'] === 'in_progress' && isset($attempt['pending_submission']);
+	}
+
+	private function submission_result(array $attempt): array {
+		return $this->submission_pending($attempt)
+			? $this->pending_result((string) $attempt['finish_requested_at'])
+			: $this->result_payload($attempt);
+	}
+
+	private function pending_result(string $received): array {
+		return array(
+			'status'            => 'processing',
+			'submitted'         => true,
+			'received_at'       => $this->iso($received),
+			'visibility'        => 'hidden',
+			'release_pending'   => false,
+			'server_time'       => gmdate(DATE_ATOM),
+			'can_retry'         => false,
+			'ranking_eligible'  => false,
+			'score_precision'   => 0,
+			'answer_key_visible'=> false,
+		);
+	}
+
+	/** Single bounded worker. Each committed attempt clears its durable snapshot atomically. */
+	public function process_submissions(): void {
+		$wpdb = $this->db->wpdb();
+		$table = $this->db->table('attempts');
+		$lock = 'ptq-submit-' . md5(DB_NAME . ':' . $table);
+		if ((string) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 0)', $lock)) !== '1') { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Database locks are connection scoped.
+			return;
+		}
+		try {
+			$batch_size = 40;
+			$due = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Read the current queue under the worker lock.
+				' SELECT * FROM %i WHERE status=\'in_progress\' AND submission_retry_at BETWEEN %s AND %s
+				AND pending_submission IS NOT NULL ORDER BY submission_retry_at,id LIMIT %d',
+				$table, '1970-01-01 00:00:00', gmdate('Y-m-d H:i:s'), $batch_size
+			), ARRAY_A) ?: array();
+			$started = microtime(true);
+			$processed = 0;
+			foreach ($due as $attempt) {
+				try {
+					$payload = json_decode((string) $attempt['pending_submission'], true, 512, JSON_THROW_ON_ERROR);
+					$received = strtotime((string) $attempt['finish_requested_at'] . ' UTC');
+					if (! $received || ! is_array($payload['answers'] ?? null) || ! is_bool($payload['automatic'] ?? null)) {
+						throw new \RuntimeException('Stored submission is invalid.');
+					}
+					$this->finalize($attempt, $payload['automatic'], (string) $attempt['submission_id'], $payload['answers'], $received);
+				} catch (\Throwable $error) {
+					$this->finalize_error($error);
+					$failures = (int) $attempt['submission_failures'] + 1;
+					$updated = $wpdb->update($table, array( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Update retry state for the exact pending submission.
+						'submission_failures' => $failures,
+						'submission_retry_at' => gmdate('Y-m-d H:i:s', time() + min(900, 15 * (2 ** min(6, $failures)))),
+					), array('id' => (int) $attempt['id'], 'status' => 'in_progress', 'submission_id' => $attempt['submission_id']));
+					if ($updated === false) {
+						$this->finalize_error(new \RuntimeException('The submission retry could not be scheduled.'));
+					}
+				}
+				++$processed;
+				if (microtime(true) - $started >= 5) {
+					break;
+				}
+			}
+			if ((count($due) === $batch_size || $processed < count($due)) && ! wp_next_scheduled('paper_to_quiz_continue_submissions')) {
+				wp_schedule_single_event(time() + 2, 'paper_to_quiz_continue_submissions');
+			}
+		} finally {
+			$wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock)); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Release the database lock held by this connection.
+		}
 	}
 
 	public function result(string $public_id, string $token): array|\WP_Error {
@@ -603,10 +726,10 @@ final class AttemptService {
 		if (is_wp_error($attempt)) {
 			return $attempt;
 		}
-		if ($attempt['status'] === 'in_progress') {
+		if ($attempt['status'] === 'in_progress' && ! $this->submission_pending($attempt)) {
 			return new \WP_Error('paper_to_quiz_not_submitted', __('This item has not been completed yet.', 'paper-to-quiz'), array('status' => 409));
 		}
-		return $this->result_payload($attempt);
+		return $this->submission_result($attempt);
 	}
 
 	public function email_context(int $attempt_id): ?array {
@@ -797,9 +920,9 @@ final class AttemptService {
 		$attempt['deadline_at_display'] = $this->format_admin_date($attempt['deadline_at']);
 		$attempt['last_activity_at_display'] = $this->format_admin_date($attempt['last_activity_at']);
 		$attempt['submitted_at_display'] = $this->format_admin_date($attempt['submitted_at']);
-		unset($attempt['participant_data']);
+		unset($attempt['participant_data'], $attempt['pending_submission'], $attempt['submission_retry_at'], $attempt['submission_failures']);
 		$attempt['answers'] = $answers;
-		$attempt['subjects'] = $this->subject_scores($attempt_id);
+		$attempt['subjects'] = $this->subject_scores($attempt);
 		$attempt['score_precision'] = (int) $this->db->wpdb()->get_var(
 			$this->db->wpdb()->prepare(
 				'SELECT EXISTS(SELECT 1 FROM ' . $this->db->table('questions') . ' WHERE revision_id = %d AND (points %% 100) <> 0)',
@@ -895,7 +1018,7 @@ final class AttemptService {
 			$this->db->wpdb()->prepare(
 				'UPDATE ' . $this->db->table('attempts') . "
 				SET status = 'expired', integrity_status = 'expired', ranking_eligible = 0
-				WHERE status = 'in_progress' AND deadline_at IS NOT NULL AND deadline_at < %s",
+				WHERE status = 'in_progress' AND pending_submission IS NULL AND deadline_at IS NOT NULL AND deadline_at < %s",
 				gmdate('Y-m-d H:i:s', time() - 7 * DAY_IN_SECONDS)
 			)
 		);
@@ -922,6 +1045,8 @@ final class AttemptService {
 	public function anonymize_attempt(int $attempt_id): bool {
 		$this->db->begin();
 		try {
+			// Use the same row-lock order as grading so erasure cannot race a ranking insert.
+			$this->lock_attempt($attempt_id);
 			$deleted = $this->db->wpdb()->delete(
 				$this->db->table('ranking_entries'),
 				array('attempt_id' => $attempt_id),
@@ -1168,18 +1293,31 @@ final class AttemptService {
 		return $attempt;
 	}
 
-	private function validate_submission_answers(array $attempt, array $answers): bool|\WP_Error {
-		$questions = $this->questions_for((int) $attempt['revision_id'], false);
-		$ids = array_map(static fn (array $question): int => (int) $question['id'], $questions);
-		$revision = $this->revision((int) $attempt['revision_id']);
-		$options = (array) ($revision['options'] ?? array());
+	private function validate_submission_answers(array $attempt, array $answers, bool $deferred): bool|\WP_Error {
+		if (! $answers) {
+			return true;
+		}
+		$revision_id = (int) $attempt['revision_id'];
+		if ($deferred) {
+			$wpdb = $this->db->wpdb();
+			$questions = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Validate IDs and options against the attempt's current immutable revision.
+				'SELECT q.id, r.options_json FROM %i q JOIN %i r ON r.id = q.revision_id WHERE r.id = %d',
+				$this->db->table('questions'), $this->db->table('revisions'), $revision_id
+			), ARRAY_A) ?: array();
+			$options = (array) json_decode((string) ($questions[0]['options_json'] ?? ''), true);
+		} else {
+			$questions = $this->questions_for($revision_id, false);
+			$revision = $this->revision($revision_id);
+			$options = (array) ($revision['options'] ?? array());
+		}
+		$ids = array_fill_keys(array_column($questions, 'id'), true);
 		$seen = array();
 		foreach ($answers as $item) {
 			if (! is_array($item) || empty($item['question_id'])) {
 				return new \WP_Error('paper_to_quiz_invalid_answer', __('The submission contains an invalid answer.', 'paper-to-quiz'), array('status' => 400));
 			}
 			$question_id = (int) $item['question_id'];
-			if (! in_array($question_id, $ids, true) || isset($seen[$question_id])) {
+			if (! isset($ids[$question_id]) || isset($seen[$question_id])) {
 				return new \WP_Error('paper_to_quiz_invalid_answer', __('The submission contains an invalid or duplicate question.', 'paper-to-quiz'), array('status' => 400));
 			}
 			$seen[$question_id] = true;
@@ -1246,7 +1384,8 @@ final class AttemptService {
 		$payload = array(
 			'public_id'       => $attempt['public_id'],
 			'revision_id'     => (int) $attempt['revision_id'],
-			'status'          => $attempt['status'],
+			'assessment_type' => $assessment_type,
+			'status'          => $this->submission_pending($attempt) ? 'processing' : $attempt['status'],
 			'started_at'      => $this->iso((string) $attempt['started_at']),
 			'deadline_at'     => $attempt['deadline_at'] ? $this->iso((string) $attempt['deadline_at']) : null,
 			'server_time'     => gmdate(DATE_ATOM),
@@ -1265,15 +1404,31 @@ final class AttemptService {
 		return $payload;
 	}
 
-	private function finalize(array $attempt, bool $automatic, ?string $submission_id = null, ?array $snapshot = null): array {
+	private function finalize(array $attempt, bool $automatic, ?string $submission_id = null, ?array $snapshot = null, ?int $received_at = null): array {
 		$questions = $this->questions_for((int) $attempt['revision_id'], true);
 		$question_map = array();
 		foreach ($questions as $question) {
 			$question_map[(int) $question['id']] = $question;
 		}
 
+		$wpdb = $this->db->wpdb();
+		$previous_suppression = $wpdb->suppress_errors(true);
 		$this->db->begin();
 		try {
+			$attempt = $this->lock_attempt((int) $attempt['id']);
+			if (! $attempt) {
+				throw new \RuntimeException('Attempt disappeared before finalization.');
+			}
+			$pending = $this->submission_pending($attempt);
+			if ($attempt['status'] !== 'in_progress' || ($pending && $received_at === null)) {
+				$this->db->rollback();
+				return $attempt;
+			}
+			if ($received_at !== null && (! $pending || $attempt['submission_id'] !== $submission_id)) {
+				throw new \RuntimeException('The durable submission no longer matches the worker request.');
+			}
+			$batch_answers = $received_at !== null;
+			$answers_by_question = array();
 			if (is_array($snapshot)) {
 				$latest = array();
 				foreach ($snapshot as $item) {
@@ -1281,6 +1436,7 @@ final class AttemptService {
 						$latest[(int) $item['question_id']] = $item;
 					}
 				}
+				$revision_options = $this->revision((int) $attempt['revision_id'])['options'] ?? array();
 				foreach ($latest as $question_id => $item) {
 					if (! isset($question_map[$question_id])) {
 						throw new \InvalidArgumentException('Question does not belong to this revision.');
@@ -1288,23 +1444,25 @@ final class AttemptService {
 					$option = isset($item['option']) && $item['option'] !== ''
 						? strtoupper(sanitize_key((string) $item['option']))
 						: null;
-					$revision_options = $this->revision((int) $attempt['revision_id'])['options'] ?? array();
 					if ($option !== null && ! in_array($option, $revision_options, true)) {
 						throw new \InvalidArgumentException('Invalid answer option.');
 					}
 				}
-				$deleted = $this->db->write(
-					'finalize_answer_delete',
-					fn (): int|false => $this->db->wpdb()->delete($this->db->table('answers'), array('attempt_id' => (int) $attempt['id']), array('%d'))
-				);
-				if (false === $deleted) {
-					throw new \RuntimeException('Answer deletion failed.');
-				}
+				$this->clear_attempt_rows('answers', (int) $attempt['id'], 'finalize_answer_delete');
 				foreach ($question_map as $question_id => $question) {
 					$item    = $latest[$question_id] ?? array();
 					$option  = isset($item['option']) && $item['option'] !== '' ? strtoupper(sanitize_key((string) $item['option'])) : null;
 					$flagged = ! empty($item['flagged']);
 					if ($option === null && ! $flagged) {
+						continue;
+					}
+					if ($batch_answers) {
+						$answers_by_question[$question_id] = (object) array(
+							'selected_option' => $option,
+							'is_flagged' => $flagged,
+							'is_correct' => null,
+							'awarded_points' => 0,
+						);
 						continue;
 					}
 					$inserted = $this->db->write(
@@ -1326,16 +1484,17 @@ final class AttemptService {
 				}
 			}
 
-			$answer_rows = $this->db->wpdb()->get_results(
-				$this->db->wpdb()->prepare(
-					'SELECT * FROM ' . $this->db->table('answers') . ' WHERE attempt_id = %d',
-					(int) $attempt['id']
-				),
-				OBJECT_K
-			) ?: array();
-			$answers_by_question = array();
-			foreach ($answer_rows as $answer) {
-				$answers_by_question[(int) $answer->question_id] = $answer;
+			if (! $batch_answers) {
+				$answer_rows = $this->db->wpdb()->get_results(
+					$this->db->wpdb()->prepare(
+						'SELECT * FROM ' . $this->db->table('answers') . ' WHERE attempt_id = %d',
+						(int) $attempt['id']
+					),
+					OBJECT_K
+				) ?: array();
+				foreach ($answer_rows as $answer) {
+					$answers_by_question[(int) $answer->question_id] = $answer;
+				}
 			}
 
 			$correct = 0;
@@ -1366,6 +1525,11 @@ final class AttemptService {
 				}
 				$score += $points;
 				$subjects[$subject_id]['score'] += $points;
+				if ($batch_answers) {
+					$answer->is_correct = $is_correct ? 1 : 0;
+					$answer->awarded_points = $points;
+					continue;
+				}
 				$graded = $this->db->write(
 					'finalize_answer_grade_update',
 					fn (): int|false => $this->db->wpdb()->update(
@@ -1378,13 +1542,16 @@ final class AttemptService {
 					throw new \RuntimeException('Answer grading update failed.');
 				}
 			}
+			if ($batch_answers) {
+				$this->write_graded_answers((int) $attempt['id'], $answers_by_question, gmdate('Y-m-d H:i:s', $received_at));
+			}
 
-			$now       = time();
+			$now       = $received_at ?? time();
 			$started   = strtotime((string) $attempt['started_at'] . ' UTC');
 			$duration  = max(0, $now - $started);
 			$revision  = $this->revision((int) $attempt['revision_id']);
 			$total     = max(1, (int) $revision['total_points']);
-			$late      = $this->is_past_grace($attempt);
+			$late      = $this->is_past_grace($attempt, $now);
 			$eligible  = ! $late && RankingService::enabled($revision, 'exam') && empty($attempt['anonymized_at']);
 			$submitted = gmdate('Y-m-d H:i:s', $now);
 			$affected = $this->db->write(
@@ -1397,6 +1564,9 @@ final class AttemptService {
 						'integrity_status'    => $late ? 'late_recovered' : 'on_time',
 						'ranking_eligible'    => $eligible ? 1 : 0,
 						'finish_requested_at' => $submitted,
+						'pending_submission'  => null,
+						'submission_retry_at' => null,
+						'submission_failures' => 0,
 						'submitted_at'        => $submitted,
 						'last_activity_at'    => $submitted,
 						'duration_seconds'    => $duration,
@@ -1420,13 +1590,7 @@ final class AttemptService {
 				return $this->attempt_by_id((int) $attempt['id']);
 			}
 
-			$deleted_subjects = $this->db->write(
-				'finalize_subject_score_delete',
-				fn (): int|false => $this->db->wpdb()->delete($this->db->table('attempt_subject_scores'), array('attempt_id' => (int) $attempt['id']), array('%d'))
-			);
-			if (false === $deleted_subjects) {
-				throw new \RuntimeException('Subject score deletion failed.');
-			}
+			$this->clear_attempt_rows('attempt_subject_scores', (int) $attempt['id'], 'finalize_subject_score_delete');
 			foreach ($subjects as $subject_id => $subject) {
 				$inserted_subject = $this->db->write(
 					'finalize_subject_score_insert',
@@ -1472,6 +1636,8 @@ final class AttemptService {
 		} catch (\Throwable $error) {
 			$this->db->rollback();
 			throw $error;
+		} finally {
+			$wpdb->suppress_errors($previous_suppression);
 		}
 
 		$final = $this->attempt_by_id((int) $attempt['id']);
@@ -1479,9 +1645,61 @@ final class AttemptService {
 		return $final;
 	}
 
+	/** Store a worker's scored snapshot without issuing two writes per answer. */
+	private function write_graded_answers(int $attempt_id, array $answers, string $received_at): void {
+		$wpdb = $this->db->wpdb();
+		$table = $this->db->table('answers');
+		foreach (array_chunk($answers, 100, true) as $batch) {
+			$args = array($table);
+			foreach ($batch as $question_id => $answer) {
+				array_push($args, $attempt_id, $question_id, (string) $answer->selected_option, (int) $answer->is_flagged,
+					$answer->is_correct === null ? '' : (string) $answer->is_correct,
+					(int) $answer->awarded_points, $answer->selected_option === null ? '' : $received_at);
+			}
+			// Generated from a fixed row template; all data remains in placeholders.
+			$values = implode(',', array_fill(0, count($batch), "(%d,%d,NULLIF(%s,''),%d,NULLIF(%s,''),%d,NULLIF(%s,''))"));
+			$inserted = $this->db->write('finalize_answer_insert', static function () use ($wpdb, $values, $args): int|false {
+				// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber,PluginCheck.Security.DirectDB.UnescapedDBParameter -- The generated fragment contains literal SQL and placeholders only.
+				return $wpdb->query($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Write the entire batch inside the attempt transaction.
+					'INSERT INTO %i (attempt_id,question_id,selected_option,is_flagged,is_correct,awarded_points,answered_at) VALUES ' . $values,
+					$args
+				));
+				// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber,PluginCheck.Security.DirectDB.UnescapedDBParameter
+			});
+			if ($inserted !== count($batch)) {
+				throw new \RuntimeException('Graded answers could not be stored.');
+			}
+		}
+	}
+
+	private function clear_attempt_rows(string $table_name, int $attempt_id, string $operation): void {
+		$wpdb = $this->db->wpdb();
+		$table = $this->db->table($table_name);
+		$ids = $wpdb->get_col($wpdb->prepare('SELECT id FROM %i WHERE attempt_id=%d', $table, $attempt_id)); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Read current primary keys inside the transaction.
+		if ($wpdb->last_error !== '') {
+			throw new \RuntimeException('Existing attempt rows could not be read.');
+		}
+		// The attempt row is locked. Delete only existing primary keys to avoid
+		// locking empty index ranges shared by concurrent submissions.
+		$deleted = $this->db->write($operation, static function () use ($wpdb, $table, $ids): int|false {
+			if (! $ids) {
+				return 0;
+			}
+			$placeholders = implode(',', array_fill(0, count($ids), '%d'));
+			return $wpdb->query($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Delete the existing rows in one transactional write.
+				'DELETE FROM %i WHERE id IN (' . $placeholders . ')', // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Generated exclusively from literal %d placeholders.
+				array_merge(array($table), array_map('intval', $ids))
+			));
+		});
+		if ($deleted !== count($ids)) {
+			throw new \RuntimeException('Existing attempt rows could not be cleared.');
+		}
+	}
+
 	private function result_payload(array $attempt): array {
-		$content_revision = $this->revision((int) $attempt['revision_id']);
-		$policy_record = $this->assessments->get((int) $attempt['assessment_id'], true);
+		$policy_record = $this->assessments->get((int) $attempt['assessment_id'], true, false);
+		$content_revision = (int) ($policy_record['revision']['id'] ?? 0) === (int) $attempt['revision_id']
+			? $policy_record['revision'] : $this->revision((int) $attempt['revision_id']);
 		$revision = $policy_record['revision'] ?? $content_revision;
 		$visible  = $revision['result_visibility'];
 		$release  = $revision['results_release_at_utc'] ? strtotime((string) $revision['results_release_at_utc'] . ' UTC') : null;
@@ -1495,7 +1713,7 @@ final class AttemptService {
 		}
 		$fractional = (int) $this->db->wpdb()->get_var(
 			$this->db->wpdb()->prepare(
-				'SELECT COUNT(*) FROM ' . $this->db->table('questions') . ' WHERE revision_id = %d AND (points %% 100) <> 0',
+				'SELECT EXISTS(SELECT 1 FROM ' . $this->db->table('questions') . ' WHERE revision_id = %d AND (points %% 100) <> 0)',
 				(int) $attempt['revision_id']
 			)
 		) > 0;
@@ -1546,7 +1764,7 @@ final class AttemptService {
 			) ?: array();
 		}
 		if (in_array($visible, array('summary', 'detailed'), true)) {
-			$result['subjects'] = $this->subject_scores((int) $attempt['id'], ! empty($content_revision['ranking_enabled']) && ! empty($revision['ranking_enabled']));
+			$result['subjects'] = $this->subject_scores($attempt, ! empty($content_revision['ranking_enabled']) && ! empty($revision['ranking_enabled']));
 			if (! empty($content_revision['ranking_enabled']) && ! empty($revision['ranking_enabled']) && ! empty($attempt['ranking_eligible'])) {
 				$result['ranking'] = $this->rankings->rank((int) $attempt['revision_id'], (int) $attempt['id']);
 			}
@@ -1587,8 +1805,7 @@ final class AttemptService {
 		);
 	}
 
-	private function subject_scores(int $attempt_id, bool $include_ranking = true): array {
-		$attempt = $this->attempt_by_id($attempt_id);
+	private function subject_scores(array $attempt, bool $include_ranking = true): array {
 		$rows = $this->db->wpdb()->get_results(
 			$this->db->wpdb()->prepare(
 				'SELECT ss.*,COALESCE(s.name,%s) subject_name
@@ -1596,12 +1813,13 @@ final class AttemptService {
 				LEFT JOIN ' . $this->db->table('terms') . " s ON s.id = ss.subject_id AND s.type = 'subject'
 				WHERE ss.attempt_id = %d ORDER BY s.sort_order,s.name",
 				__('Subject not specified', 'paper-to-quiz'),
-				$attempt_id
+				(int) $attempt['id']
 			),
 			ARRAY_A
 		) ?: array();
+		$ranks = $rows && $include_ranking && ! empty($attempt['ranking_eligible']) ? $this->rankings->subject_ranks($attempt) : array();
 		return array_map(
-			function (array $row) use ($attempt, $include_ranking): array {
+			static function (array $row) use ($ranks): array {
 				$result = array(
 				'subject_id' => (int) $row['subject_id'],
 				'name'       => (string) $row['subject_name'],
@@ -1612,11 +1830,8 @@ final class AttemptService {
 				'max_score'  => (int) $row['max_score'],
 				'percentage' => (float) $row['percentage'],
 				);
-				if ($include_ranking && $attempt && ! empty($attempt['ranking_eligible'])) {
-					$ranking = $this->rankings->subject_rank($attempt, $row);
-					if ($ranking) {
-						$result['ranking'] = $ranking;
-					}
+				if (isset($ranks[$result['subject_id']])) {
+					$result['ranking'] = $ranks[$result['subject_id']];
 				}
 				return $result;
 			},
@@ -1624,13 +1839,18 @@ final class AttemptService {
 		);
 	}
 
-	private function is_past_grace(array $attempt): bool {
+	private function is_past_grace(array $attempt, ?int $timestamp = null): bool {
 		if (empty($attempt['deadline_at'])) {
 			return false;
 		}
 		$settings = Settings::get();
 		$grace    = max(0, (int) ($settings['network_grace'] ?? 30));
-		return time() > strtotime((string) $attempt['deadline_at'] . ' UTC') + $grace;
+		return ($timestamp ?? time()) > strtotime((string) $attempt['deadline_at'] . ' UTC') + $grace;
+	}
+
+	private function lock_attempt(int $attempt_id): ?array {
+		$wpdb = $this->db->wpdb();
+		return $wpdb->get_row($wpdb->prepare('SELECT * FROM %i WHERE id=%d FOR UPDATE', $this->db->table('attempts'), $attempt_id), ARRAY_A); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Lock the current attempt state inside the transaction.
 	}
 
 	private function attempt_by_id(int $attempt_id): ?array {

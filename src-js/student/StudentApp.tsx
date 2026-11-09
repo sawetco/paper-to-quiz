@@ -74,6 +74,7 @@ type SavedAnswer = {
 type Attempt = {
 	public_id: string;
 	revision_id: number;
+	assessment_type?: 'exam' | 'test';
 	token?: string;
 	status: string;
 	started_at: string;
@@ -198,14 +199,18 @@ export function StudentApp( {
 	const [ studentClass, setStudentClass ] = useState( '' );
 	const [ studentSection, setStudentSection ] = useState( '' );
 	const [ result, setResult ] = useState< Result | null >( null );
+	const [ restoredResultId, setRestoredResultId ] = useState( '' );
+	const resultAttemptId = restoredResultId || attempt?.public_id;
 	const [ focusMode, setFocusMode ] = useState( false );
 	const [ startsIn, setStartsIn ] = useState< number | null >( null );
 	const autoSubmitting = useRef( false );
+	const submissionRetry = useRef( { failures: 0, after: 0 } );
 	const startLock = useRef( false );
 	const submitLock = useRef( false );
 	const draftRef = useRef< AttemptDraft | null >( null );
 	const nativeFullscreenWasActive = useRef( false );
 	const scheduleRefreshPending = useRef( false );
+	const nextScheduleRefresh = useRef( 0 );
 	const content = contentCopy( bootstrap?.type );
 
 	useEffect( () => {
@@ -301,9 +306,19 @@ export function StudentApp( {
 						'';
 					if ( completedPublicId ) {
 						try {
-							await loadState( completedPublicId );
+							const completed = await studentApi< Result >(
+								restRoot,
+								`/attempts/${ completedPublicId }/result`,
+								nonce
+							);
+							setRestoredResultId( completedPublicId );
+							setResult( completed );
 						} catch ( caught ) {
-							if ( receipt ) {
+							if (
+								receipt &&
+								caught instanceof StudentApiError &&
+								[ 401, 403, 404 ].includes( caught.status )
+							) {
 								await deleteReceipt( assessmentId );
 							}
 							throw caught;
@@ -350,6 +365,8 @@ export function StudentApp( {
 			bootstrap.schedule.server_time
 		).getTime();
 		const performanceAnchor = performance.now();
+		let scheduleFailures = 0;
+		let waitUntil = 0;
 		const tick = () => {
 			const monotonicNow =
 				serverAnchor + ( performance.now() - performanceAnchor );
@@ -362,7 +379,19 @@ export function StudentApp( {
 				)
 			);
 			setStartsIn( seconds );
+			if ( seconds === 0 && waitUntil === 0 ) {
+				waitUntil = performance.now() + 1_000 + Math.random() * 9_000;
+			}
 			if ( seconds === 0 && ! scheduleRefreshPending.current ) {
+				if (
+					performance.now() <
+						Math.max( waitUntil, nextScheduleRefresh.current ) ||
+					document.visibilityState === 'hidden' ||
+					! navigator.onLine
+				) {
+					return;
+				}
+				nextScheduleRefresh.current = performance.now() + 5_000;
 				scheduleRefreshPending.current = true;
 				void studentApi< Bootstrap >(
 					restRoot,
@@ -370,7 +399,16 @@ export function StudentApp( {
 					nonce
 				)
 					.then( setBootstrap )
-					.catch( () => undefined )
+					.catch( () => {
+						scheduleFailures += 1;
+						nextScheduleRefresh.current =
+							performance.now() +
+							Math.min(
+								60_000,
+								5_000 * 2 ** Math.min( 4, scheduleFailures )
+							) +
+							Math.random() * 5_000;
+					} )
 					.finally( () => {
 						scheduleRefreshPending.current = false;
 					} );
@@ -407,7 +445,12 @@ export function StudentApp( {
 				)
 			);
 			setRemaining( seconds );
-			if ( seconds === 0 && ! autoSubmitting.current ) {
+			if (
+				seconds === 0 &&
+				! autoSubmitting.current &&
+				! submitLock.current &&
+				performance.now() >= submissionRetry.current.after
+			) {
 				autoSubmitting.current = true;
 				void submit( true );
 			}
@@ -485,7 +528,7 @@ export function StudentApp( {
 			! result.release_pending ||
 			! result.release_at ||
 			! result.server_time ||
-			! attempt
+			! resultAttemptId
 		) {
 			return;
 		}
@@ -494,21 +537,124 @@ export function StudentApp( {
 			new Date( result.release_at ).getTime() -
 				new Date( result.server_time ).getTime()
 		);
-		const timer = window.setTimeout(
-			() => {
-				void studentApi< Result >(
+		let request: AbortController | undefined;
+		let cancelled = false;
+		let retryDelay = 5_000;
+		let timer = 0;
+		const schedule = ( wait: number ) => {
+			timer = window.setTimeout(
+				refresh,
+				Math.min( wait + 1_000 + Math.random() * 14_000, 2_147_483_647 )
+			);
+		};
+		const refresh = async () => {
+			if ( document.visibilityState === 'hidden' || ! navigator.onLine ) {
+				schedule( 15_000 );
+				return;
+			}
+			const controller = new AbortController();
+			request = controller;
+			try {
+				const timeout = window.setTimeout(
+					() => controller.abort(),
+					20_000
+				);
+				const latest = await studentApi< Result >(
 					restRoot,
-					`/attempts/${ attempt.public_id }/result`,
+					`/attempts/${ resultAttemptId }/result`,
 					nonce,
-					token
-				)
-					.then( setResult )
-					.catch( () => undefined );
-			},
-			Math.min( delay + 250, 2_147_483_647 )
-		);
-		return () => window.clearTimeout( timer );
-	}, [ attempt, nonce, restRoot, result, token ] );
+					token,
+					{ signal: controller.signal }
+				).finally( () => window.clearTimeout( timeout ) );
+				if ( ! cancelled ) {
+					setResult( latest );
+				}
+			} catch ( caught ) {
+				if ( cancelled ) {
+					return;
+				}
+				if (
+					caught instanceof StudentApiError &&
+					[ 401, 403 ].includes( caught.status )
+				) {
+					setError( caught.message );
+					return;
+				}
+				schedule( retryDelay );
+				retryDelay = Math.min( 60_000, retryDelay * 2 );
+			}
+		};
+		schedule( delay );
+		return () => {
+			cancelled = true;
+			request?.abort();
+			window.clearTimeout( timer );
+		};
+	}, [ resultAttemptId, nonce, restRoot, result, token ] );
+
+	const processingSubmission = result?.status === 'processing';
+	const processingAttemptId = resultAttemptId;
+	useEffect( () => {
+		if ( ! processingSubmission || ! processingAttemptId ) {
+			return;
+		}
+		let controller: AbortController | undefined;
+		let cancelled = false;
+		let timer = 0;
+		let delay = 8_000;
+		const schedule = () => {
+			timer = window.setTimeout(
+				checkResult,
+				delay + Math.random() * 4_000
+			);
+		};
+		const checkResult = async () => {
+			controller = new AbortController();
+			const request = controller;
+			const timeout = window.setTimeout( () => request.abort(), 20_000 );
+			try {
+				const updated = await studentApi< Result >(
+					restRoot,
+					`/attempts/${ processingAttemptId }/result`,
+					nonce,
+					token,
+					{ signal: request.signal }
+				).finally( () => window.clearTimeout( timeout ) );
+				if ( cancelled ) {
+					return;
+				}
+				if ( updated.status !== 'processing' ) {
+					setResult( updated );
+					setAttempt( ( current ) =>
+						current
+							? { ...current, status: updated.status }
+							: current
+					);
+					return;
+				}
+				delay = Math.min( 25_000, delay + 4_000 );
+			} catch ( caught ) {
+				if ( cancelled ) {
+					return;
+				}
+				if (
+					caught instanceof StudentApiError &&
+					[ 401, 403 ].includes( caught.status )
+				) {
+					setError( caught.message );
+					return;
+				}
+				delay = Math.min( 60_000, delay * 2 );
+			}
+			schedule();
+		};
+		schedule();
+		return () => {
+			cancelled = true;
+			controller?.abort();
+			window.clearTimeout( timer );
+		};
+	}, [ processingSubmission, processingAttemptId, nonce, restRoot, token ] );
 
 	useEffect( () => {
 		const unload = ( event: BeforeUnloadEvent ) => {
@@ -713,7 +859,7 @@ export function StudentApp( {
 			setResult( completed );
 			setAttempt( {
 				...attempt,
-				status: automatic ? 'auto_submitted' : 'submitted',
+				status: completed.status,
 			} );
 			setFinishOpen( false );
 			try {
@@ -728,15 +874,7 @@ export function StudentApp( {
 				// Keep the completed draft as a fallback if receipt storage fails.
 			}
 		} catch ( caught ) {
-			setError(
-				caught instanceof Error
-					? caught.message
-					: __(
-							'The submission could not be completed.',
-							'paper-to-quiz'
-						)
-			);
-			autoSubmitting.current = false;
+			recordSubmissionFailure( caught );
 		} finally {
 			submitLock.current = false;
 			setSubmitting( false );
@@ -757,7 +895,7 @@ export function StudentApp( {
 			setResult( completed );
 			setAttempt( {
 				...state,
-				status: draft.automatic ? 'auto_submitted' : 'submitted',
+				status: completed.status,
 			} );
 			try {
 				await writeReceipt( {
@@ -771,25 +909,44 @@ export function StudentApp( {
 				// Keep the completed draft as a fallback if receipt storage fails.
 			}
 		} catch ( caught ) {
-			setError(
-				caught instanceof Error
-					? caught.message
-					: __(
-							'The submission could not be completed.',
-							'paper-to-quiz'
-						)
-			);
-			autoSubmitting.current = false;
+			recordSubmissionFailure( caught );
 		} finally {
 			submitLock.current = false;
 			setSubmitting( false );
 		}
 	}
 
-	async function sendSubmission(
+	function recordSubmissionFailure( caught: unknown ) {
+		setError(
+			caught instanceof Error
+				? caught.message
+				: __(
+						'The submission could not be completed.',
+						'paper-to-quiz'
+					)
+		);
+		const definitive =
+			caught instanceof StudentApiError &&
+			caught.status >= 400 &&
+			caught.status < 500 &&
+			! [ 408, 425, 429 ].includes( caught.status );
+		const failures = submissionRetry.current.failures + 1;
+		const delay = Math.min( 45_000, 1_000 * 2 ** Math.min( failures, 6 ) );
+		submissionRetry.current = {
+			failures,
+			after: definitive
+				? Infinity
+				: performance.now() + delay + Math.random() * 1_000,
+		};
+		autoSubmitting.current = false;
+	}
+
+	function sendSubmission(
 		state: Attempt,
 		draft: AttemptDraft
 	): Promise< Result > {
+		const controller = new AbortController();
+		const timer = window.setTimeout( () => controller.abort(), 20_000 );
 		return studentApi< Result >(
 			restRoot,
 			`/attempts/${ state.public_id }/submit`,
@@ -797,16 +954,20 @@ export function StudentApp( {
 			token,
 			{
 				method: 'POST',
+				signal: controller.signal,
 				json: {
 					submission_id: draft.submissionId,
 					automatic: draft.automatic,
+					...( ( state.assessment_type ?? bootstrap?.type ) === 'exam'
+						? { deferred: true }
+						: {} ),
 					answers: submissionAnswers(
 						state.questions.map( ( question ) => question.id ),
 						draft.answers
 					),
 				},
 			}
-		);
+		).finally( () => window.clearTimeout( timer ) );
 	}
 
 	if ( loading ) {
@@ -824,12 +985,28 @@ export function StudentApp( {
 			</div>
 		);
 	}
+	if ( processingSubmission ) {
+		return (
+			<div className="ptq-loading" role="status">
+				{ error ||
+					__(
+						'Answers received. Your result is being prepared.',
+						'paper-to-quiz'
+					) }
+			</div>
+		);
+	}
 	if ( result ) {
 		return (
 			<>
 				<ResultView
 					result={ result }
 					attempt={ attempt }
+					questionImageRoot={
+						resultAttemptId
+							? `${ restRoot }attempts/${ resultAttemptId }/questions/`
+							: ''
+					}
 					token={ token }
 					nonce={ nonce }
 					type={ bootstrap?.type || 'test' }
@@ -839,10 +1016,12 @@ export function StudentApp( {
 						draftRef.current = null;
 						setAttempt( null );
 						setResult( null );
+						setRestoredResultId( '' );
 						setAnswers( {} );
 						setActive( 0 );
 						setFocusMode( false );
 						autoSubmitting.current = false;
+						submissionRetry.current = { failures: 0, after: 0 };
 					} }
 				/>
 				{ result.ranking_list_available && (
@@ -1689,15 +1868,31 @@ function QuestionImage( {
 	);
 }
 
+function ReviewQuestionImage( props: {
+	question: AttemptQuestion;
+	token: string;
+	nonce: string;
+} ) {
+	const [ open, setOpen ] = useState( false );
+	return (
+		<details onToggle={ ( event ) => setOpen( event.currentTarget.open ) }>
+			<summary>{ __( 'Show question image', 'paper-to-quiz' ) }</summary>
+			{ open && <QuestionImage { ...props } /> }
+		</details>
+	);
+}
+
 function ResultView( {
 	result,
 	attempt,
+	questionImageRoot,
 	token,
 	nonce,
 	type,
 	onRetry,
 }: {
 	result: Result;
+	questionImageRoot: string;
 	attempt: Attempt | null;
 	token: string;
 	nonce: string;
@@ -2069,11 +2264,11 @@ function ResultView( {
 				<div className="ptq-review">
 					<h3>{ __( 'Review your answers', 'paper-to-quiz' ) }</h3>
 					{ result.answers?.map( ( answer ) => {
-						const question = attempt?.questions.find(
-							( item ) =>
-								Number( item.id ) ===
-								Number( answer.question_id )
-						);
+						const question = questionImageRoot && {
+							id: Number( answer.question_id ),
+							ordinal: Number( answer.ordinal ),
+							imageUrl: `${ questionImageRoot }${ Number( answer.question_id ) }/image`,
+						};
 						return (
 							<div
 								key={ answer.question_id }
@@ -2085,7 +2280,7 @@ function ResultView( {
 							>
 								{ question && (
 									<div className="ptq-review__image">
-										<QuestionImage
+										<ReviewQuestionImage
 											question={ question }
 											token={ token }
 											nonce={ nonce }

@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-09T12:50:54+00:00\n"
+"POT-Creation-Date: 2026-11-09T18:55:08+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: paper-to-quiz\n"
@@ -91,8 +91,8 @@ msgid "Untitled content"
 msgstr ""
 
 #: src/Application/AssessmentPurgeService.php:31
-#: src/Application/AssessmentService.php:380
-#: src/Application/AssessmentService.php:1238
+#: src/Application/AssessmentService.php:383
+#: src/Application/AssessmentService.php:1241
 #: src/Application/TermService.php:262
 #: src/Rest/AdminController.php:455
 msgid "Record not found."
@@ -134,280 +134,280 @@ msgstr ""
 msgid "Related records could not be deleted."
 msgstr ""
 
-#: src/Application/AssessmentService.php:303
+#: src/Application/AssessmentService.php:306
 msgid "Invalid assessment type."
 msgstr ""
 
-#: src/Application/AssessmentService.php:315
-#: src/Application/AssessmentService.php:1301
+#: src/Application/AssessmentService.php:318
+#: src/Application/AssessmentService.php:1304
 msgid "Title is required."
 msgstr ""
 
-#: src/Application/AssessmentService.php:373
+#: src/Application/AssessmentService.php:376
 msgid "The record could not be created. Please try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:451
+#: src/Application/AssessmentService.php:454
 msgid "Record could not be updated. Please try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:463
-#: src/Application/AssessmentService.php:1271
+#: src/Application/AssessmentService.php:466
+#: src/Application/AssessmentService.php:1274
 msgid "Draft not found."
 msgstr ""
 
-#: src/Application/AssessmentService.php:482
+#: src/Application/AssessmentService.php:485
 msgid "Specify whether existing questions should be kept or cleared when replacing the PDF."
 msgstr ""
 
-#: src/Application/AssessmentService.php:498
+#: src/Application/AssessmentService.php:501
 msgid "The PDF could not be attached to the draft."
 msgstr ""
 
-#: src/Application/AssessmentService.php:515
+#: src/Application/AssessmentService.php:518
 msgid "Draft questions could not be cleared."
 msgstr ""
 
-#: src/Application/AssessmentService.php:533
+#: src/Application/AssessmentService.php:536
 msgid "Questions could not be prepared for regeneration."
 msgstr ""
 
-#: src/Application/AssessmentService.php:544
+#: src/Application/AssessmentService.php:547
 msgid "The PDF could not be replaced. Please try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:563
+#: src/Application/AssessmentService.php:566
 msgid "Only draft questions can be edited."
 msgstr ""
 
-#: src/Application/AssessmentService.php:569
+#: src/Application/AssessmentService.php:572
 msgid "Crop coordinates are invalid."
 msgstr ""
 
-#: src/Application/AssessmentService.php:576
+#: src/Application/AssessmentService.php:579
 msgid "The question record key is invalid."
 msgstr ""
 
-#: src/Application/AssessmentService.php:631
-#: src/Application/AssessmentService.php:829
-#: src/Application/AssessmentService.php:855
-#: src/Application/AttemptService.php:433
+#: src/Application/AssessmentService.php:634
+#: src/Application/AssessmentService.php:832
+#: src/Application/AssessmentService.php:858
+#: src/Application/AttemptService.php:462
 msgid "Question not found."
 msgstr ""
 
-#: src/Application/AssessmentService.php:669
+#: src/Application/AssessmentService.php:672
 msgid "Question could not be saved. Please try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:684
+#: src/Application/AssessmentService.php:687
 msgid "Only draft answer keys can be edited."
 msgstr ""
 
-#: src/Application/AssessmentService.php:695
-#: src/Application/AssessmentService.php:754
+#: src/Application/AssessmentService.php:698
+#: src/Application/AssessmentService.php:757
 msgid "The answer key must include every draft question exactly once."
 msgstr ""
 
-#: src/Application/AssessmentService.php:732
+#: src/Application/AssessmentService.php:735
 msgid "Previous question records could not be cleared."
 msgstr ""
 
-#: src/Application/AssessmentService.php:772
+#: src/Application/AssessmentService.php:775
 msgid "Question order could not be prepared."
 msgstr ""
 
-#: src/Application/AssessmentService.php:781
+#: src/Application/AssessmentService.php:784
 msgid "The correct answer is not one of the available options."
 msgstr ""
 
-#: src/Application/AssessmentService.php:800
+#: src/Application/AssessmentService.php:803
 #: build/admin-wizard.js:8
 msgid "The answer key could not be saved."
 msgstr ""
 
-#: src/Application/AssessmentService.php:813
+#: src/Application/AssessmentService.php:816
 msgid "The answer key could not be saved. Please try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:833
+#: src/Application/AssessmentService.php:836
 msgid "Published questions cannot be deleted."
 msgstr ""
 
-#: src/Application/AssessmentService.php:892
+#: src/Application/AssessmentService.php:895
 msgid "The question could not be deleted. Please try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:916
+#: src/Application/AssessmentService.php:919
 msgid "Publishing checks are incomplete."
 msgstr ""
 
-#: src/Application/AssessmentService.php:958
+#: src/Application/AssessmentService.php:961
 msgid "Publishing could not be completed."
 msgstr ""
 
-#: src/Application/AssessmentService.php:971
+#: src/Application/AssessmentService.php:974
 msgid "The record to duplicate could not be found."
 msgstr ""
 
 #. translators: %s: Original assessment title.
-#: src/Application/AssessmentService.php:995
+#: src/Application/AssessmentService.php:998
 #, php-format
 msgid "%s (Copy)"
 msgstr ""
 
-#: src/Application/AssessmentService.php:1108
+#: src/Application/AssessmentService.php:1111
 msgid "The published revision to duplicate could not be found."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1122
+#: src/Application/AssessmentService.php:1125
 msgid "The record could not be locked."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1129
-#: src/Application/AssessmentService.php:1140
-#: src/Application/AttemptService.php:229
+#: src/Application/AssessmentService.php:1132
+#: src/Application/AssessmentService.php:1143
+#: src/Application/AttemptService.php:233
 msgid "The published revision changed. Refresh the page and try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1155
+#: src/Application/AssessmentService.php:1158
 msgid "The draft revision could not be created."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1188
+#: src/Application/AssessmentService.php:1191
 msgid "Published questions could not be copied to the draft."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1201
+#: src/Application/AssessmentService.php:1204
 msgid "The draft revision could not be attached to the record."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1210
+#: src/Application/AssessmentService.php:1213
 msgid "The draft revision could not be created. Please try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1248
-#: src/Application/AssessmentService.php:1264
+#: src/Application/AssessmentService.php:1251
+#: src/Application/AssessmentService.php:1267
 msgid "The draft changed or was published. Refresh the page and try again."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1289
+#: src/Application/AssessmentService.php:1292
 #: src/Rest/AdminController.php:1049
 msgid "A superseded private file could not be cleaned up."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1304
+#: src/Application/AssessmentService.php:1307
 msgid "A class must be selected."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1308
-#: src/Application/AssessmentService.php:1485
+#: src/Application/AssessmentService.php:1311
+#: src/Application/AssessmentService.php:1488
 #: build/admin-wizard.js:2
 msgid "Select at least one subject."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1311
+#: src/Application/AssessmentService.php:1314
 msgid "A PDF must be uploaded."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1314
+#: src/Application/AssessmentService.php:1317
 msgid "Select at least one question."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1320
+#: src/Application/AssessmentService.php:1323
 msgid "Ranking can be used only for non-repeatable exams."
 msgstr ""
 
 #. translators: %d: Expected question position.
-#: src/Application/AssessmentService.php:1356
+#: src/Application/AssessmentService.php:1359
 #, php-format
 msgid "Question order has a gap at position %d."
 msgstr ""
 
 #. translators: %d: Question number.
-#: src/Application/AssessmentService.php:1360
+#: src/Application/AssessmentService.php:1363
 #, php-format
 msgid "Question %d has no image."
 msgstr ""
 
 #. translators: %d: Question number.
-#: src/Application/AssessmentService.php:1364
+#: src/Application/AssessmentService.php:1367
 #, php-format
 msgid "Question %d has no thumbnail image."
 msgstr ""
 
 #. translators: %d: Question number.
-#: src/Application/AssessmentService.php:1368
+#: src/Application/AssessmentService.php:1371
 #, php-format
 msgid "Select a subject for question %d."
 msgstr ""
 
 #. translators: %d: Question number.
-#: src/Application/AssessmentService.php:1373
+#: src/Application/AssessmentService.php:1376
 #, php-format
 msgid "The subject record for question %d is invalid."
 msgstr ""
 
 #. translators: %d: Question number.
-#: src/Application/AssessmentService.php:1376
+#: src/Application/AssessmentService.php:1379
 #, php-format
 msgid "Question %d uses a subject that is not selected in Basic Information."
 msgstr ""
 
 #. translators: %d: Question number.
-#: src/Application/AssessmentService.php:1381
+#: src/Application/AssessmentService.php:1384
 #, php-format
 msgid "The correct answer for question %d is invalid."
 msgstr ""
 
 #. translators: 1: Current question point total, 2: Required assessment point total.
-#: src/Application/AssessmentService.php:1388
+#: src/Application/AssessmentService.php:1391
 #, php-format
 msgid "Question points total is %1$s; required total is %2$s."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1400
+#: src/Application/AssessmentService.php:1403
 msgid "Repeatable exams cannot use a schedule or result release date."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1403
+#: src/Application/AssessmentService.php:1406
 #: build/admin-wizard.js:4
 msgid "Repeatable exams cannot use ranking."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1407
+#: src/Application/AssessmentService.php:1410
 msgid "Exam start and end dates are required."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1409
+#: src/Application/AssessmentService.php:1412
 #: build/admin-wizard.js:2
 msgid "The exam end date must be after the start date."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1411
+#: src/Application/AssessmentService.php:1414
 msgid "An exam with a past end date cannot be published. Select a new date."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1414
+#: src/Application/AssessmentService.php:1417
 msgid "The result release date cannot be before the exam end date."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1418
+#: src/Application/AssessmentService.php:1421
 msgid "When a result release date is set, correct answers can only be shown on that date."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1422
+#: src/Application/AssessmentService.php:1425
 msgid "A result release date is required for scheduled feedback."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1466
+#: src/Application/AssessmentService.php:1469
 msgid "The participant list requires ranking, a non-repeatable exam, and summary or detailed results."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1475
+#: src/Application/AssessmentService.php:1478
 msgid "Ranking cannot be enabled for repeatable exams."
 msgstr ""
 
-#: src/Application/AssessmentService.php:1501
+#: src/Application/AssessmentService.php:1504
 msgid "One or more selected subjects are no longer available. Review the subject selection and try again."
 msgstr ""
 
@@ -461,195 +461,196 @@ msgid "You do not have permission to participate in this item."
 msgstr ""
 
 #: src/Application/AttemptService.php:102
-#: src/Application/AttemptService.php:174
-#: src/Application/AttemptService.php:223
+#: src/Application/AttemptService.php:178
+#: src/Application/AttemptService.php:227
 #: src/Frontend/Shortcode.php:26
 msgid "This item is currently unavailable."
 msgstr ""
 
-#: src/Application/AttemptService.php:179
+#: src/Application/AttemptService.php:183
 msgid "The participant list is not available."
 msgstr ""
 
-#: src/Application/AttemptService.php:186
+#: src/Application/AttemptService.php:190
 #: src/Frontend/Shortcode.php:21
 msgid "This item could not be found."
 msgstr ""
 
-#: src/Application/AttemptService.php:245
+#: src/Application/AttemptService.php:249
 msgid "This item can only be completed once."
 msgstr ""
 
-#: src/Application/AttemptService.php:328
+#: src/Application/AttemptService.php:332
 msgid "Could not start. Please try again."
 msgstr ""
 
-#: src/Application/AttemptService.php:375
+#: src/Application/AttemptService.php:392
 msgid "No answers to save were found."
 msgstr ""
 
-#: src/Application/AttemptService.php:400
+#: src/Application/AttemptService.php:420
 msgid "Answers could not be saved. Please try again."
 msgstr ""
 
-#: src/Application/AttemptService.php:408
-msgid "This item has already been completed."
-msgstr ""
-
-#: src/Application/AttemptService.php:416
+#: src/Application/AttemptService.php:436
 msgid "The answer could not be saved because time expired."
 msgstr ""
 
-#: src/Application/AttemptService.php:439
+#: src/Application/AttemptService.php:442
+msgid "This item has already been completed."
+msgstr ""
+
+#: src/Application/AttemptService.php:468
 msgid "Invalid answer option."
 msgstr ""
 
-#: src/Application/AttemptService.php:541
+#: src/Application/AttemptService.php:556
 msgid "The answer could not be saved. Please try again."
 msgstr ""
 
-#: src/Application/AttemptService.php:550
+#: src/Application/AttemptService.php:565
 msgid "The item could not be completed. Please try again."
 msgstr ""
 
-#: src/Application/AttemptService.php:574
+#: src/Application/AttemptService.php:590
 msgid "The submission ID is invalid."
 msgstr ""
 
-#: src/Application/AttemptService.php:585
+#: src/Application/AttemptService.php:601
+#: src/Application/AttemptService.php:645
 msgid "The submission ID has been used in another attempt."
 msgstr ""
 
-#: src/Application/AttemptService.php:607
+#: src/Application/AttemptService.php:730
 msgid "This item has not been completed yet."
 msgstr ""
 
-#: src/Application/AttemptService.php:650
+#: src/Application/AttemptService.php:773
 msgid "Question image not found."
 msgstr ""
 
-#: src/Application/AttemptService.php:775
-#: src/Application/AttemptService.php:831
-#: src/Application/AttemptService.php:1541
-#: src/Application/AttemptService.php:1598
+#: src/Application/AttemptService.php:898
+#: src/Application/AttemptService.php:954
+#: src/Application/AttemptService.php:1759
+#: src/Application/AttemptService.php:1815
 #: build/admin-wizard.js:8
 msgid "Subject not specified"
 msgstr ""
 
-#: src/Application/AttemptService.php:952
+#: src/Application/AttemptService.php:1077
 msgid "Attempt data could not be anonymized."
 msgstr ""
 
-#: src/Application/AttemptService.php:985
+#: src/Application/AttemptService.php:1110
 #: build/admin.js:30
 msgid "Guest"
 msgstr ""
 
 #. translators: %d: WordPress user ID.
-#: src/Application/AttemptService.php:992
+#: src/Application/AttemptService.php:1117
 #, php-format
 msgid "Member #%d"
 msgstr ""
 
-#: src/Application/AttemptService.php:994
+#: src/Application/AttemptService.php:1119
 msgid "Anonymous member"
 msgstr ""
 
-#: src/Application/AttemptService.php:1002
+#: src/Application/AttemptService.php:1127
 #: build/student.js:7
 #: build/student.js:12
 msgid "The exam has not started yet."
 msgstr ""
 
-#: src/Application/AttemptService.php:1005
+#: src/Application/AttemptService.php:1130
 #: build/student.js:7
 msgid "The exam has ended."
 msgstr ""
 
 #. translators: %s: Participant field label.
-#: src/Application/AttemptService.php:1071
+#: src/Application/AttemptService.php:1196
 #: build/student.js:15
 #, php-format,js-format
 msgid "%s is required."
 msgstr ""
 
-#: src/Application/AttemptService.php:1076
+#: src/Application/AttemptService.php:1201
 msgid "Enter a valid email address."
 msgstr ""
 
-#: src/Application/AttemptService.php:1086
+#: src/Application/AttemptService.php:1211
 #: build/student.js:17
 msgid "Enter a valid Turkish mobile phone number."
 msgstr ""
 
-#: src/Application/AttemptService.php:1109
-#: src/Application/AttemptService.php:1668
+#: src/Application/AttemptService.php:1234
+#: src/Application/AttemptService.php:1888
 #: build/admin-wizard.js:1
 #: build/admin.js:26
 msgid "First name"
 msgstr ""
 
-#: src/Application/AttemptService.php:1110
-#: src/Application/AttemptService.php:1669
+#: src/Application/AttemptService.php:1235
+#: src/Application/AttemptService.php:1889
 #: build/admin-wizard.js:1
 #: build/admin.js:26
 msgid "Last name"
 msgstr ""
 
-#: src/Application/AttemptService.php:1111
-#: src/Application/AttemptService.php:1670
+#: src/Application/AttemptService.php:1236
+#: src/Application/AttemptService.php:1890
 #: build/admin-wizard.js:1
 msgid "School name"
 msgstr ""
 
-#: src/Application/AttemptService.php:1112
-#: src/Application/AttemptService.php:1671
+#: src/Application/AttemptService.php:1237
+#: src/Application/AttemptService.php:1891
 #: build/admin-wizard.js:1
 #: build/admin.js:26
 msgid "Class and section"
 msgstr ""
 
-#: src/Application/AttemptService.php:1113
-#: src/Application/AttemptService.php:1672
+#: src/Application/AttemptService.php:1238
+#: src/Application/AttemptService.php:1892
 #: build/admin-wizard.js:1
 #: build/admin.js:26
 msgid "Email"
 msgstr ""
 
-#: src/Application/AttemptService.php:1114
-#: src/Application/AttemptService.php:1673
+#: src/Application/AttemptService.php:1239
+#: src/Application/AttemptService.php:1893
 #: build/admin-wizard.js:1
 #: build/admin.js:26
 msgid "Phone"
 msgstr ""
 
-#: src/Application/AttemptService.php:1158
+#: src/Application/AttemptService.php:1283
 msgid "Could not open the item. Please restart."
 msgstr ""
 
-#: src/Application/AttemptService.php:1162
+#: src/Application/AttemptService.php:1287
 msgid "Your login session has expired. Please log in again."
 msgstr ""
 
-#: src/Application/AttemptService.php:1165
+#: src/Application/AttemptService.php:1290
 msgid "This item belongs to another user."
 msgstr ""
 
-#: src/Application/AttemptService.php:1179
+#: src/Application/AttemptService.php:1317
 msgid "The submission contains an invalid answer."
 msgstr ""
 
-#: src/Application/AttemptService.php:1183
+#: src/Application/AttemptService.php:1321
 msgid "The submission contains an invalid or duplicate question."
 msgstr ""
 
-#: src/Application/AttemptService.php:1188
+#: src/Application/AttemptService.php:1326
 msgid "The submission contains an invalid answer option."
 msgstr ""
 
-#: src/Application/AttemptService.php:1582
+#: src/Application/AttemptService.php:1800
 #: src/Application/RankingService.php:32
-#: src/Application/RankingService.php:140
+#: src/Application/RankingService.php:155
 #: src/Application/ResultEmailService.php:228
 #: src/Application/ResultEmailService.php:229
 #: src/Application/ResultEmailService.php:294
@@ -1003,7 +1004,11 @@ msgstr ""
 msgid "Paper to Quiz could not create its database tables. Check the database permissions before activation."
 msgstr ""
 
-#: src/Infrastructure/Installer.php:44
+#: src/Infrastructure/Installer.php:47
+msgid "Every minute"
+msgstr ""
+
+#: src/Infrastructure/Installer.php:51
 msgid "Every 5 minutes"
 msgstr ""
 
@@ -1162,15 +1167,15 @@ msgstr ""
 msgid "The file could not be processed. Please try again."
 msgstr ""
 
-#: src/Rest/PublicController.php:204
+#: src/Rest/PublicController.php:205
 msgid "The participant list is temporarily unavailable."
 msgstr ""
 
-#: src/Rest/PublicController.php:207
+#: src/Rest/PublicController.php:208
 msgid "Too many ranking requests. Please wait a minute."
 msgstr ""
 
-#: src/Rest/PublicController.php:392
+#: src/Rest/PublicController.php:407
 msgid "Too many participation requests were sent. Please wait a moment."
 msgstr ""
 
@@ -2972,6 +2977,10 @@ msgid "The submission could not be completed."
 msgstr ""
 
 #: build/student.js:7
+msgid "Answers received. Your result is being prepared."
+msgstr ""
+
+#: build/student.js:7
 msgid "The exam is open for participation."
 msgstr ""
 
@@ -3208,6 +3217,10 @@ msgstr ""
 #: build/student.js:27
 #, js-format
 msgid "Question %d image"
+msgstr ""
+
+#: build/student.js:27
+msgid "Show question image"
 msgstr ""
 
 #: build/student.js:27

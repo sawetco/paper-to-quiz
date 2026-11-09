@@ -32,6 +32,9 @@ final class Installer {
 		if (! wp_next_scheduled('paper_to_quiz_process_encryption_migration')) {
 			wp_schedule_event(time() + 5 * MINUTE_IN_SECONDS, 'paper_to_quiz_five_minutes', 'paper_to_quiz_process_encryption_migration');
 		}
+		if (! wp_next_scheduled('paper_to_quiz_process_submissions')) {
+			wp_schedule_event(time() + MINUTE_IN_SECONDS, 'paper_to_quiz_one_minute', 'paper_to_quiz_process_submissions');
+		}
 	}
 
 	/**
@@ -39,6 +42,10 @@ final class Installer {
 	 * @return array<string,array<string,int|string>>
 	 */
 	public static function cron_schedules(array $schedules): array {
+		$schedules['paper_to_quiz_one_minute'] = array(
+			'interval' => MINUTE_IN_SECONDS,
+			'display'  => __('Every minute', 'paper-to-quiz'),
+		);
 		$schedules['paper_to_quiz_five_minutes'] = array(
 			'interval' => 5 * MINUTE_IN_SECONDS,
 			'display'  => __('Every 5 minutes', 'paper-to-quiz'),
@@ -51,10 +58,13 @@ final class Installer {
 		wp_clear_scheduled_hook(Cleanup::CONTINUATION_HOOK);
 		wp_clear_scheduled_hook('paper_to_quiz_process_result_emails');
 		wp_clear_scheduled_hook('paper_to_quiz_process_encryption_migration');
+		wp_clear_scheduled_hook('paper_to_quiz_process_submissions');
+		wp_clear_scheduled_hook('paper_to_quiz_continue_submissions');
 	}
 
 	public static function maybe_upgrade(): bool {
-		$existing_install = get_option('paper_to_quiz_db_version', null) !== null;
+		$installed_version = get_option('paper_to_quiz_db_version', null);
+		$existing_install = $installed_version !== null;
 		// Keep role capabilities current for sites that were already active before
 		// a capability was introduced or renamed. This is idempotent and must run
 		// even when the schema verification cache allows an early return below.
@@ -72,7 +82,7 @@ final class Installer {
 		$failed   = 'paper_to_quiz_schema_failed_' . PAPER_TO_QUIZ_DB_VERSION;
 
 		if (
-			get_option('paper_to_quiz_db_version') === PAPER_TO_QUIZ_DB_VERSION &&
+			$installed_version === PAPER_TO_QUIZ_DB_VERSION &&
 			get_transient($verified) === '1'
 		) {
 			self::initialize_encryption_migration(! $existing_install);
@@ -83,15 +93,26 @@ final class Installer {
 			return false;
 		}
 
-		if (self::install_schema()) {
-			self::initialize_encryption_migration(! $existing_install);
-			delete_transient($failed);
-			set_transient($verified, '1', 12 * HOUR_IN_SECONDS);
-			return true;
+		// An upgrade can coincide with the first public result requests. Run
+		// dbDelta once per site and let competing requests fail fast.
+		global $wpdb;
+		$lock = 'ptq-schema-' . md5(DB_NAME . ':' . $wpdb->prefix);
+		if ((string) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 0)', $lock)) !== '1') { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Lock the schema upgrade on this database connection.
+			return $installed_version === PAPER_TO_QUIZ_DB_VERSION;
 		}
+		try {
+			if (($installed_version === PAPER_TO_QUIZ_DB_VERSION && self::schema_is_complete()) || self::install_schema()) {
+				self::initialize_encryption_migration(! $existing_install);
+				delete_transient($failed);
+				set_transient($verified, '1', 12 * HOUR_IN_SECONDS);
+				return true;
+			}
 
-		set_transient($failed, '1', self::SCHEMA_FAILURE_TTL);
-		return false;
+			set_transient($failed, '1', self::SCHEMA_FAILURE_TTL);
+			return false;
+		} finally {
+			$wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock)); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Release the upgrade lock on the owning database connection.
+		}
 	}
 
 	public static function repair_schema(): bool {
@@ -141,7 +162,7 @@ final class Installer {
 			'ranking_entries'   => array('id', 'revision_id', 'wp_user_id', 'attempt_id', 'public_label', 'public_search'),
 			'terms'             => array('id', 'type', 'name', 'slug', 'color', 'status'),
 			'upload_sessions'   => array('id', 'owner_user_id', 'expected_size', 'received_size', 'chunk_count', 'manifest_json', 'status'),
-			'attempts'          => array('id', 'submission_id', 'integrity_status', 'ranking_eligible'),
+			'attempts'          => array('id', 'submission_id', 'integrity_status', 'ranking_eligible', 'pending_submission', 'submission_retry_at', 'submission_failures'),
 			'result_email_jobs' => array('id', 'attempt_id', 'status', 'next_run_at', 'claimed_at', 'sent_at'),
 		);
 
@@ -165,6 +186,14 @@ final class Installer {
 		$columns = $wpdb->get_results($wpdb->prepare('SHOW COLUMNS FROM %i', $prefix . 'ranking_entries'), ARRAY_A); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Versioned schema health is cached by maybe_upgrade().
 		$user_column = array_values(array_filter($columns ?: array(), static fn (array $column): bool => $column['Field'] === 'wp_user_id'));
 		if (! $user_column || $user_column[0]['Null'] !== 'YES') {
+			return false;
+		}
+		$queue_index = $wpdb->get_results($wpdb->prepare('SHOW INDEX FROM %i WHERE Key_name = %s', $prefix . 'attempts', 'submission_queue'), ARRAY_A) ?: array(); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Versioned schema health is cached by maybe_upgrade().
+		if (array_values(array_column($queue_index, 'Column_name', 'Seq_in_index')) !== array('status', 'submission_retry_at', 'id')) {
+			return false;
+		}
+		$guest_index = $wpdb->get_results($wpdb->prepare('SHOW INDEX FROM %i WHERE Key_name = %s', $prefix . 'attempts', 'assessment_guest_token'), ARRAY_A) ?: array(); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Versioned schema health is cached by maybe_upgrade().
+		if (array_values(array_column($guest_index, 'Column_name', 'Seq_in_index')) !== array('assessment_id', 'token_hash')) {
 			return false;
 		}
 		$indexes = $wpdb->get_results($wpdb->prepare('SHOW INDEX FROM %i', $prefix . 'ranking_entries'), ARRAY_A) ?: array(); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Versioned schema health is cached by maybe_upgrade().
@@ -354,6 +383,9 @@ final class Installer {
 			integrity_status varchar(24) NOT NULL DEFAULT 'pending',
 			ranking_eligible tinyint(1) NOT NULL DEFAULT 0,
 			finish_requested_at datetime DEFAULT NULL,
+			pending_submission longtext DEFAULT NULL,
+			submission_retry_at datetime DEFAULT NULL,
+			submission_failures int(10) unsigned NOT NULL DEFAULT 0,
 			started_at datetime NOT NULL,
 			deadline_at datetime DEFAULT NULL,
 			last_activity_at datetime NOT NULL,
@@ -372,7 +404,9 @@ final class Installer {
 			KEY revision_status (revision_id,status),
 			KEY assessment_status (assessment_id,status),
 			KEY user_revision (wp_user_id,revision_id),
-			KEY submitted (submitted_at)
+			KEY submitted (submitted_at),
+			KEY assessment_guest_token (assessment_id,token_hash),
+			KEY submission_queue (status,submission_retry_at,id)
 		) {$charset};";
 
 		$sql[] = "CREATE TABLE {$prefix}answers (

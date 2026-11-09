@@ -21,7 +21,7 @@ final class Shortcode {
 			return $this->notice(__('This item could not be found.', 'paper-to-quiz'));
 		}
 
-		$record = $this->assessments->get($assessment_id, true);
+		$record = $this->assessments->get($assessment_id, true, false);
 		if (! $record || $record['assessment']['status'] !== 'published' || ! $record['revision']) {
 			return $this->notice(__('This item is currently unavailable.', 'paper-to-quiz'));
 		}
