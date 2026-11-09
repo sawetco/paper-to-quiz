@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import type { AssessmentRecord } from '../../src-js/types';
 
 async function completeExam( page: Page ) {
 	await page
@@ -19,10 +20,12 @@ async function completeExam( page: Page ) {
 	).toBeVisible();
 }
 
-test( 'allows publishing a public ranked exam with scheduled results', async ( {
+test( 'checks and publishes settings for a public ranked exam without opening the PDF', async ( {
 	page,
 } ) => {
 	test.setTimeout( 90_000 );
+	const id = process.env.PTQ_E2E_RANKING_REVIEW;
+	expect( id ).toMatch( /^\d+$/ );
 	await page.goto( '/wp-login.php' );
 	await page.getByLabel( 'Username or Email Address' ).fill( 'admin' );
 	await page
@@ -32,11 +35,28 @@ test( 'allows publishing a public ranked exam with scheduled results', async ( {
 		page.waitForURL( /wp-admin/, { waitUntil: 'domcontentloaded' } ),
 		page.getByRole( 'button', { name: 'Log In' } ).click(),
 	] );
-	const url = `/wp-admin/admin.php?page=paper-to-quiz-exams&assessment=${ process.env.PTQ_E2E_RANKING_PUBLIC }`;
+	const url = `/wp-admin/admin.php?page=paper-to-quiz-exams&assessment=${ id }`;
+	const assessmentPath = `/paper-to-quiz/v1/admin/assessments/${ id }`;
+	const originalResponse = page.waitForResponse(
+		( response ) =>
+			response.url().endsWith( assessmentPath ) &&
+			response.request().method() === 'GET'
+	);
+	const pdfRequests: string[] = [];
+	page.on( 'request', ( request ) => {
+		if (
+			request.url().includes( '/admin/assets/' ) ||
+			request.url().includes( '/pdf.worker.' )
+		) {
+			pdfRequests.push( request.url() );
+		}
+	} );
 	await page.goto( url );
+	const original: AssessmentRecord = await ( await originalResponse ).json();
 	const ranking = page.getByLabel( 'Enable ranking', { exact: true } );
 	const list = page.getByLabel( 'Show participant list', { exact: true } );
 	await expect( ranking ).toBeChecked();
+	await expect( list ).not.toBeChecked();
 	await page
 		.getByLabel( 'Access', { exact: true } )
 		.selectOption( 'login_required' );
@@ -57,13 +77,16 @@ test( 'allows publishing a public ranked exam with scheduled results', async ( {
 		.getByLabel( 'Show in results', { exact: true } )
 		.selectOption( 'summary' );
 	await list.check();
-	await page
-		.getByRole( 'button', { name: 'Save and continue', exact: true } )
-		.click();
+	const check = page.getByRole( 'button', { name: 'Check', exact: true } );
+	const publish = page.getByRole( 'button', { name: 'Publish new version' } );
+	const points = page.locator( '#ptq-total-points' );
+	await points.fill( '90' );
+	await check.click();
+	await expect( publish ).toBeDisabled();
 	await expect(
-		page.getByRole( 'button', { name: 'Select questions', exact: true } )
-	).toBeVisible();
-	await page.goto( url );
+		page.locator( '.ptq-checklist' ).getByText( 'Points total is correct' )
+	).toHaveClass( 'is-invalid' );
+	await page.getByRole( 'button', { name: 'Back', exact: true } ).click();
 	await expect( ranking ).toBeChecked();
 	await expect( list ).toBeChecked();
 	await expect( page.getByLabel( 'Access', { exact: true } ) ).toHaveValue(
@@ -72,14 +95,34 @@ test( 'allows publishing a public ranked exam with scheduled results', async ( {
 	await expect(
 		page.getByLabel( 'Result release', { exact: true } )
 	).not.toHaveValue( '' );
-	await page.getByRole( 'button', { name: 'Save and continue' } ).click();
-	await page.getByRole( 'button', { name: 'Select questions' } ).click();
-	await expect( page.locator( '.konvajs-content' ).first() ).toBeVisible();
-	await page.getByRole( 'button', { name: 'Save selections' } ).click();
-	await page.getByRole( 'button', { name: 'Save answer key' } ).click();
-	await expect(
-		page.getByRole( 'button', { name: 'Publish new version' } )
-	).toBeEnabled();
+	await points.fill(
+		String( Number( original.revision.total_points ) / 100 )
+	);
+	await check.click();
+	await expect( publish ).toBeEnabled();
+	const publishResponse = page.waitForResponse(
+		( response ) =>
+			response.url().endsWith( `${ assessmentPath }/publish` ) &&
+			response.request().method() === 'POST'
+	);
+	await publish.click();
+	const response = await publishResponse;
+	expect( response.ok() ).toBe( true );
+	const saved: AssessmentRecord = await response.json();
+	expect( saved.revision.id ).not.toBe( original.revision.id );
+	expect( saved.revision.source_asset_id ).toBe(
+		original.revision.source_asset_id
+	);
+	expect( saved.revision.ranking_list_enabled ).toBe( '1' );
+	expect( saved.questions ).toMatchObject(
+		original.questions.map( ( question ) => ( {
+			main_asset_id: question.main_asset_id,
+			thumb_asset_id: question.thumb_asset_id,
+			correct_option: question.correct_option,
+			points: question.points,
+		} ) )
+	);
+	expect( pdfRequests ).toEqual( [] );
 } );
 
 test( 'guest and member submissions respect release, access, masking, search, and pagination', async ( {
@@ -187,10 +230,14 @@ test( 'guest and member submissions respect release, access, masking, search, an
 			runtimeErrors.push( error.message )
 		);
 		await visitor.goto( '/?pagename=ptq-e2e-ranking-public' );
+		const visitorRanking = visitor.waitForResponse( ( response ) =>
+			response.url().includes( `/assessments/${ publicId }/ranking?` )
+		);
 		await visitor
 			.getByRole( 'button', { name: 'Ranking', exact: true } )
 			.focus();
 		await visitor.keyboard.press( 'Enter' );
+		expect( ( await visitorRanking ).ok() ).toBe( true );
 		await expect( visitor.getByRole( 'table' ) ).toBeVisible();
 		await visitor.screenshot( {
 			path: testInfo.outputPath( 'ranking-mobile.png' ),
@@ -206,7 +253,7 @@ test( 'guest and member submissions respect release, access, masking, search, an
 		).toBeVisible();
 		await visitor.getByRole( 'searchbox' ).fill( 'Yılmaz' );
 		await expect(
-			visitor.getByText( 'No matching participants.' )
+			visitor.getByText( 'No results found.', { exact: true } )
 		).toBeVisible();
 		const blocked = await visitor.request.get(
 			`/wp-json/paper-to-quiz/v1/assessments/${ memberId }/ranking`

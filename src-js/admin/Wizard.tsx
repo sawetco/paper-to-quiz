@@ -49,6 +49,7 @@ const steps = [
 	__( 'Answer key', 'paper-to-quiz' ),
 	__( 'Review and publish', 'paper-to-quiz' ),
 ];
+const reviewStep = steps.length - 1;
 const participantLabels: Record< string, string > = {
 	first_name: __( 'First name', 'paper-to-quiz' ),
 	last_name: __( 'Last name', 'paper-to-quiz' ),
@@ -195,13 +196,16 @@ export function Wizard( {
 	const [ classes, setClasses ] = useState< Term[] >( [] );
 	const [ subjects, setSubjects ] = useState< Term[] >( [] );
 	const [ loading, setLoading ] = useState( Boolean( assessmentId ) );
-	const [ saving, setSaving ] = useState( false );
+	const [ savingStep, setSavingStep ] = useState< number | null >( null );
 	const [ error, setError ] = useState( '' );
 	const [ success, setSuccess ] = useState( '' );
 	const [ dirty, setDirty ] = useState( false );
+	const [ reviewFromInformation, setReviewFromInformation ] =
+		useState( false );
 	const [ regenerateQuestions, setRegenerateQuestions ] = useState( false );
 	const [ leaveConfirmation, setLeaveConfirmation ] = useState( false );
 	const operationLock = useRef( false );
+	const saving = savingStep !== null;
 
 	useEffect( () => {
 		Promise.all( [
@@ -262,7 +266,7 @@ export function Wizard( {
 		setStep( next );
 	};
 
-	async function saveInfo( goNext = true ) {
+	async function saveInfo( nextStep: number ) {
 		if ( operationLock.current ) {
 			return;
 		}
@@ -278,7 +282,7 @@ export function Wizard( {
 			return;
 		}
 		operationLock.current = true;
-		setSaving( true );
+		setSavingStep( nextStep );
 		setError( '' );
 		try {
 			const payload = toPayload( draft );
@@ -294,9 +298,8 @@ export function Wizard( {
 			setDraft( fromRecord( saved ) );
 			setDirty( false );
 			setSuccess( __( 'Draft saved.', 'paper-to-quiz' ) );
-			if ( goNext ) {
-				setStep( 1 );
-			}
+			setReviewFromInformation( nextStep === reviewStep );
+			setStep( nextStep );
 		} catch ( caught ) {
 			setError(
 				caught instanceof Error
@@ -305,7 +308,7 @@ export function Wizard( {
 			);
 		} finally {
 			operationLock.current = false;
-			setSaving( false );
+			setSavingStep( null );
 		}
 	}
 
@@ -328,6 +331,12 @@ export function Wizard( {
 			</div>
 		);
 	}
+
+	const canReview = Boolean(
+		record?.revision.source_asset_id && record.questions.length
+	);
+	const reviewingFromInformation =
+		step === reviewStep && reviewFromInformation;
 
 	return (
 		<div className="ptq-page ptq-wizard">
@@ -375,7 +384,10 @@ export function Wizard( {
 					let stepClass = '';
 					if ( index === step ) {
 						stepClass = 'is-active';
-					} else if ( index < step ) {
+					} else if (
+						index < step &&
+						( ! reviewingFromInformation || index === 0 )
+					) {
 						stepClass = 'is-complete';
 					}
 					return (
@@ -453,12 +465,12 @@ export function Wizard( {
 						record={ record }
 						onSaved={ async () => {
 							await refresh();
-							changeStep( 4 );
+							changeStep( reviewStep );
 						} }
 						onError={ setError }
 					/>
 				) }
-				{ step === 4 && record && (
+				{ step === reviewStep && record && (
 					<PublishStep
 						record={ record }
 						className={
@@ -479,7 +491,7 @@ export function Wizard( {
 							}
 							operationLock.current = true;
 							try {
-								setSaving( true );
+								setSavingStep( reviewStep );
 								await api(
 									`/admin/assessments/${ id }/publish`,
 									{
@@ -511,7 +523,7 @@ export function Wizard( {
 								);
 							} finally {
 								operationLock.current = false;
-								setSaving( false );
+								setSavingStep( null );
 							}
 						} }
 						busy={ saving }
@@ -523,22 +535,43 @@ export function Wizard( {
 				<Button
 					disabled={ step === 0 || saving }
 					variant="secondary"
-					onClick={ () => changeStep( Math.max( 0, step - 1 ) ) }
+					onClick={ () =>
+						changeStep(
+							reviewingFromInformation
+								? 0
+								: Math.max( 0, step - 1 )
+						)
+					}
 				>
 					{ __( 'Back', 'paper-to-quiz' ) }
 				</Button>
 				{ step === 0 && (
 					<Button
 						disabled={ saving }
-						variant="primary"
-						onClick={ () => void saveInfo( true ) }
+						variant={ canReview ? 'secondary' : 'primary' }
+						onClick={ () => void saveInfo( 1 ) }
 					>
-						{ saving ? (
+						{ savingStep === 1 ? (
 							<BusyLabel>
 								{ __( 'Saving…', 'paper-to-quiz' ) }
 							</BusyLabel>
 						) : (
 							__( 'Save and continue', 'paper-to-quiz' )
+						) }
+					</Button>
+				) }
+				{ step === 0 && canReview && (
+					<Button
+						disabled={ saving }
+						variant="primary"
+						onClick={ () => void saveInfo( reviewStep ) }
+					>
+						{ savingStep === reviewStep ? (
+							<BusyLabel>
+								{ __( 'Saving…', 'paper-to-quiz' ) }
+							</BusyLabel>
+						) : (
+							__( 'Check', 'paper-to-quiz' )
 						) }
 					</Button>
 				) }
@@ -1575,10 +1608,17 @@ function PublishStep( {
 				),
 		],
 		[
-			__( 'All correct answers are entered', 'paper-to-quiz' ),
+			__(
+				'All correct answers match the available options',
+				'paper-to-quiz'
+			),
 			record.questions.length > 0 &&
 				record.questions.every(
-					( question ) => question.correct_option
+					( question ) =>
+						question.correct_option &&
+						record.revision.options.includes(
+							question.correct_option
+						)
 				),
 		],
 		[

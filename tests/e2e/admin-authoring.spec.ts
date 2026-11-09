@@ -32,6 +32,9 @@ test( 'loads settings and mounts the PDF selection workflow', async ( {
 	await expect(
 		page.getByRole( 'heading', { name: 'PTQ E2E Synthetic Fixture' } )
 	).toBeVisible();
+	await expect(
+		page.getByRole( 'button', { name: 'Check', exact: true } )
+	).toHaveCount( 0 );
 	await page.getByRole( 'button', { name: 'Save and continue' } ).click();
 	await page.getByRole( 'button', { name: 'Select questions' } ).click();
 

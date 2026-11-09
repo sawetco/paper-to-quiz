@@ -54,7 +54,7 @@ module.exports = {
 				test: /pdf\.worker\.min\.mjs$/,
 				type: 'asset/resource',
 				generator: {
-					filename: 'pdf.worker.min.js',
+					filename: 'pdf.worker.[contenthash].min.js',
 				},
 			},
 		],
