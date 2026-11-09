@@ -10,6 +10,15 @@ if ('local' !== wp_get_environment_type() || '1' !== getenv('PAPER_TO_QUIZ_ALLOW
 
 if ('release' === getenv('PTQ_RANKING_ACTION')) {
 	global $wpdb;
+	// Process the durable receipts before moving the synthetic release dates.
+	do_action('paper_to_quiz_process_submissions');
+	$pending = $wpdb->get_var($wpdb->prepare(
+		'SELECT COUNT(*) FROM %i a JOIN %i r ON r.id = a.revision_id WHERE r.title LIKE %s AND a.pending_submission IS NOT NULL',
+		$wpdb->prefix . 'paper_to_quiz_attempts', $wpdb->prefix . 'paper_to_quiz_revisions', 'PTQ E2E Ranking %'
+	));
+	if ($pending === null || (int) $pending !== 0) {
+		throw new RuntimeException('The synthetic submissions could not be graded.');
+	}
 	$changed = $wpdb->query($wpdb->prepare(
 		'UPDATE ' . $wpdb->prefix . 'paper_to_quiz_revisions SET window_end_utc = %s,results_release_at_utc = %s WHERE title LIKE %s',
 		gmdate('Y-m-d H:i:s', time() - 60), gmdate('Y-m-d H:i:s', time() - 30), 'PTQ E2E Ranking %'

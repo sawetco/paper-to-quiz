@@ -14,9 +14,19 @@ async function completeExam( page: Page ) {
 	await page
 		.getByRole( 'button', { name: 'Finish exam', exact: true } )
 		.click();
+	const receipt = page.waitForResponse(
+		( response ) =>
+			response.url().endsWith( '/submit' ) &&
+			response.request().method() === 'POST'
+	);
 	await page.locator( '.ptq-modal-actions .ptq-primary' ).click();
+	const accepted = await receipt;
+	expect( accepted.status() ).toBe( 202 );
+	expect( await accepted.json() ).toMatchObject( { status: 'processing' } );
 	await expect(
-		page.getByRole( 'heading', { name: 'Your answers were saved' } )
+		page.getByText( 'Answers received. Your result is being prepared.', {
+			exact: true,
+		} )
 	).toBeVisible();
 }
 
