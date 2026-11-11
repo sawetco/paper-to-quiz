@@ -52,6 +52,11 @@ tests, development dependencies, bundled locale catalogs, or migration-support
 code to SVN. The `Stable tag:` in both trunk and tagged `readme.txt` must match
 the plugin header version before committing a release.
 
+The Release runner installs its SVN client through the Ubuntu HTTPS mirror at
+mirrors.edge.kernel.org when using the hosted mirrorlist. Retain Ubuntu's signed
+Release/package verification; do not bypass apt authentication to work around
+Ubuntu-domain DNS outages. Verify the installed SVN client before publication.
+
 ## Local development
 
 The package manager is npm. Preserve `package-lock.json`. Use Node.js 26
