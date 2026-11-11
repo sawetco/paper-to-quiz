@@ -316,6 +316,9 @@ SQLite local-development contract (1.3.0):
 - The native SQLite CI site uses Studio/wp-env-style pretty permalinks for the
   shared browser suite. Assert that its /wp-json namespace returns JSON before
   the browser tests; the PHP built-in server must not silently return theme HTML.
+  Repeat the full browser suite with plain permalinks. Both browser applications
+  use the shared REST URL builder so endpoint query parameters remain outside
+  WordPress's rest_route parameter.
 
 - A schema change updates `PAPER_TO_QUIZ_DB_VERSION`, installation/update logic,
   uninstall coverage, types, and tests together.

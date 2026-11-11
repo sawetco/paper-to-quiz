@@ -81,13 +81,19 @@ async function download(url, destination, expectedHash) {
 		assert.equal((await restProbe.json()).namespace, 'paper-to-quiz/v1');
 		wp('eval-file', path.join(root, 'tests/data-regression.php'));
 		wp('eval-file', path.join(root, 'tests/rest-regression.php'));
-		const output = wp('eval-file', path.join(root, 'tests/e2e-fixture.php'));
-		const e2e = {PTQ_BASE_URL: 'http://127.0.0.1:8898'};
-		for (const key of ['PTQ_E2E_ASSESSMENT_ID', 'PTQ_E2E_RANKING_PUBLIC', 'PTQ_E2E_RANKING_MEMBER', 'PTQ_E2E_RANKING_REVIEW']) {
-			e2e[key] = output.match(new RegExp(key + '=(\\d+)'))?.[1];
-			assert.ok(e2e[key], 'Missing E2E fixture: ' + key);
+		for (const mode of ['pretty', 'plain']) {
+			if (mode === 'plain') {
+				wp('eval', 'update_option("permalink_structure", ""); flush_rewrite_rules();');
+			}
+			const output = wp('eval-file', path.join(root, 'tests/e2e-fixture.php'));
+			const e2e = {PTQ_BASE_URL: 'http://127.0.0.1:8898', PTQ_E2E_PLAIN_REST: mode === 'plain' ? '1' : ''};
+			for (const key of ['PTQ_E2E_ASSESSMENT_ID', 'PTQ_E2E_RANKING_PUBLIC', 'PTQ_E2E_RANKING_MEMBER', 'PTQ_E2E_RANKING_REVIEW']) {
+				e2e[key] = output.match(new RegExp(key + '=(\\d+)'))?.[1];
+				assert.ok(e2e[key], 'Missing E2E fixture: ' + key);
+			}
+			run(process.execPath, ['node_modules/@playwright/test/cli.js', 'test'], e2e);
+			console.log('PTQ_SQLITE_BROWSER=passed permalinks=' + mode);
 		}
-		run(process.execPath, ['node_modules/@playwright/test/cli.js', 'test'], e2e);
 		wp('plugin', 'deactivate', 'paper-to-quiz');
 		wp('plugin', 'activate', 'paper-to-quiz');
 		fixture('verify');

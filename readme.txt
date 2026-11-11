@@ -97,6 +97,7 @@ https://github.com/sawetco/paper-to-quiz.
 == Changelog ==
 
 = 1.3.0 =
+* Fix filtered administration and ranking requests when WordPress uses plain permalinks.
 * Add SQLite support for local development with native PHP, including WordPress Studio and SQLite Database Integration 3.1.2 and newer.
 * Use real process-owned SQLite worker and schema locks while preserving MySQL/MariaDB session locks.
 * Check transaction failures, bound SQLite lock waits, and keep accepted submissions retryable.

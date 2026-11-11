@@ -1,5 +1,6 @@
 import { __, sprintf } from '@wordpress/i18n';
 import { sha256 } from '@noble/hashes/sha2.js';
+import { restUrl } from '../rest-url';
 
 const config = window.paperToQuizAdmin;
 let currentContentName: string = __( 'Record', 'paper-to-quiz' );
@@ -126,18 +127,15 @@ export async function api< T >(
 		headers.set( 'Content-Type', 'application/json' );
 	}
 
-	const response = await fetch(
-		`${ config.restRoot }${ path.replace( /^\//, '' ) }`,
-		{
-			credentials: 'same-origin',
-			...options,
-			headers,
-			body:
-				options.json !== undefined
-					? JSON.stringify( options.json )
-					: options.body,
-		}
-	);
+	const response = await fetch( restUrl( config.restRoot, path ), {
+		credentials: 'same-origin',
+		...options,
+		headers,
+		body:
+			options.json !== undefined
+				? JSON.stringify( options.json )
+				: options.body,
+	} );
 	if ( ! response.ok ) {
 		let data: unknown;
 		try {

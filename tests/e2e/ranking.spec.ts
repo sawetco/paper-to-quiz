@@ -2,6 +2,15 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import type { AssessmentRecord } from '../../src-js/types';
+import { restUrl } from '../../src-js/rest-url';
+
+const restEndpoint = ( endpoint: string ) =>
+	restUrl(
+		process.env.PTQ_E2E_PLAIN_REST === '1'
+			? '/?rest_route=/paper-to-quiz/v1/'
+			: '/wp-json/paper-to-quiz/v1/',
+		endpoint
+	);
 
 function runRankingFixture( action: 'process' | 'release' ) {
 	if ( process.env.PTQ_TEST_WP_LOAD ) {
@@ -19,10 +28,16 @@ function runRankingFixture( action: 'process' | 'release' ) {
 		process.execPath,
 		[
 			path.resolve( 'node_modules/@wordpress/env/bin/wp-env' ),
-			'--config', process.env.PTQ_E2E_WP_CONFIG!,
-			'run', 'cli', 'env', 'WP_ENVIRONMENT_TYPE=local',
-			'PAPER_TO_QUIZ_ALLOW_E2E=1', 'PTQ_RANKING_ACTION=' + action,
-			'wp', 'eval-file',
+			'--config',
+			process.env.PTQ_E2E_WP_CONFIG!,
+			'run',
+			'cli',
+			'env',
+			'WP_ENVIRONMENT_TYPE=local',
+			'PAPER_TO_QUIZ_ALLOW_E2E=1',
+			'PTQ_RANKING_ACTION=' + action,
+			'wp',
+			'eval-file',
 			'wp-content/plugins/paper-to-quiz/tests/ranking-e2e-fixture.php',
 		],
 		{ env: process.env, stdio: 'pipe', timeout: 60_000 }
@@ -161,17 +176,23 @@ test( 'checks and publishes settings for a public ranked exam without opening th
 	expect( pdfRequests ).toEqual( [] );
 } );
 
-test( 'two browser tabs submit one attempt and receive one final result', async ( { page, context } ) => {
+test( 'two browser tabs submit one attempt and receive one final result', async ( {
+	page,
+	context,
+} ) => {
 	test.setTimeout( 90_000 );
 	const id = process.env.PTQ_E2E_RANKING_PUBLIC!;
 	await page.goto( '/?pagename=ptq-e2e-ranking-public' );
 	await page.getByLabel( 'First name', { exact: false } ).fill( 'Twin' );
 	await page.getByLabel( 'Last name', { exact: false } ).fill( 'Tabs' );
-	const started = page.waitForResponse( response =>
-		response.url().endsWith( '/assessments/' + id + '/attempts' ) &&
-		response.request().method() === 'POST'
+	const started = page.waitForResponse(
+		( response ) =>
+			response.url().endsWith( '/assessments/' + id + '/attempts' ) &&
+			response.request().method() === 'POST'
 	);
-	await page.getByRole( 'button', { name: 'Start exam', exact: true } ).click();
+	await page
+		.getByRole( 'button', { name: 'Start exam', exact: true } )
+		.click();
 	const state = await ( await started ).json();
 	const second = await context.newPage();
 	await second.goto( '/?pagename=ptq-e2e-ranking-public' );
@@ -180,23 +201,28 @@ test( 'two browser tabs submit one attempt and receive one final result', async 
 		deferred: true,
 		answers: [ { question_id: state.questions[ 0 ].id, option: 'A' } ],
 	};
-	const route = '/wp-json/paper-to-quiz/v1/attempts/' + state.public_id + '/submit';
-	const send = ( tab: Page ) => tab.evaluate( async ( input ) => {
-		const response = await fetch( input.route, {
-			method: 'POST', credentials: 'same-origin',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify( input.body ),
-		} );
-		return { status: response.status, data: await response.json() };
-	}, { route, body } );
+	const route = restEndpoint( 'attempts/' + state.public_id + '/submit' );
+	const send = ( tab: Page ) =>
+		tab.evaluate(
+			async ( input ) => {
+				const response = await fetch( input.route, {
+					method: 'POST',
+					credentials: 'same-origin',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify( input.body ),
+				} );
+				return { status: response.status, data: await response.json() };
+			},
+			{ route, body }
+		);
 	const responses = await Promise.all( [ send( page ), send( second ) ] );
-	responses.forEach( response => {
+	responses.forEach( ( response ) => {
 		expect( response.status ).toBe( 202 );
 		expect( response.data.status ).toBe( 'processing' );
 	} );
 	runRankingFixture( 'process' );
 	const final = await page.request.get(
-		'/wp-json/paper-to-quiz/v1/attempts/' + state.public_id + '/result'
+		restEndpoint( 'attempts/' + state.public_id + '/result' )
 	);
 	expect( final.ok() ).toBe( true );
 	expect( ( await final.json() ).status ).toBe( 'submitted' );
@@ -221,7 +247,7 @@ test( 'guest and member submissions respect release, access, masking, search, an
 	await page.getByLabel( 'Last name', { exact: false } ).fill( 'Demir' );
 	await completeExam( page );
 	const pending = await page.request.get(
-		`/wp-json/paper-to-quiz/v1/assessments/${ publicId }/ranking`
+		restEndpoint( `assessments/${ publicId }/ranking` )
 	);
 	expect( pending.status() ).toBe( 403 );
 	expect( await pending.json() ).not.toHaveProperty( 'items' );
@@ -280,7 +306,7 @@ test( 'guest and member submissions respect release, access, masking, search, an
 			.locator( '.ptq-student-root[data-nonce]' )
 			.getAttribute( 'data-nonce' );
 		const forbiddenEdit = await memberPage.request.put(
-			`/wp-json/paper-to-quiz/v1/admin/assessments/${ publicId }`,
+			restEndpoint( `admin/assessments/${ publicId }` ),
 			{
 				headers: { 'X-WP-Nonce': nonce || '' },
 				data: { ranking_list_enabled: true },
@@ -293,8 +319,12 @@ test( 'guest and member submissions respect release, access, masking, search, an
 			runtimeErrors.push( error.message )
 		);
 		await visitor.goto( '/?pagename=ptq-e2e-ranking-public' );
-		const visitorRanking = visitor.waitForResponse( ( response ) =>
-			response.url().includes( `/assessments/${ publicId }/ranking?` )
+		const visitorRanking = visitor.waitForResponse(
+			( response ) =>
+				response
+					.url()
+					.includes( `/assessments/${ publicId }/ranking` ) &&
+				/ranking[?&]/.test( response.url() )
 		);
 		await visitor
 			.getByRole( 'button', { name: 'Ranking', exact: true } )
@@ -319,7 +349,7 @@ test( 'guest and member submissions respect release, access, masking, search, an
 			visitor.getByText( 'No results found.', { exact: true } )
 		).toBeVisible();
 		const blocked = await visitor.request.get(
-			`/wp-json/paper-to-quiz/v1/assessments/${ memberId }/ranking`
+			restEndpoint( `assessments/${ memberId }/ranking` )
 		);
 		expect( blocked.status() ).toBe( 401 );
 		expect( await blocked.json() ).not.toHaveProperty( 'items' );
