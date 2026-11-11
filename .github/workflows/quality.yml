@@ -138,7 +138,7 @@ jobs:
       - name: Record Node.js version
         run: node --version
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: bash .github/automation/install-test-browser.sh
       - run: node build-tools/run-wp-env-suite.js ${{ matrix.target }} integration
       - run: node build-tools/run-wp-env-suite.js ${{ matrix.target }} e2e
       - if: failure()
@@ -205,7 +205,7 @@ jobs:
           tools: composer, wp-cli:2.12.0
           coverage: none
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: bash .github/automation/install-test-browser.sh
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: product-package

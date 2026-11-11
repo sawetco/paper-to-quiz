@@ -308,6 +308,9 @@ SQLite local-development contract (1.3.0):
   paper_to_quiz_disposable_test option to equal sqlite-1.3.
   Run npm run test:sqlite:concurrency with PTQ_TEST_WP_LOAD and PTQ_PHP_BINARY.
   Never point this runner at a customer site. Test runners stay out of the ZIP.
+- Browser CI installs signed dependencies through the official Ubuntu HTTPS
+  mirrorlist, avoiding the hosted runner's Azure-prioritized DNS failure.
+  Keep browser installation and dependency checks required.
 
 - A schema change updates `PAPER_TO_QUIZ_DB_VERSION`, installation/update logic,
   uninstall coverage, types, and tests together.
