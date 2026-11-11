@@ -67,6 +67,10 @@ jobs:
           persist-credentials: false
       - name: Install and verify the WordPress SVN client
         run: |
+          # Keep Ubuntu signature checks while avoiding the unavailable Ubuntu DNS zone.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            printf '%s\n' 'https://mirrors.edge.kernel.org/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+          fi
           sudo apt-get update -qq
           sudo apt-get install --yes --no-install-recommends subversion
           svn --version --quiet
