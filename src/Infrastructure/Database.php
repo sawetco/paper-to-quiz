@@ -108,11 +108,16 @@ final class Database {
 		if ($this->engine() !== 'sqlite') {
 			return $operation();
 		}
-		$this->enter_timeout();
+		$previous_suppression = $this->wpdb->suppress_errors(true);
 		try {
-			return $operation();
+			$this->enter_timeout();
+			try {
+				return $operation();
+			} finally {
+				$this->leave_timeout();
+			}
 		} finally {
-			$this->leave_timeout();
+			$this->wpdb->suppress_errors($previous_suppression);
 		}
 	}
 

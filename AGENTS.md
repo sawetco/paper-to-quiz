@@ -298,6 +298,8 @@ SQLite local-development contract (1.3.0):
   it must not mark an unverified schema ready or populate the failure cache.
 - SQLite REST callbacks also scope direct wpdb operations to the bounded timeout;
   other namespaces and MySQL callbacks keep their existing connection behavior.
+  Suppress technical wpdb output inside the SQLite scope, even with WP_DEBUG
+  enabled, and always restore the caller's suppression state.
 - Persist the unique result email outbox row in the finalization transaction;
   mail and public completion hooks run only after commit. No schema bump is
   needed: the current database version remains 1.2.0.
