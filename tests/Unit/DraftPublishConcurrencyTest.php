@@ -38,7 +38,7 @@ final class DraftPublishConcurrencyTest extends TestCase {
 		$engine        = strtoupper((string) $this->db->wpdb()->get_var(
 			$this->db->wpdb()->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s', DB_NAME, $this->db->table('assessments'))
 		));
-		if ('INNODB' !== $engine) {
+		if ($this->db->engine() !== 'sqlite' && 'INNODB' !== $engine) {
 			$this->markTestSkipped('Draft serialization requires transactional InnoDB tables.');
 		}
 		$this->seed_draft();
@@ -123,7 +123,9 @@ final class DraftPublishConcurrencyTest extends TestCase {
 							. '$payload=is_wp_error($result)?array("error"=>$result->get_error_code(),"status"=>(int)($result->get_error_data()["status"]??0)):array("success"=>true);'
 							. 'file_put_contents(' . var_export($result, true) . ',wp_json_encode($payload));';
 						$process = proc_open(
-							array('/usr/local/bin/wp', '--path=/var/www/html', 'eval', $code),
+							getenv('PTQ_TEST_WP_LOAD')
+								? array(PHP_BINARY, '-r', 'require ' . var_export(dirname(__DIR__) . '/native-bootstrap.php', true) . ';' . $code)
+								: array('/usr/local/bin/wp', '--path=/var/www/html', 'eval', $code),
 							array(0 => array('pipe', 'r'), 1 => array('file', $stderr, 'a'), 2 => array('file', $stderr, 'a')),
 							$pipes
 						);

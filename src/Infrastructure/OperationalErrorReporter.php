@@ -6,6 +6,9 @@ namespace PaperToQuiz\Infrastructure;
 
 final class OperationalErrorReporter {
 	public static function report(string $operation, \Throwable $exception, string $safe_message, int $status): \WP_Error {
+		if ($exception instanceof DatabaseException && $exception->retryable) {
+			return $exception->rest_error();
+		}
 		$reference = strtoupper(substr(str_replace('-', '', wp_generate_uuid4()), 0, 8));
 		error_log( // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Operational failures need server-side diagnostic metadata without exposing request or exception contents.
 			sprintf(

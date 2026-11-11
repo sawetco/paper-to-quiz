@@ -83,8 +83,8 @@ final class AssessmentPurgeService {
 
 		$orphan_assets = array();
 		$attempt_ids   = array();
-		$this->db->begin();
 		try {
+			$this->db->begin();
 			$status = $this->db->wpdb()->get_var(
 				$this->db->wpdb()->prepare(
 					'SELECT status FROM ' . $this->db->table('assessments') . ' WHERE id = %d FOR UPDATE',

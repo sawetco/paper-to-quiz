@@ -138,7 +138,7 @@ jobs:
       - name: Record Node.js version
         run: node --version
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: bash .github/automation/install-test-browser.sh
       - run: node build-tools/run-wp-env-suite.js ${{ matrix.target }} integration
       - run: node build-tools/run-wp-env-suite.js ${{ matrix.target }} e2e
       - if: failure()
@@ -179,9 +179,78 @@ jobs:
           echo '67ae6d92e008f25b40d2efa5b6744692a91c4ecd4a62b09a35e9f734672e48c0  .package-under-test/baseline.zip' | sha256sum --check
       - run: node .github/automation/test-package.cjs
 
+  sqlite:
+    name: SQLite ${{ matrix.core }} / PHP ${{ matrix.php }} / driver ${{ matrix.driver }}
+    needs: javascript
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {core: '6.8.8', php: '8.1', driver: '3.1.2'}
+          - {core: '6.8.8', php: '8.1', driver: '3.1.3'}
+          - {core: '7.1.3', php: '8.3', driver: '3.1.2'}
+          - {core: '7.1.3', php: '8.3', driver: '3.1.3'}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 26
+          cache: npm
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_sqlite, sqlite3, mbstring, openssl, gd
+          tools: composer, wp-cli:2.12.0
+          coverage: none
+      - run: npm ci
+      - run: bash .github/automation/install-test-browser.sh
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: product-package
+          path: .package-under-test
+      - name: Native WordPress SQLite install, upgrade, concurrency and browser gates
+        env:
+          PTQ_WP_VERSION: ${{ matrix.core }}
+          PTQ_SQLITE_VERSION: ${{ matrix.driver }}
+        run: node .github/automation/test-sqlite.cjs
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: sqlite-${{ matrix.core }}-${{ matrix.driver }}-diagnostics
+          path: |
+            ${{ runner.temp }}/ptq-sqlite-ci-*/server.log
+            test-results/**
+            playwright-report/**
+
+  sqlite-transfer:
+    name: Synthetic MySQL to SQLite integrity
+    needs: javascript
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 26
+          cache: npm
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, sqlite3, mbstring, openssl
+          tools: wp-cli:2.12.0
+          coverage: none
+      - run: npm ci
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: product-package
+          path: .package-under-test
+      - run: node .github/automation/test-sqlite-transfer.cjs
+
   readiness:
     name: Release readiness
-    needs: [javascript, php-syntax, php-unit, compatibility, package-upgrade]
+    needs: [javascript, php-syntax, php-unit, compatibility, package-upgrade, sqlite, sqlite-transfer]
     if: always()
     runs-on: ubuntu-24.04
     steps:

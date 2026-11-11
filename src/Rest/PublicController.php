@@ -183,29 +183,40 @@ final class PublicController {
 			$hits = wp_cache_add($key, 1, 'paper_to_quiz_ranking', 2 * MINUTE_IN_SECONDS)
 				? 1 : wp_cache_incr($key, 1, 'paper_to_quiz_ranking');
 		} else {
-			global $wpdb;
-			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic counters bypass option caches; WordPress expires their transient rows.
-			// Register expiry first, so interrupted requests cannot leave immortal counters.
-			$expires = $wpdb->query($wpdb->prepare(
-				'INSERT IGNORE INTO %i (option_name,option_value,autoload) VALUES (%s,%s,%s)',
-				$wpdb->options, '_transient_timeout_' . $key, (string) (time() + 2 * MINUTE_IN_SECONDS), 'off'
-			));
-			$written = false === $expires ? false : $wpdb->query($wpdb->prepare(
-				'INSERT INTO %i (option_name,option_value,autoload) VALUES (%s,%s,%s)
-				ON DUPLICATE KEY UPDATE option_value = LEAST(121,CAST(option_value AS UNSIGNED) + 1)',
-				$wpdb->options, '_transient_' . $key, '1', 'off'
-			));
-			$hits = false === $written ? false : $wpdb->get_var($wpdb->prepare(
-				'SELECT option_value FROM %i WHERE option_name = %s', $wpdb->options, '_transient_' . $key
-			));
-			$hits = null === $hits ? false : $hits;
-			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			try {
+				$hits = $this->database_ranking_hits($key);
+			} catch (\Throwable $error) {
+				return \PaperToQuiz\Infrastructure\OperationalErrorReporter::report('paper_to_quiz_ranking_limit_unavailable', $error, __('The participant list is temporarily unavailable.', 'paper-to-quiz'), 503);
+			}
 		}
 		if (false === $hits) {
 			return new \WP_Error('paper_to_quiz_ranking_limit_unavailable', __('The participant list is temporarily unavailable.', 'paper-to-quiz'), array('status' => 503));
 		}
 		return (int) $hits > 120
 			? new \WP_Error('paper_to_quiz_ranking_rate_limited', __('Too many ranking requests. Please wait a minute.', 'paper-to-quiz'), array('status' => 429)) : true;
+	}
+
+	private function database_ranking_hits(string $key): string|int|false {
+		$db = new \PaperToQuiz\Infrastructure\Database();
+		return $db->bounded(static function () use ($db, $key): string|int|false {
+			$wpdb = $db->wpdb();
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic counters bypass option caches; WordPress expires their transient rows.
+			// Register expiry first, so interrupted requests cannot leave immortal counters.
+			$expires = $db->write('ranking_counter_expiry', fn (): int|false => $wpdb->query($wpdb->prepare(
+				'INSERT IGNORE INTO %i (option_name,option_value,autoload) VALUES (%s,%s,%s)',
+				$wpdb->options, '_transient_timeout_' . $key, (string) (time() + 2 * MINUTE_IN_SECONDS), 'off'
+			)));
+			$written = false === $expires ? false : $db->write('ranking_counter_increment', fn (): int|false => $wpdb->query($wpdb->prepare(
+				'INSERT INTO %i (option_name,option_value,autoload) VALUES (%s,%s,%s)
+				ON DUPLICATE KEY UPDATE option_value = LEAST(121,CAST(option_value AS UNSIGNED) + 1)',
+				$wpdb->options, '_transient_' . $key, '1', 'off'
+			)));
+			$hits = false === $written ? false : $wpdb->get_var($wpdb->prepare(
+				'SELECT option_value FROM %i WHERE option_name = %s', $wpdb->options, '_transient_' . $key
+			));
+			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			return null === $hits ? false : $hits;
+		});
 	}
 
 	public function bootstrap(\WP_REST_Request $request): \WP_REST_Response|\WP_Error {

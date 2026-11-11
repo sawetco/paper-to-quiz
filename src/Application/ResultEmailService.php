@@ -18,24 +18,28 @@ final class ResultEmailService {
 		if (! $context) {
 			return;
 		}
-		$now = current_time('mysql', true);
-		$this->db->wpdb()->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Queue writes must be durable and immediately visible to concurrent workers.
-			$this->db->wpdb()->prepare(
-				'INSERT IGNORE INTO %i
-				(attempt_id,status,attempt_count,next_run_at,created_at,updated_at)
-				VALUES (%d,%s,0,%s,%s,%s)',
-				$this->db->table('result_email_jobs'),
-				$attempt_id,
-				'pending',
-				$now,
-				$now,
-				$now
-			)
-		);
+		(new \PaperToQuiz\Infrastructure\ResultEmailQueue($this->db))->ensure($attempt_id, (string) $context['email']);
 		wp_schedule_single_event(time() + 10, 'paper_to_quiz_process_result_emails', array($attempt_id), true);
 	}
 
 	public function process(): void {
+		$lock = null;
+		try {
+			if ($this->db->engine() === 'sqlite') {
+				$lock = $this->db->acquire_lock('ptq-email-' . md5(DB_NAME . ':' . $this->db->table('result_email_jobs')), 'emails');
+				if (null === $lock) {
+					return;
+				}
+			}
+			$this->db->bounded(fn () => $this->process_queue());
+		} catch (\Throwable $error) {
+			\PaperToQuiz\Infrastructure\OperationalErrorReporter::report('paper_to_quiz_email_queue_failed', $error, __('The result email queue is temporarily unavailable.', 'paper-to-quiz'), 503);
+		} finally {
+			$lock?->release();
+		}
+	}
+
+	private function process_queue(): void {
 		$this->release_stale_claims();
 
 		$wpdb = $this->db->wpdb();

@@ -327,8 +327,8 @@ final class AssessmentService {
 
 		$now = current_time('mysql', true);
 		if (! $assessment_id) {
-			$this->db->begin();
 			try {
+				$this->db->begin();
 				$inserted = $this->db->write(
 					'assessment_insert',
 					fn (): int|false => $this->db->wpdb()->insert(
@@ -390,8 +390,8 @@ final class AssessmentService {
 				}
 			}
 
-			$this->db->begin();
 			try {
+				$this->db->begin();
 				$locked = $this->lock_current_draft($assessment_id, $revision_id);
 				if (is_wp_error($locked)) {
 					$this->db->rollback();
@@ -467,8 +467,8 @@ final class AssessmentService {
 		}
 
 		$assets_to_release = array();
-		$this->db->begin();
 		try {
+			$this->db->begin();
 			$locked = $this->lock_current_draft($assessment_id, (int) $record['revision']['id']);
 			if (is_wp_error($locked)) {
 				$this->db->rollback();
@@ -581,8 +581,8 @@ final class AssessmentService {
 
 		$assessment_id  = (int) $revision['assessment_id'];
 		$assets_to_release = array();
-		$this->db->begin();
 		try {
+			$this->db->begin();
 			$locked = $this->lock_current_draft($assessment_id, $revision_id);
 			if (is_wp_error($locked)) {
 				$this->db->rollback();
@@ -701,8 +701,8 @@ final class AssessmentService {
 		}
 
 		$pruned_assets = array();
-		$this->db->begin();
 		try {
+			$this->db->begin();
 			$locked = $this->lock_current_draft((int) $revision['assessment_id'], $revision_id);
 			if (is_wp_error($locked)) {
 				$this->db->rollback();
@@ -837,8 +837,8 @@ final class AssessmentService {
 		}
 
 		$revision_id = (int) $question['revision_id'];
-		$this->db->begin();
 		try {
+			$this->db->begin();
 			$locked = $this->lock_current_draft((int) $revision['assessment_id'], $revision_id);
 			if (is_wp_error($locked)) {
 				$this->db->rollback();
@@ -903,8 +903,8 @@ final class AssessmentService {
 	}
 
 	public function publish(int $assessment_id): array|\WP_Error {
-		$this->db->begin();
 		try {
+			$this->db->begin();
 			$record = $this->lock_current_draft($assessment_id);
 			if (is_wp_error($record)) {
 				$this->db->rollback();
@@ -1112,8 +1112,8 @@ final class AssessmentService {
 		}
 
 		$assessment_id = (int) $record['assessment']['id'];
-		$this->db->begin();
 		try {
+			$this->db->begin();
 			$locked = $this->db->wpdb()->get_row(
 				$this->db->wpdb()->prepare(
 					'SELECT current_draft_revision_id,published_revision_id FROM ' . $this->db->table('assessments') . ' WHERE id = %d FOR UPDATE',

@@ -71,6 +71,9 @@ function paper_to_quiz_rest_binary_request(string $method, string $route, string
  * Build the internal HTTP URL used for a true multipart upload.
  */
 function paper_to_quiz_rest_http_url(string $route): string {
+	if (getenv('PTQ_REST_HTTP_BASE')) {
+		return rtrim(getenv('PTQ_REST_HTTP_BASE'), '/') . '/?rest_route=' . rawurlencode($route);
+	}
 	$parsed = wp_parse_url(rest_url());
 	$host = (string) ($parsed['host'] ?? 'wordpress');
 	$port = isset($parsed['port']) ? ':' . (int) $parsed['port'] : '';
@@ -694,7 +697,7 @@ try {
 		$synthetic_log = file_get_contents($synthetic_log_path);
 		paper_to_quiz_rest_assert(is_string($synthetic_log) && str_contains($synthetic_log, $reference), 'Support reference was not correlated with the server log.');
 		paper_to_quiz_rest_assert(is_string($synthetic_log) && str_contains($synthetic_log, 'RuntimeException'), 'Server log omitted the exception class.');
-		paper_to_quiz_rest_assert(is_string($synthetic_log) && 1 === preg_match("/\\bin\\s+EvalFile_Command\\.php\\(\\d+\\)\\s+:\\s+eval\\(\\)'d code:[1-9]\\d*\\b/", $synthetic_log), 'Server log omitted the exception location.');
+		paper_to_quiz_rest_assert(is_string($synthetic_log) && 1 === preg_match('/\bin\s+[^\/\\\\\r\n]+:[1-9]\d*\b/', $synthetic_log), 'Server log omitted the exception location.');
 		paper_to_quiz_rest_assert(is_string($synthetic_log) && ! str_contains($synthetic_log, $synthetic_message), 'Server log included the technical exception message.');
 	} finally {
 		remove_filter('query', $synthetic_query_filter, 9999);

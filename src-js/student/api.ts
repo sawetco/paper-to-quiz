@@ -1,4 +1,5 @@
 import { __, sprintf } from '@wordpress/i18n';
+import { restUrl } from '../rest-url';
 
 export class StudentApiError extends Error {
 	status: number;
@@ -28,18 +29,15 @@ export async function studentApi< T >(
 	if ( options.json !== undefined ) {
 		headers.set( 'Content-Type', 'application/json' );
 	}
-	const response = await fetch(
-		`${ restRoot }${ path.replace( /^\//, '' ) }`,
-		{
-			credentials: 'same-origin',
-			...options,
-			headers,
-			body:
-				options.json !== undefined
-					? JSON.stringify( options.json )
-					: options.body,
-		}
-	);
+	const response = await fetch( restUrl( restRoot, path ), {
+		credentials: 'same-origin',
+		...options,
+		headers,
+		body:
+			options.json !== undefined
+				? JSON.stringify( options.json )
+				: options.body,
+	} );
 	let data: any = null;
 	try {
 		data = await response.json();

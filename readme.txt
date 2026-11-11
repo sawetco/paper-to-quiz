@@ -4,7 +4,7 @@ Tags: quiz, exam, pdf, education, test
 Requires at least: 6.8
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 1.2.7
+Stable tag: 1.3.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -95,6 +95,14 @@ The current development source is available at
 https://github.com/sawetco/paper-to-quiz.
 
 == Changelog ==
+
+= 1.3.0 =
+* Fix filtered administration and ranking requests when WordPress uses plain permalinks.
+* Add SQLite support for local development with native PHP, including WordPress Studio and SQLite Database Integration 3.1.2 and newer.
+* Use real process-owned SQLite worker and schema locks while preserving MySQL/MariaDB session locks.
+* Check transaction failures, bound SQLite lock waits, and keep accepted submissions retryable.
+* Commit the result email job together with the final result so interrupted workers cannot lose it.
+* Preserve existing revisions, scores, encrypted files, and the 1.2.0 database schema.
 
 = 1.2.7 =
 * Tested maintenance and dependency updates. See the GitHub release notes for details.

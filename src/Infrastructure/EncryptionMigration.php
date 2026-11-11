@@ -230,8 +230,8 @@ final class EncryptionMigration {
 			}
 			$plain = $this->crypto->decrypt_legacy_array($old);
 			$new   = $this->crypto->encrypt_array($plain);
-			$this->db->begin();
 			try {
+				$this->db->begin();
 				$updated = $this->db->write(
 					'encryption_participant_update',
 					fn (): int|false => $this->db->wpdb()->query(
@@ -356,8 +356,8 @@ final class EncryptionMigration {
 			}
 
 			$new = $this->storage->migrate_legacy($storage_key, $type, $byte_size, $sha256);
-			$this->db->begin();
 			try {
+				$this->db->begin();
 				$updated = $this->db->write(
 					'encryption_asset_update',
 					fn (): int|false => $this->db->wpdb()->query(

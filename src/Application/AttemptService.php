@@ -213,8 +213,8 @@ final class AttemptService {
 			 * unique because repeatable attempts share the same schema, so the
 			 * check and insert must happen while this owning row is locked.
 			 */
-			$this->db->begin();
 			try {
+				$this->db->begin();
 				$locked = $this->db->wpdb()->get_row(
 					$this->db->wpdb()->prepare(
 						'SELECT status,published_revision_id FROM ' . $this->db->table('assessments') . ' WHERE id = %d FOR UPDATE',
@@ -351,8 +351,8 @@ final class AttemptService {
 		if (is_wp_error($open)) {
 			return $open;
 		}
-		$this->db->begin();
 		try {
+			$this->db->begin();
 			if (! $this->attempt_accepts_answers((int) $attempt['id'])) {
 				$this->db->rollback();
 				return $this->attempt_closed_error();
@@ -365,8 +365,11 @@ final class AttemptService {
 			$this->touch_attempt((int) $attempt['id']);
 			$this->db->commit();
 			return $result;
-		} catch (\Throwable) {
+		} catch (\Throwable $error) {
 			$this->db->rollback();
+			if ($error instanceof \PaperToQuiz\Infrastructure\DatabaseException && $error->retryable) {
+				return $error->rest_error();
+			}
 			return $this->answer_save_error();
 		}
 	}
@@ -393,8 +396,8 @@ final class AttemptService {
 		}
 
 		$responses = array();
-		$this->db->begin();
 		try {
+			$this->db->begin();
 			if (! $this->attempt_accepts_answers((int) $attempt['id'])) {
 				$this->db->rollback();
 				return $this->attempt_closed_error();
@@ -417,6 +420,9 @@ final class AttemptService {
 			$this->db->commit();
 		} catch (\Throwable $error) {
 			$this->db->rollback();
+			if ($error instanceof \PaperToQuiz\Infrastructure\DatabaseException && $error->retryable) {
+				return $error->rest_error();
+			}
 			return new \WP_Error('paper_to_quiz_answers_failed', __('Answers could not be saved. Please try again.', 'paper-to-quiz'), array('status' => 500));
 		}
 
@@ -674,10 +680,24 @@ final class AttemptService {
 
 	/** Single bounded worker. Each committed attempt clears its durable snapshot atomically. */
 	public function process_submissions(): void {
+		try {
+			$this->db->bounded(fn () => $this->process_submission_queue());
+		} catch (\Throwable $error) {
+			$this->finalize_error($error);
+		}
+	}
+
+	private function process_submission_queue(): void {
 		$wpdb = $this->db->wpdb();
 		$table = $this->db->table('attempts');
 		$lock = 'ptq-submit-' . md5(DB_NAME . ':' . $table);
-		if ((string) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 0)', $lock)) !== '1') { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Database locks are connection scoped.
+		try {
+			$worker_lock = $this->db->acquire_lock($lock, 'submissions');
+		} catch (\Throwable $error) {
+			$this->finalize_error($error);
+			return;
+		}
+		if (null === $worker_lock) {
 			return;
 		}
 		try {
@@ -717,7 +737,7 @@ final class AttemptService {
 				wp_schedule_single_event(time() + 2, 'paper_to_quiz_continue_submissions');
 			}
 		} finally {
-			$wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock)); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Release the database lock held by this connection.
+			$worker_lock->release();
 		}
 	}
 
@@ -1043,8 +1063,8 @@ final class AttemptService {
 	}
 
 	public function anonymize_attempt(int $attempt_id): bool {
-		$this->db->begin();
 		try {
+			$this->db->begin();
 			// Use the same row-lock order as grading so erasure cannot race a ranking insert.
 			$this->lock_attempt($attempt_id);
 			$deleted = $this->db->wpdb()->delete(
@@ -1413,8 +1433,8 @@ final class AttemptService {
 
 		$wpdb = $this->db->wpdb();
 		$previous_suppression = $wpdb->suppress_errors(true);
-		$this->db->begin();
 		try {
+			$this->db->begin();
 			$attempt = $this->lock_attempt((int) $attempt['id']);
 			if (! $attempt) {
 				throw new \RuntimeException('Attempt disappeared before finalization.');
@@ -1632,6 +1652,8 @@ final class AttemptService {
 					throw new \RuntimeException('Ranking entry insertion failed.');
 				}
 			}
+			$participant = $this->crypto->decrypt_array($attempt['participant_data']);
+			(new \PaperToQuiz\Infrastructure\ResultEmailQueue($this->db))->ensure((int) $attempt['id'], (string) ($participant['email'] ?? ''));
 			$this->db->commit();
 		} catch (\Throwable $error) {
 			$this->db->rollback();

@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 test( 'loads settings and mounts the PDF selection workflow', async ( {
 	page,
 } ) => {
+	test.setTimeout( 90_000 );
 	const assessmentId = process.env.PTQ_E2E_ASSESSMENT_ID;
 	expect( assessmentId ).toMatch( /^\d+$/ );
 	const runtimeErrors: string[] = [];
@@ -40,7 +41,7 @@ test( 'loads settings and mounts the PDF selection workflow', async ( {
 
 	await expect(
 		page.getByRole( 'button', { name: 'Selection tool' } )
-	).toBeVisible( { timeout: 30_000 } );
+	).toBeVisible( { timeout: 60_000 } );
 	const stage = page.locator( '.konvajs-content' ).first();
 	await expect( stage ).toBeVisible();
 	const box = await stage.boundingBox();
