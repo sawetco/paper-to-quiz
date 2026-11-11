@@ -38,10 +38,53 @@ final class Plugin {
 
 	public function boot(): void {
 		if (! Installer::maybe_upgrade()) {
+			add_action('admin_notices', static function (): void {
+				if (current_user_can('activate_plugins')) {
+					echo '<div class="notice notice-error"><p>' . esc_html__('Paper to Quiz could not verify its database. Check that the database and its local locking directory are writable, then try again. SQLite requires native PHP and SQLite Database Integration 3.1.2 or newer.', 'paper-to-quiz') . '</p></div>';
+				}
+			});
+			add_filter('rest_pre_dispatch', static function ($result, $server, \WP_REST_Request $request) {
+				return str_starts_with($request->get_route(), '/paper-to-quiz/v1/')
+					? (new \PaperToQuiz\Infrastructure\DatabaseException(true))->rest_error() : $result;
+			}, 10, 3);
 			return;
 		}
 
 		$db                  = new Database();
+		// Scope every SQLite endpoint's direct wpdb calls, including atomic counters
+		// and upload metadata, without changing other plugins' connection settings.
+		add_filter('rest_endpoints', static function (array $routes) use ($db): array {
+			if ($db->engine() !== 'sqlite') {
+				return $routes;
+			}
+			foreach ($routes as $path => &$handlers) {
+				if (! str_starts_with($path, '/paper-to-quiz/v1/')) {
+					continue;
+				}
+				foreach ($handlers as &$handler) {
+					if (! is_array($handler) || ! isset($handler['callback']) || ! is_callable($handler['callback'])) {
+						continue;
+					}
+					$callback = $handler['callback'];
+					$handler['callback'] = static function (\WP_REST_Request $request) use ($db, $callback) {
+						try {
+							$result = $db->bounded(static fn () => $callback($request));
+							if (is_wp_error($result) && \PaperToQuiz\Infrastructure\DatabaseException::is_busy($db->wpdb()->last_error)) {
+								return (new \PaperToQuiz\Infrastructure\DatabaseException(true))->rest_error();
+							}
+							return $result;
+						} catch (\PaperToQuiz\Infrastructure\DatabaseException $error) {
+							return $error->rest_error();
+						} catch (\Throwable $error) {
+							return \PaperToQuiz\Infrastructure\OperationalErrorReporter::report('paper_to_quiz_request_failed', $error, __('The request could not be completed. Please try again.', 'paper-to-quiz'), 500);
+						}
+					};
+				}
+				unset($handler);
+			}
+			unset($handlers);
+			return $routes;
+		});
 		$key_provider        = new PrivateKeyProvider();
 		$this->storage       = new EncryptedStorage($key_provider);
 		$crypto              = new Crypto($key_provider);

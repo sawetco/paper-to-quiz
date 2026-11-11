@@ -10,7 +10,7 @@ final class Installer {
 	public static function activate(): void {
 		add_filter('cron_schedules', array(self::class, 'cron_schedules'));
 		$existing_install = get_option('paper_to_quiz_db_version', null) !== null;
-		if (! self::install_schema()) {
+		if (! self::repair_schema()) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- WordPress displays activation exceptions in its own escaped error screen.
 			throw new \RuntimeException(__('Paper to Quiz could not create its database tables. Check the database permissions before activation.', 'paper-to-quiz'));
 		}
@@ -95,29 +95,39 @@ final class Installer {
 
 		// An upgrade can coincide with the first public result requests. Run
 		// dbDelta once per site and let competing requests fail fast.
-		global $wpdb;
-		$lock = 'ptq-schema-' . md5(DB_NAME . ':' . $wpdb->prefix);
-		if ((string) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 0)', $lock)) !== '1') { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Lock the schema upgrade on this database connection.
-			return $installed_version === PAPER_TO_QUIZ_DB_VERSION;
-		}
 		try {
-			if (($installed_version === PAPER_TO_QUIZ_DB_VERSION && self::schema_is_complete()) || self::install_schema()) {
-				self::initialize_encryption_migration(! $existing_install);
-				delete_transient($failed);
-				set_transient($verified, '1', 12 * HOUR_IN_SECONDS);
-				return true;
-			}
-
-			set_transient($failed, '1', self::SCHEMA_FAILURE_TTL);
+			return self::with_schema_lock(static function () use ($installed_version, $existing_install, $verified, $failed): bool {
+				if (($installed_version === PAPER_TO_QUIZ_DB_VERSION && self::schema_is_complete()) || self::install_schema()) {
+					self::initialize_encryption_migration(! $existing_install);
+					delete_transient($failed);
+					set_transient($verified, '1', 12 * HOUR_IN_SECONDS);
+					return true;
+				}
+				set_transient($failed, '1', self::SCHEMA_FAILURE_TTL);
+				return false;
+			});
+		} catch (\Throwable $error) {
+			OperationalErrorReporter::report('paper_to_quiz_schema_unavailable', $error, __('The database could not be prepared. Please try again.', 'paper-to-quiz'), 503);
 			return false;
-		} finally {
-			$wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock)); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Release the upgrade lock on the owning database connection.
 		}
 	}
 
 	public static function repair_schema(): bool {
 		delete_transient('paper_to_quiz_schema_failed_' . PAPER_TO_QUIZ_DB_VERSION);
-		return self::install_schema();
+		return self::with_schema_lock(static fn (): bool => self::install_schema());
+	}
+
+	private static function with_schema_lock(callable $operation): bool {
+		$db = new Database();
+		$lock = $db->acquire_lock('ptq-schema-' . md5(DB_NAME . ':' . $db->wpdb()->prefix), 'schema');
+		if (null === $lock) {
+			return false;
+		}
+		try {
+			return $db->bounded($operation);
+		} finally {
+			$lock->release();
+		}
 	}
 
 	private static function schema_is_complete(): bool {

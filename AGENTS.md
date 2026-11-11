@@ -278,6 +278,35 @@ wp eval-file wp-content/plugins/paper-to-quiz/tests/data-regression.php
 
 ## Data and schema
 
+SQLite local-development contract (1.3.0):
+
+- The wp-env dependency paths additionally pin fast-xml-parser 5.12.0 under
+  php-wasm/cli-util and isomorphic-git 1.38.6 under wp-playground/storage for
+  GHSA-474x-hrwr-fgx4 and the three isomorphic-git advisories fixed in 1.38.6.
+  Remove these narrow development-only overrides after upstream adopts the fixes.
+- Support native PHP with SQLite Database Integration 3.1.2+ on local filesystems,
+  including WordPress Studio. Do not claim network-filesystem, WebAssembly, or
+  production SQLite support. Resolve the active driver/connection, not DB_HOST.
+- Database locks use the existing MySQL GET_LOCK names. SQLite uses nonblocking
+  flock descriptors beside the actual canonical database file. Never unlink a
+  live lock file or substitute a transient, dummy query, or expiring lease.
+- START TRANSACTION remains translated by the official driver to BEGIN IMMEDIATE.
+  Check begin/commit/rollback results. Temporarily cap the connection busy timeout
+  at 100ms, restore it on every exit, and retry safe independent writes/start at
+  most three times. Never replay a failed commit or a partially executed transaction.
+- Activation, upgrade, and repair share the schema mutex. Contention is transient;
+  it must not mark an unverified schema ready or populate the failure cache.
+- SQLite REST callbacks also scope direct wpdb operations to the bounded timeout;
+  other namespaces and MySQL callbacks keep their existing connection behavior.
+- Persist the unique result email outbox row in the finalization transaction;
+  mail and public completion hooks run only after commit. No schema bump is
+  needed: the current database version remains 1.2.0.
+- Native PHP tests may use PTQ_TEST_WP_LOAD instead of the default wp-env path.
+  The SQLite concurrency suite additionally requires the disposable site's
+  paper_to_quiz_disposable_test option to equal sqlite-1.3.
+  Run npm run test:sqlite:concurrency with PTQ_TEST_WP_LOAD and PTQ_PHP_BINARY.
+  Never point this runner at a customer site. Test runners stay out of the ZIP.
+
 - A schema change updates `PAPER_TO_QUIZ_DB_VERSION`, installation/update logic,
   uninstall coverage, types, and tests together.
 - Schema `1.1.0` (plugin 1.2.0) adds revision `ranking_list_enabled` (default

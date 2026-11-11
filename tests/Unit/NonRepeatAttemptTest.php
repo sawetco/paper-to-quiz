@@ -121,7 +121,9 @@ final class NonRepeatAttemptTest extends TestCase {
 						var_export($second_result, true)
 					);
 					$child_process = proc_open(
-						array('/usr/local/bin/wp', '--path=/var/www/html', 'eval', $child_code),
+						getenv('PTQ_TEST_WP_LOAD')
+							? array(PHP_BINARY, '-r', 'require ' . var_export(dirname(__DIR__) . '/native-bootstrap.php', true) . ';' . $child_code)
+							: array('/usr/local/bin/wp', '--path=/var/www/html', 'eval', $child_code),
 						array(
 							0 => array('pipe', 'r'),
 							1 => array('file', $child_stderr, 'a'),

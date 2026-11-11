@@ -3,6 +3,32 @@ import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import type { AssessmentRecord } from '../../src-js/types';
 
+function runRankingFixture( action: 'process' | 'release' ) {
+	if ( process.env.PTQ_TEST_WP_LOAD ) {
+		execFileSync(
+			process.env.PTQ_PHP_BINARY || 'php',
+			[
+				path.resolve( 'tests/sqlite/fixture.php' ),
+				action === 'release' ? 'ranking-release' : 'worker',
+			],
+			{ env: process.env, stdio: 'pipe', timeout: 60_000 }
+		);
+		return;
+	}
+	execFileSync(
+		process.execPath,
+		[
+			path.resolve( 'node_modules/@wordpress/env/bin/wp-env' ),
+			'--config', process.env.PTQ_E2E_WP_CONFIG!,
+			'run', 'cli', 'env', 'WP_ENVIRONMENT_TYPE=local',
+			'PAPER_TO_QUIZ_ALLOW_E2E=1', 'PTQ_RANKING_ACTION=' + action,
+			'wp', 'eval-file',
+			'wp-content/plugins/paper-to-quiz/tests/ranking-e2e-fixture.php',
+		],
+		{ env: process.env, stdio: 'pipe', timeout: 60_000 }
+	);
+}
+
 async function completeExam( page: Page ) {
 	await page
 		.getByRole( 'button', { name: 'Start exam', exact: true } )
@@ -135,6 +161,50 @@ test( 'checks and publishes settings for a public ranked exam without opening th
 	expect( pdfRequests ).toEqual( [] );
 } );
 
+test( 'two browser tabs submit one attempt and receive one final result', async ( { page, context } ) => {
+	test.setTimeout( 90_000 );
+	const id = process.env.PTQ_E2E_RANKING_PUBLIC!;
+	await page.goto( '/?pagename=ptq-e2e-ranking-public' );
+	await page.getByLabel( 'First name', { exact: false } ).fill( 'Twin' );
+	await page.getByLabel( 'Last name', { exact: false } ).fill( 'Tabs' );
+	const started = page.waitForResponse( response =>
+		response.url().endsWith( '/assessments/' + id + '/attempts' ) &&
+		response.request().method() === 'POST'
+	);
+	await page.getByRole( 'button', { name: 'Start exam', exact: true } ).click();
+	const state = await ( await started ).json();
+	const second = await context.newPage();
+	await second.goto( '/?pagename=ptq-e2e-ranking-public' );
+	const body = {
+		submission_id: await page.evaluate( () => crypto.randomUUID() ),
+		deferred: true,
+		answers: [ { question_id: state.questions[ 0 ].id, option: 'A' } ],
+	};
+	const route = '/wp-json/paper-to-quiz/v1/attempts/' + state.public_id + '/submit';
+	const send = ( tab: Page ) => tab.evaluate( async ( input ) => {
+		const response = await fetch( input.route, {
+			method: 'POST', credentials: 'same-origin',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify( input.body ),
+		} );
+		return { status: response.status, data: await response.json() };
+	}, { route, body } );
+	const responses = await Promise.all( [ send( page ), send( second ) ] );
+	responses.forEach( response => {
+		expect( response.status ).toBe( 202 );
+		expect( response.data.status ).toBe( 'processing' );
+	} );
+	runRankingFixture( 'process' );
+	const final = await page.request.get(
+		'/wp-json/paper-to-quiz/v1/attempts/' + state.public_id + '/result'
+	);
+	expect( final.ok() ).toBe( true );
+	expect( ( await final.json() ).status ).toBe( 'submitted' );
+	const duplicate = await send( second );
+	expect( duplicate.status ).toBe( 200 );
+	expect( duplicate.data.status ).toBe( 'submitted' );
+} );
+
 test( 'guest and member submissions respect release, access, masking, search, and pagination', async ( {
 	page,
 	browser,
@@ -183,24 +253,7 @@ test( 'guest and member submissions respect release, access, masking, search, an
 		await memberPage.goto( '/?pagename=ptq-e2e-ranking-member' );
 		await completeExam( memberPage );
 
-		execFileSync(
-			process.execPath,
-			[
-				path.resolve( 'node_modules/@wordpress/env/bin/wp-env' ),
-				'--config',
-				process.env.PTQ_E2E_WP_CONFIG!,
-				'run',
-				'cli',
-				'env',
-				'WP_ENVIRONMENT_TYPE=local',
-				'PAPER_TO_QUIZ_ALLOW_E2E=1',
-				'PTQ_RANKING_ACTION=release',
-				'wp',
-				'eval-file',
-				'wp-content/plugins/paper-to-quiz/tests/ranking-e2e-fixture.php',
-			],
-			{ env: process.env, stdio: 'pipe', timeout: 60_000 }
-		);
+		runRankingFixture( 'release' );
 
 		await page.reload();
 		await expect(

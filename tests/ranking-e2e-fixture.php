@@ -8,7 +8,7 @@ if ('local' !== wp_get_environment_type() || '1' !== getenv('PAPER_TO_QUIZ_ALLOW
 	throw new RuntimeException('Ranking fixtures require a disposable local environment.');
 }
 
-if ('release' === getenv('PTQ_RANKING_ACTION')) {
+if (in_array(getenv('PTQ_RANKING_ACTION'), array('release', 'process'), true)) {
 	global $wpdb;
 	// Process the durable receipts before moving the synthetic release dates.
 	do_action('paper_to_quiz_process_submissions');
@@ -18,6 +18,9 @@ if ('release' === getenv('PTQ_RANKING_ACTION')) {
 	));
 	if ($pending === null || (int) $pending !== 0) {
 		throw new RuntimeException('The synthetic submissions could not be graded.');
+	}
+	if ('process' === getenv('PTQ_RANKING_ACTION')) {
+		return;
 	}
 	$changed = $wpdb->query($wpdb->prepare(
 		'UPDATE ' . $wpdb->prefix . 'paper_to_quiz_revisions SET window_end_utc = %s,results_release_at_utc = %s WHERE title LIKE %s',

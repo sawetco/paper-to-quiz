@@ -123,6 +123,24 @@ the plugin.
 
 ## Requirements
 
+### SQLite for local development
+
+WordPress Studio works without Docker or a separate MySQL server. Use native
+PHP and the official SQLite Database Integration 3.1.2 or newer on a local
+filesystem. The SQLite database directory must be writable so the plugin can
+hold process-owned worker and schema locks. Do not remove its hidden
+.paper-to-quiz-*.lock files while PHP processes are running.
+
+SQLite support is for local development. Network filesystems, the retired
+Studio Sandbox/WebAssembly runtime, and SQLite production deployments are
+outside the supported scope. Existing MySQL/MariaDB installations keep their
+database and session-lock behavior; the plugin never converts their data.
+
+Accepted submissions survive upgrades and interrupted workers. Final results,
+rankings, and the unique result email job commit together. WordPress mail
+delivery remains subject to the site's transport; it is not an exactly-once
+recipient-delivery guarantee.
+
 - WordPress 6.8 or newer
 - PHP 8.1 or newer
 - Node.js 22 or newer for development only

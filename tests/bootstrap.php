@@ -25,7 +25,7 @@ register_shutdown_function(static function (): void {
     }
 });
 
-$wp_load = '/var/www/html/wp-load.php';
+$wp_load = getenv('PTQ_TEST_WP_LOAD') ?: '/var/www/html/wp-load.php';
 
 if (! is_readable($wp_load)) {
     throw new RuntimeException(
@@ -40,9 +40,14 @@ if (! is_readable($wp_load)) {
  * loads pluggable functions (wp_salt, wp_json_encode), and registers the default
  * option API. We skip the WP test suite intentionally (see docblock).
  */
-require_once $wp_load;
+require_once __DIR__ . '/native-bootstrap.php';
+if (wp_get_environment_type() !== 'local') {
+    throw new RuntimeException('PHP tests require a disposable local WordPress environment.');
+}
 
 // Load the plugin itself so its classes, constants, and autoloader are available.
-require_once dirname(__DIR__) . '/paper-to-quiz.php';
+if (! defined('PAPER_TO_QUIZ_VERSION')) {
+    require_once dirname(__DIR__) . '/paper-to-quiz.php';
+}
 
 define('PAPER_TO_QUIZ_PHPUNIT_BOOTSTRAP_READY', true);
