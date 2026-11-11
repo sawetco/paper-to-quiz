@@ -313,6 +313,9 @@ SQLite local-development contract (1.3.0):
   screenshot preflight before the full E2E suite. Keep Playwright host dependency
   validation enabled; missing runtime libraries must fail the job. Optional font
   installation must not make every browser job depend on Ubuntu apt DNS.
+- The native SQLite CI site uses Studio/wp-env-style pretty permalinks for the
+  shared browser suite. Assert that its /wp-json namespace returns JSON before
+  the browser tests; the PHP built-in server must not silently return theme HTML.
 
 - A schema change updates `PAPER_TO_QUIZ_DB_VERSION`, installation/update logic,
   uninstall coverage, types, and tests together.

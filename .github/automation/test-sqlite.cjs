@@ -46,6 +46,9 @@ async function download(url, destination, expectedHash) {
 		wp('config', 'set', 'WP_ENVIRONMENT_TYPE', 'local');
 		wp('config', 'set', 'DISABLE_WP_CRON', 'true', '--raw');
 		wp('core', 'install', '--url=http://127.0.0.1:8898', '--title=PTQSQLiteCI', '--admin_user=admin', '--admin_password=paper-to-quiz-integration', '--admin_email=ptq@example.invalid', '--skip-email');
+		// Match Studio/wp-env's pretty REST URLs used by the shared browser suite.
+		wp('rewrite', 'structure', '/%postname%/');
+		wp('rewrite', 'flush');
 		assert.equal(wp('core', 'version').trim(), core);
 		wp('option', 'update', 'paper_to_quiz_disposable_test', 'sqlite-1.3');
 		const zip = path.join(root, '.package-under-test/paper-to-quiz.zip');
@@ -73,6 +76,9 @@ async function download(url, destination, expectedHash) {
 			await new Promise(resolve => setTimeout(resolve, 100));
 		}
 		assert.ok(ready, 'Native WordPress server did not become ready.');
+		const restProbe = await fetch(env.PTQ_REST_HTTP_BASE + '/wp-json/paper-to-quiz/v1');
+		assert.ok(restProbe.ok && restProbe.headers.get('content-type')?.includes('application/json'), 'Pretty REST routing must return JSON, not the theme HTML.');
+		assert.equal((await restProbe.json()).namespace, 'paper-to-quiz/v1');
 		wp('eval-file', path.join(root, 'tests/data-regression.php'));
 		wp('eval-file', path.join(root, 'tests/rest-regression.php'));
 		const output = wp('eval-file', path.join(root, 'tests/e2e-fixture.php'));
