@@ -308,9 +308,11 @@ SQLite local-development contract (1.3.0):
   paper_to_quiz_disposable_test option to equal sqlite-1.3.
   Run npm run test:sqlite:concurrency with PTQ_TEST_WP_LOAD and PTQ_PHP_BINARY.
   Never point this runner at a customer site. Test runners stay out of the ZIP.
-- Browser CI installs signed dependencies through the official Ubuntu HTTPS
-  mirrorlist, avoiding the hosted runner's Azure-prioritized DNS failure.
-  Keep browser installation and dependency checks required.
+- Browser CI uses the hosted Ubuntu image's native Chromium libraries and Latin
+  fonts, installs the lockfile-matched browser, and requires a real launch/text/
+  screenshot preflight before the full E2E suite. Keep Playwright host dependency
+  validation enabled; missing runtime libraries must fail the job. Optional font
+  installation must not make every browser job depend on Ubuntu apt DNS.
 
 - A schema change updates `PAPER_TO_QUIZ_DB_VERSION`, installation/update logic,
   uninstall coverage, types, and tests together.
