@@ -308,6 +308,10 @@ SQLite local-development contract (1.3.0):
 - Persist the unique result email outbox row in the finalization transaction;
   mail and public completion hooks run only after commit. No schema bump is
   needed: the current database version remains 1.2.0.
+- The native SQLite ZIP gate derives its expected release version from the checked-out
+  package.json, independently of the installed ZIP. Keep version and schema
+  assertions separate; run `node --test .github/automation/sqlite-release.check.cjs`
+  when changing this runner.
 - Native PHP tests may use PTQ_TEST_WP_LOAD instead of the default wp-env path.
   The SQLite concurrency suite additionally requires the disposable site's
   paper_to_quiz_disposable_test option to equal sqlite-1.3.
