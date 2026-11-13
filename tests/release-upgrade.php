@@ -55,7 +55,8 @@ if ($phase === 'seed') {
 	return;
 }
 
-paper_to_quiz_release_assert(PAPER_TO_QUIZ_VERSION === getenv('PTQ_EXPECTED_VERSION') && get_option('paper_to_quiz_db_version') === PAPER_TO_QUIZ_DB_VERSION, 'The ZIP did not install its declared schema.');
+paper_to_quiz_release_assert(PAPER_TO_QUIZ_VERSION === getenv('PTQ_EXPECTED_VERSION'), 'The installed ZIP version does not match the expected release version.');
+paper_to_quiz_release_assert(get_option('paper_to_quiz_db_version') === PAPER_TO_QUIZ_DB_VERSION, 'The ZIP did not install its declared schema.');
 $queue_columns = $wpdb->get_col($wpdb->prepare('SHOW COLUMNS FROM %i', $db->table('attempts')));
 paper_to_quiz_release_assert(! array_diff(array('pending_submission', 'submission_retry_at', 'submission_failures'), $queue_columns), 'The submission queue columns are missing.');
 $column = $wpdb->get_row($wpdb->prepare('SHOW COLUMNS FROM %i LIKE %s', $db->table('ranking_entries'), 'wp_user_id'), ARRAY_A);
