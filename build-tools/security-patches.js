@@ -61,7 +61,7 @@ function apply(checkOnly = false) {
 	for (const [name, version] of [
 		["braces", "3.0.3"],
 		["sprintf-js", "1.0.3"],
-		["@wordpress/env", "12.0.0"],
+		["@wordpress/env", "12.1.0"],
 		["simple-git", "4.0.2"],
 	]) {
 		if (
@@ -89,8 +89,9 @@ function apply(checkOnly = false) {
 
 function fingerprint() {
 	apply(true);
-	// wp-env 12.0.0 already imports simpleGit by name (upstream gitHead
-	// 8d30f92cbbde3ddf781c8799443c649befbbcb88). Pin the reviewed source
+	// wp-env 12.1.0 retains both byte-identical git helpers from 12.0.0
+	// (upstream gitHead 9b70363b9f93cff0583a1f3153738d383cf5a49e).
+	// Both import simpleGit by name. Pin the reviewed source
 	// instead of retaining the obsolete 11.17.0 compatibility rewrite.
 	const expected = {
 		"@wordpress/env/lib/runtime/docker/download-wp-phpunit.js":
