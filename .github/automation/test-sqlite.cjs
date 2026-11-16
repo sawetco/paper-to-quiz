@@ -7,6 +7,8 @@ const assert = require('node:assert/strict');
 const {createHash} = require('node:crypto');
 const {spawnSync, spawn} = require('node:child_process');
 const root = process.cwd();
+const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+assert.match(version || '', /^\d+\.\d+\.\d+$/, 'A declared release version is required.');
 const home = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'ptq-sqlite-ci-'));
 const site = path.join(home, 'wordpress');
 const core = process.env.PTQ_WP_VERSION;
@@ -53,7 +55,7 @@ async function download(url, destination, expectedHash) {
 		wp('option', 'update', 'paper_to_quiz_disposable_test', 'sqlite-1.3');
 		const zip = path.join(root, '.package-under-test/paper-to-quiz.zip');
 		wp('plugin', 'install', zip, '--activate');
-		run('wp', ['--path=' + site, 'eval-file', path.join(root, 'tests/release-upgrade.php')], {PTQ_UPGRADE_PHASE: 'clean', PTQ_EXPECTED_VERSION: '1.3.0'});
+		run('wp', ['--path=' + site, 'eval-file', path.join(root, 'tests/release-upgrade.php')], {PTQ_UPGRADE_PHASE: 'clean', PTQ_EXPECTED_VERSION: version});
 		run('composer', ['install', '--no-interaction', '--prefer-dist']);
 		run('php', ['vendor/bin/phpunit']);
 		wp('plugin', 'deactivate', 'paper-to-quiz');

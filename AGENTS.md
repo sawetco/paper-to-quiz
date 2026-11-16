@@ -77,7 +77,8 @@ guards to braces 3.0.3 and width/precision bounds to sprintf-js 1.0.3.
 it prints raw npm counts because registry audit still flags the original versions.
 The security regression runs hostile inputs in a bounded subprocess. Do not skip
 install scripts. These development helpers stay outside the plugin ZIP.
-wp-env 12.0.0 uses the simple-git 4 named export upstream. Its two git-source
+wp-env 12.1.0 retains the byte-identical 12.0.0 git helpers and uses the
+simple-git 4 named export upstream. Its two git-source
 helpers are pinned by source fingerprints and the exact package version in the
 security verifier; do not restore the obsolete wp-env 11.17.0 adapter.
 WordPress scripts 37 uses webpack-dev-server 6; keep its reviewed 6.1 override
@@ -308,6 +309,10 @@ SQLite local-development contract (1.3.0):
 - Persist the unique result email outbox row in the finalization transaction;
   mail and public completion hooks run only after commit. No schema bump is
   needed: the current database version remains 1.2.0.
+- The native SQLite ZIP gate derives its expected release version from the checked-out
+  package.json, independently of the installed ZIP. Keep version and schema
+  assertions separate; run `node --test .github/automation/sqlite-release.check.cjs`
+  when changing this runner.
 - Native PHP tests may use PTQ_TEST_WP_LOAD instead of the default wp-env path.
   The SQLite concurrency suite additionally requires the disposable site's
   paper_to_quiz_disposable_test option to equal sqlite-1.3.
