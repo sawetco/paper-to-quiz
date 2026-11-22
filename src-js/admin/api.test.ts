@@ -176,7 +176,7 @@ describe( 'private catalog requests', () => {
 				items: [ ...staleItems, added ],
 			} );
 
-			const freshUrl = `${ priorUrl }&_paper_to_quiz_private=1`;
+			const freshUrl = `${ priorUrl }&_paper_to_quiz_private=1&skip_cache=1`;
 			expect( fetchMock.mock.calls.map( ( [ url ] ) => url ) ).toEqual( [
 				freshUrl,
 				`${ REST_ROOT }admin/${ catalog }`,

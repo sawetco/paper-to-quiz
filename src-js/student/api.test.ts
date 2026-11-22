@@ -38,6 +38,7 @@ it( 'keeps the private cache key and filters outside the plain REST route', asyn
 		search: 'A&B',
 		page: '2',
 		_paper_to_quiz_private: '1',
+		skip_cache: '1',
 	} );
 	expect( options?.cache ).toBe( 'no-store' );
 	expect( new Headers( options?.headers ).get( 'X-WP-Nonce' ) ).toBe(

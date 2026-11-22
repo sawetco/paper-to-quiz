@@ -268,6 +268,7 @@ wp eval-file wp-content/plugins/paper-to-quiz/tests/data-regression.php
   time for duration and deadline eligibility.
   Synchronous grading also uses the server receipt time. An unreadable or
   incomplete grading revision leaves the attempt and its snapshot intact.
+  Verify question order, answer keys and the published total before grading.
   Legacy synchronous callers and test submissions keep their existing contract.
   Ensure WP-Cron runs at least once per minute on sites with few visits. Drain
   the submission queue before rolling back to a release without a worker.
@@ -287,8 +288,8 @@ wp eval-file wp-content/plugins/paper-to-quiz/tests/data-regression.php
   archives, trashes, or deletes shared class and subject records.
 - Privacy anonymization removes the attempt's user link and ranking identity
   while preserving the anonymous assessment record.
-- Result-email workers send only jobs whose conditional claim update they won;
-  a job claimed by another worker must never be sent by the losing worker.
+- Result-email workers send only jobs whose conditional claim update they won.
+  The claim rechecks both status and due time to preserve retry delays.
 
 ## Data and schema
 
@@ -370,15 +371,19 @@ SQLite local-development contract (1.3.0):
 - Preserve capability and nonce checks together on state-changing REST routes.
 - REST JSON responses, including denied requests, use private, no-store cache headers.
 - Paper to Quiz REST routes also signal no-cache to GWS and LiteSpeed via their
-  shared control hook and response header. The bundled clients use a fixed
-  `_paper_to_quiz_private=1` query marker on JSON reads to avoid entries stored
-  under the old URLs before the response policy reached the cache. Keep the
-  marker outside plain-permalink `rest_route`. Binary URLs and browser-private
-  binary caching are preserved.
+  shared control hook and response header and set the `DONOTCACHEPAGE` flag
+  expected by page caches. WP REST Cache can answer before ordinary plugins
+  load, so the bundled clients request its documented `skip_cache=1` bypass,
+  and the plugin removes its own namespace from the vendor's rebuilt allowlist.
+  The fixed `_paper_to_quiz_private=1` marker avoids entries stored under older
+  URLs. Keep these parameters outside plain-permalink `rest_route`. Binary URLs
+  and browser-private binary caching are preserved.
 - Administrative class and subject lists return a safe 503 error if a
   database read fails. The optional positive `focus` ID selects the page containing
   that record within the current filters and sort order. If the requested page no
   longer exists, the response reports the nearest available page.
+- Permanent class or subject deletion returns a safe 503 error and preserves the
+  record if a lookup or dependency check fails.
 - The authoring screens read active classes and subjects in bounded REST pages.
 - New class assignments require an active class. Updating a draft without
   `class_id` keeps its current assignment. A revision and its copy can retain an

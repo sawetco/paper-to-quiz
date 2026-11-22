@@ -346,6 +346,51 @@ final class ResultEmailServiceTest extends TestCase {
 		$this->assertSame( 0, $sends, 'A worker that lost the claim must not send the email.' );
 	}
 
+	public function test_claim_leaves_a_rescheduled_candidate_until_it_is_due(): void {
+		$suffix  = 'email-reschedule-' . wp_generate_password( 6, false, false );
+		$context = $this->seed_sendable_attempt(
+			array( 'result_visibility' => 'summary', 'release_utc' => null ),
+			'ptq-' . $suffix . '@example.com',
+			$suffix
+		);
+		$sends        = 0;
+		$mail_handler = static function () use ( &$sends ): bool {
+			++$sends;
+			return true;
+		};
+		add_filter( 'pre_wp_mail', $mail_handler, 10, 2 );
+		$this->filter_handlers[] = $mail_handler;
+
+		$wpdb          = $this->db->wpdb();
+		$table         = $this->db->table( 'result_email_jobs' );
+		$next_run_at   = gmdate( 'Y-m-d H:i:s', time() + HOUR_IN_SECONDS );
+		$rescheduled   = 0;
+		$query_handler = null;
+		$query_handler = static function ( string $query ) use ( $wpdb, $table, $context, $next_run_at, &$query_handler, &$rescheduled ): string {
+			if ( str_contains( $query, "SET status = 'processing', claimed_at" ) ) {
+				remove_filter( 'query', $query_handler, 10 );
+				$rescheduled = $wpdb->update(
+					$table,
+					array( 'status' => 'retry', 'next_run_at' => $next_run_at, 'attempt_count' => 1 ),
+					array( 'id' => $context['job_id'] )
+				);
+			}
+			return $query;
+		};
+		add_filter( 'query', $query_handler, 10 );
+		$this->query_filter_handlers[] = $query_handler;
+
+		$this->emails->process();
+
+		$this->assertSame( 1, $rescheduled );
+		$job = $this->fetch_job( $context['job_id'] );
+		$this->assertSame( 'retry', $job['status'] );
+		$this->assertSame( $next_run_at, $job['next_run_at'] );
+		$this->assertSame( 1, (int) $job['attempt_count'] );
+		$this->assertNull( $job['claimed_at'] );
+		$this->assertSame( 0, $sends );
+	}
+
 	/**
 	 * Stale-claim revival (plan 015). A worker that died mid-send leaves the row
 	 * stranded in "processing"; release_stale_claims() must return it to

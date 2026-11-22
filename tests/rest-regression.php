@@ -327,6 +327,32 @@ try {
 	} finally {
 		remove_filter('query', $fail_catalog_read);
 	}
+	foreach (array('classes' => $class, 'subjects' => $subject) as $catalog => $term) {
+		$route = '/paper-to-quiz/v1/admin/' . $catalog;
+		$trashed = paper_to_quiz_rest_request('DELETE', $route . '/' . $term, array(), $manager);
+		paper_to_quiz_rest_assert(true === (paper_to_quiz_rest_data($trashed)['deleted'] ?? null), 'Could not trash the fixture term: ' . $catalog);
+		$usage_query = $wpdb->prepare(
+			'SELECT COUNT(*) FROM %i WHERE %i = %d',
+			$db->table($catalog === 'classes' ? 'revisions' : 'questions'),
+			$catalog === 'classes' ? 'class_id' : 'subject_id',
+			$term
+		);
+		$fail_usage_check = static fn (string $sql): string => $sql === $usage_query
+			? 'SELECT COUNT(*) FROM paper_to_quiz_regression_missing_table'
+			: $sql;
+		add_filter('query', $fail_usage_check);
+		try {
+			$failed_purge = paper_to_quiz_rest_request('DELETE', $route . '/' . $term, array('force' => true), $manager);
+			paper_to_quiz_rest_assert(503 === paper_to_quiz_rest_status($failed_purge), 'Permanent deletion did not stop when the dependency check failed: ' . $catalog);
+			paper_to_quiz_rest_assert(! str_contains(wp_json_encode(paper_to_quiz_rest_data($failed_purge)), 'paper_to_quiz_regression_missing_table'), 'The deletion error exposed database details.');
+		} finally {
+			remove_filter('query', $fail_usage_check);
+		}
+		$trash_list = paper_to_quiz_rest_request('GET', $route, array('status' => 'trash', 'search' => $suffix), $manager);
+		paper_to_quiz_rest_assert($term === (int) (paper_to_quiz_rest_data($trash_list)['items'][0]['id'] ?? 0), 'The record was deleted despite the failed dependency check: ' . $catalog);
+		$restored = paper_to_quiz_rest_request('POST', $route . '/bulk', array('action' => 'restore', 'ids' => array($term)), $manager);
+		paper_to_quiz_rest_assert(1 === (paper_to_quiz_rest_data($restored)['changed'] ?? null), 'Could not restore the fixture term: ' . $catalog);
+	}
 	$report['term_catalogs'] = 'passed';
 
 	$ranking_payload = array('type' => 'exam', 'title' => $suffix . ' Ranking', 'class_id' => $class,

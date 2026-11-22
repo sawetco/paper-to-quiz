@@ -13,6 +13,20 @@ use PaperToQuiz\Rest\BinaryResponse;
 use Yoast\PHPUnitPolyfills\TestCases\TestCase;
 
 final class RestCachePolicyTest extends TestCase {
+	public function test_wp_rest_cache_excludes_only_paper_to_quiz_after_opt_in(): void {
+		$allow_paper_to_quiz = static function (array $endpoints): array {
+			$endpoints['paper-to-quiz/v1'] = array('/admin/classes', '/assessments');
+			return $endpoints;
+		};
+		$other_endpoints = array('wp/v2' => array('posts'), 'another/v1' => array('items'));
+		add_filter('wp_rest_cache/allowed_endpoints', $allow_paper_to_quiz);
+		try {
+			$this->assertSame($other_endpoints, apply_filters('wp_rest_cache/allowed_endpoints', $other_endpoints));
+		} finally {
+			remove_filter('wp_rest_cache/allowed_endpoints', $allow_paper_to_quiz);
+		}
+	}
+
 	public function test_rest_cache_control_covers_success_and_errors(): void {
 		$request = new \WP_REST_Request('GET', '/paper-to-quiz/v1/admin/classes');
 		$server = rest_get_server();

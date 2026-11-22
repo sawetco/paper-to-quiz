@@ -1452,7 +1452,22 @@ final class AttemptService {
 			if (! $revision) {
 				throw new DatabaseException(DatabaseException::is_busy($wpdb->last_error));
 			}
-			$question_map = array_column($questions, null, 'id');
+			$revision_options = $revision['options'];
+			if (! is_array($revision_options)) {
+				throw new \RuntimeException('The grading revision options are invalid.');
+			}
+			$question_map = array();
+			$question_points = 0;
+			foreach ($questions as $index => $question) {
+				if ((int) $question['ordinal'] !== $index + 1 || ! in_array((string) $question['correct_option'], $revision_options, true)) {
+					throw new \RuntimeException('The grading revision has an incomplete question order or answer key.');
+				}
+				$question_map[(int) $question['id']] = $question;
+				$question_points += (int) $question['points'];
+			}
+			if ($question_points !== (int) $revision['total_points']) {
+				throw new \RuntimeException('The grading revision has an incomplete question point total.');
+			}
 			$submitted = gmdate('Y-m-d H:i:s', $received_at);
 			$answers_by_question = array();
 			if (is_array($snapshot)) {
@@ -1462,7 +1477,6 @@ final class AttemptService {
 						$latest[(int) $item['question_id']] = $item;
 					}
 				}
-				$revision_options = $revision['options'];
 				foreach ($latest as $question_id => $item) {
 					if (! isset($question_map[$question_id])) {
 						throw new \InvalidArgumentException('Question does not belong to this revision.');
