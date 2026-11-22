@@ -43,8 +43,10 @@ final class Plugin {
 			}
 			// Keep both the cache plugin and its web server from storing the REST response.
 			if (! defined('DONOTCACHEPAGE')) {
+				// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- Cache plugins identify this shared request flag by its documented name.
 				define('DONOTCACHEPAGE', true);
 			}
+			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- This is the documented LiteSpeed hook, also implemented by GWS Cache.
 			do_action('litespeed_control_set_nocache', 'Paper to Quiz REST');
 			$response->header('X-LiteSpeed-Cache-Control', 'no-cache');
 			if (! ($response instanceof BinaryResponse)) {
