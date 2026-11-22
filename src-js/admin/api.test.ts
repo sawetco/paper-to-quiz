@@ -9,17 +9,23 @@ jest.mock( '@noble/hashes/sha2.js', () => {
 		// @ts-expect-error Jest runs in Node, while the browser-only TS config deliberately excludes Node globals.
 		jest.requireActual< typeof import( 'node:crypto' ) >( 'node:crypto' );
 	return {
-		sha256: {
-			create: () => {
-				const hash = createHash( 'sha256' );
-				return {
-					update: ( bytes: Uint8Array ) => {
-						hash.update( bytes );
-					},
-					digest: () => new Uint8Array( hash.digest() ),
-				};
-			},
-		},
+		sha256: Object.assign(
+			( bytes: Uint8Array ) =>
+				new Uint8Array(
+					createHash( 'sha256' ).update( bytes ).digest()
+				),
+			{
+				create: () => {
+					const hash = createHash( 'sha256' );
+					return {
+						update: ( bytes: Uint8Array ) => {
+							hash.update( bytes );
+						},
+						digest: () => new Uint8Array( hash.digest() ),
+					};
+				},
+			}
+		),
 	};
 } );
 
@@ -117,39 +123,6 @@ beforeEach( () => {
 		ReturnType< FetchImplementation >,
 		Parameters< FetchImplementation >
 	>();
-	const { createHash } =
-		// @ts-expect-error Jest runs in Node, while the browser-only TS config deliberately excludes Node globals.
-		jest.requireActual< typeof import( 'node:crypto' ) >( 'node:crypto' );
-	const webCrypto = {
-		subtle: {
-			digest: async (
-				_algorithm: AlgorithmIdentifier,
-				data: BufferSource
-			) => {
-				const bytes =
-					data instanceof ArrayBuffer
-						? new Uint8Array( data )
-						: new Uint8Array(
-								data.buffer as ArrayBuffer,
-								data.byteOffset,
-								data.byteLength
-							);
-				const digest = createHash( 'sha256' ).update( bytes ).digest();
-				return digest.buffer.slice(
-					digest.byteOffset,
-					digest.byteOffset + digest.byteLength
-				) as ArrayBuffer;
-			},
-		},
-	};
-	Object.defineProperty( globalThis, 'crypto', {
-		configurable: true,
-		value: webCrypto,
-	} );
-	Object.defineProperty( window, 'crypto', {
-		configurable: true,
-		value: webCrypto,
-	} );
 	Object.defineProperty( globalThis, 'fetch', {
 		configurable: true,
 		writable: true,
@@ -173,7 +146,7 @@ afterEach( () => {
 } );
 
 describe( 'uploadPdf incremental hashing', () => {
-	it( 'streams exact chunk ranges and sends matching per-chunk and whole hashes', async () => {
+	it( 'streams exact chunk ranges and sends hashes without crypto.subtle', async () => {
 		const bytes = fixtureBytes( CHUNK_SIZE + 1 );
 		const file = createFile( bytes );
 		const fileArrayBuffer = jest.spyOn( file, 'arrayBuffer' );
@@ -194,6 +167,7 @@ describe( 'uploadPdf incremental hashing', () => {
 
 		const chunkCalls = callsFor( '/chunks/' );
 		expect( chunkCalls ).toHaveLength( 2 );
+		expect( chunkCalls[ 0 ][ 1 ]?.cache ).toBe( 'no-store' );
 		expect(
 			new Headers( chunkCalls[ 0 ][ 1 ]?.headers ).get(
 				'X-Paper-To-Quiz-Chunk-SHA256'

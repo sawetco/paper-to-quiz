@@ -31,6 +31,7 @@ export async function studentApi< T >(
 	}
 	const response = await fetch( restUrl( restRoot, path ), {
 		credentials: 'same-origin',
+		cache: 'no-store',
 		...options,
 		headers,
 		body:

@@ -166,8 +166,7 @@ final class PublicController {
 		$id = (int) $request['id'];
 		$limited = $this->ranking_rate_limit($id);
 		$result = is_wp_error($limited) ? $limited : $this->attempts->ranking_list($id, (int) $request['page'], (int) $request['per_page'], (string) $request['search']);
-		$response = is_wp_error($result) ? rest_convert_error_to_response($result) : rest_ensure_response($result);
-		$response->header('Cache-Control', 'private, no-store, max-age=0');
+		$response = $this->private_response(is_wp_error($result) ? rest_convert_error_to_response($result) : $result);
 		if ($response->get_status() === 429) {
 			$response->header('Retry-After', '60');
 		}
@@ -221,7 +220,7 @@ final class PublicController {
 
 	public function bootstrap(\WP_REST_Request $request): \WP_REST_Response|\WP_Error {
 		$result = $this->attempts->bootstrap((int) $request['id']);
-		return is_wp_error($result) ? $result : rest_ensure_response($result);
+		return is_wp_error($result) ? $result : $this->private_response($result);
 	}
 
 	public function start(\WP_REST_Request $request): \WP_REST_Response|\WP_Error {
@@ -238,7 +237,7 @@ final class PublicController {
 
 	public function state(\WP_REST_Request $request): \WP_REST_Response|\WP_Error {
 		$result = $this->attempts->state((string) $request['public_id'], $this->token($request));
-		return is_wp_error($result) ? $result : rest_ensure_response($result);
+		return is_wp_error($result) ? $result : $this->private_response($result);
 	}
 
 	public function answer(\WP_REST_Request $request): \WP_REST_Response|\WP_Error {
@@ -253,7 +252,7 @@ final class PublicController {
 		if (is_wp_error($result)) {
 			return $result;
 		}
-		$response = rest_ensure_response($result);
+		$response = $this->private_response($result);
 		$response->header('Deprecation', 'true');
 		$response->header('Sunset', gmdate(DATE_RFC7231, time() + 180 * DAY_IN_SECONDS));
 		return $response;
@@ -268,7 +267,7 @@ final class PublicController {
 		if (is_wp_error($result)) {
 			return $result;
 		}
-		$response = rest_ensure_response($result);
+		$response = $this->private_response($result);
 		$response->header('Deprecation', 'true');
 		$response->header('Sunset', gmdate(DATE_RFC7231, time() + 180 * DAY_IN_SECONDS));
 		return $response;
@@ -295,12 +294,17 @@ final class PublicController {
 		if (is_wp_error($result)) {
 			return $result;
 		}
-		$response = rest_ensure_response($result);
-		$response->header('Cache-Control', 'private, no-store, max-age=0');
+		$response = $this->private_response($result);
 		if ($result['status'] === 'processing') {
 			$response->set_status(202);
 			$response->header('Retry-After', '8');
 		}
+		return $response;
+	}
+
+	private function private_response(array|\WP_REST_Response $result): \WP_REST_Response {
+		$response = rest_ensure_response($result);
+		$response->header('Cache-Control', 'private, no-store, max-age=0');
 		return $response;
 	}
 
@@ -393,7 +397,7 @@ final class PublicController {
 			$this->set_attempt_cookie((string) $result['public_id'], (string) $result['token']);
 			unset($result['token']);
 		}
-		return rest_ensure_response($result);
+		return $this->private_response($result);
 	}
 
 	private function set_attempt_cookie(string $public_id, string $token): void {

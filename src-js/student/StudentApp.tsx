@@ -29,6 +29,8 @@ import {
 	formatDuration as formatResultDuration,
 } from '../shared/format';
 import { useAuthenticatedBlobUrl } from '../shared/useAuthenticatedBlobUrl';
+import { randomUuid } from '../shared/random-uuid';
+import { restUrl } from '../rest-url';
 
 type Field = { key: string; label: string; required: boolean; type: string };
 type Schedule = {
@@ -193,6 +195,7 @@ export function StudentApp( {
 	const [ submitting, setSubmitting ] = useState( false );
 	const [ error, setError ] = useState( '' );
 	const [ offline, setOffline ] = useState( ! navigator.onLine );
+	const [ storageUnavailable, setStorageUnavailable ] = useState( false );
 	const [ remaining, setRemaining ] = useState< number | null >( null );
 	const [ finishOpen, setFinishOpen ] = useState( false );
 	const [ drawerOpen, setDrawerOpen ] = useState( false );
@@ -213,6 +216,14 @@ export function StudentApp( {
 	const nextScheduleRefresh = useRef( 0 );
 	const content = contentCopy( bootstrap?.type );
 
+	const persistDraft = useCallback( async ( draft: AttemptDraft ) => {
+		try {
+			await writeDraft( draft );
+		} catch {
+			setStorageUnavailable( true );
+		}
+	}, [] );
+
 	useEffect( () => {
 		const classColor = attempt?.class_color || bootstrap?.class_color || '';
 		if ( /^#[0-9a-f]{6}$/i.test( classColor ) ) {
@@ -223,11 +234,15 @@ export function StudentApp( {
 	}, [ attempt?.class_color, bootstrap?.class_color, mountElement ] );
 
 	useEffect( () => {
-		if ( draftRef.current && attempt?.status === 'in_progress' ) {
+		if (
+			draftRef.current &&
+			! draftRef.current.finishRequested &&
+			attempt?.status === 'in_progress'
+		) {
 			draftRef.current = { ...draftRef.current, active };
 			void persistDraft( draftRef.current );
 		}
-	}, [ active, attempt?.status ] );
+	}, [ active, attempt?.status, persistDraft ] );
 
 	const loadState = useCallback(
 		async ( publicId: string, currentToken = '', draft?: AttemptDraft ) => {
@@ -295,11 +310,19 @@ export function StudentApp( {
 					);
 				} );
 				setParticipant( initial );
-				const draft = await readDraft( assessmentId );
+				const handleLocalReadFailure = () => {
+					setStorageUnavailable( true );
+					return null;
+				};
+				const draft = await readDraft( assessmentId ).catch(
+					handleLocalReadFailure
+				);
 				if ( draft ) {
 					await loadState( draft.publicId, '', draft );
 				} else {
-					const receipt = await readReceipt( assessmentId );
+					const receipt = await readReceipt( assessmentId ).catch(
+						handleLocalReadFailure
+					);
 					const completedPublicId =
 						receipt?.publicId ||
 						meta.latest_attempt_public_id ||
@@ -474,7 +497,10 @@ export function StudentApp( {
 					.then( setBootstrap )
 					.catch( () => undefined );
 			}
-			if ( attempt && draftRef.current?.finishRequested ) {
+			if (
+				attempt?.status === 'in_progress' &&
+				draftRef.current?.finishRequested
+			) {
 				void submitDraft( attempt, draftRef.current );
 			}
 		};
@@ -758,13 +784,14 @@ export function StudentApp( {
 				}
 			);
 			const currentToken = state.token || '';
+			const initialAnswers = answerMap( state.answers );
 			const draft: AttemptDraft = {
 				assessmentId,
 				publicId: state.public_id,
 				revisionId: state.revision_id,
 				active: 0,
-				answers: {},
-				submissionId: crypto.randomUUID(),
+				answers: initialAnswers,
+				submissionId: randomUuid(),
 				finishRequested: false,
 				automatic: false,
 				updatedAt: Date.now(),
@@ -774,7 +801,7 @@ export function StudentApp( {
 			await persistDraft( draft );
 			setAttempt( state );
 			setToken( currentToken );
-			setAnswers( answerMap( state.answers ) );
+			setAnswers( initialAnswers );
 			setFocusMode( true );
 		} catch ( caught ) {
 			if ( document.fullscreenElement ) {
@@ -803,82 +830,37 @@ export function StudentApp( {
 		option: string | null,
 		flagged = answers[ questionId ]?.flagged || false
 	) {
+		const draft = draftRef.current;
 		if (
 			! attempt ||
 			attempt.status !== 'in_progress' ||
+			! draft ||
+			draft.finishRequested ||
 			submitLock.current
 		) {
 			return;
 		}
-		setAnswers( ( current ) => {
-			const next = reduceDraftAnswer(
-				current,
-				questionId,
-				option,
-				flagged
-			);
-			if ( draftRef.current ) {
-				draftRef.current = { ...draftRef.current, answers: next };
-				void persistDraft( draftRef.current );
-			}
-			return next;
-		} );
+		const next = reduceDraftAnswer(
+			draft.answers,
+			questionId,
+			option,
+			flagged
+		);
+		draftRef.current = { ...draft, answers: next };
+		setAnswers( next );
+		void persistDraft( draftRef.current );
 	}
 
-	async function submit( automatic = false ) {
-		if ( ! attempt || submitLock.current ) {
+	function submit( automatic = false ) {
+		const draft = draftRef.current;
+		if ( ! attempt || ! draft || submitLock.current ) {
 			return;
 		}
-		submitLock.current = true;
-		setSubmitting( true );
-		setError( '' );
-		const draft =
-			draftRef.current ||
-			( {
-				assessmentId,
-				publicId: attempt.public_id,
-				revisionId: attempt.revision_id,
-				active,
-				answers,
-				submissionId: crypto.randomUUID(),
-				finishRequested: false,
-				automatic,
-				updatedAt: Date.now(),
-				expiresAt: Date.now(),
-			} satisfies AttemptDraft );
-		draftRef.current = {
-			...draft,
-			answers,
-			active,
-			finishRequested: true,
-			automatic,
-		};
-		await persistDraft( draftRef.current );
-		try {
-			const completed = await sendSubmission( attempt, draftRef.current );
-			setResult( completed );
-			setAttempt( {
-				...attempt,
-				status: completed.status,
-			} );
-			setFinishOpen( false );
-			try {
-				await writeReceipt( {
-					assessmentId,
-					publicId: attempt.public_id,
-					revisionId: attempt.revision_id,
-				} );
-				await deleteDraft( assessmentId );
-				draftRef.current = null;
-			} catch {
-				// Keep the completed draft as a fallback if receipt storage fails.
-			}
-		} catch ( caught ) {
-			recordSubmissionFailure( caught );
-		} finally {
-			submitLock.current = false;
-			setSubmitting( false );
-		}
+		const snapshot = draft.finishRequested
+			? draft
+			: { ...draft, finishRequested: true, automatic };
+		draftRef.current = snapshot;
+		void submitDraft( attempt, snapshot );
 	}
 
 	async function submitDraft(
@@ -890,13 +872,16 @@ export function StudentApp( {
 		}
 		submitLock.current = true;
 		setSubmitting( true );
+		setError( '' );
 		try {
+			await persistDraft( draft );
 			const completed = await sendSubmission( state, draft );
 			setResult( completed );
 			setAttempt( {
 				...state,
 				status: completed.status,
 			} );
+			setFinishOpen( false );
 			try {
 				await writeReceipt( {
 					assessmentId,
@@ -1002,17 +987,27 @@ export function StudentApp( {
 				<ResultView
 					result={ result }
 					attempt={ attempt }
-					questionImageRoot={
+					questionImageUrl={
 						resultAttemptId
-							? `${ restRoot }attempts/${ resultAttemptId }/questions/`
-							: ''
+							? ( questionId ) =>
+									restUrl(
+										restRoot,
+										`/attempts/${ resultAttemptId }/questions/${ questionId }/image`
+									)
+							: undefined
 					}
 					token={ token }
 					nonce={ nonce }
 					type={ bootstrap?.type || 'test' }
 					onRetry={ async () => {
-						await deleteDraft( assessmentId );
-						await deleteReceipt( assessmentId );
+						try {
+							await Promise.all( [
+								deleteDraft( assessmentId ),
+								deleteReceipt( assessmentId ),
+							] );
+						} catch {
+							setStorageUnavailable( true );
+						}
 						draftRef.current = null;
 						setAttempt( null );
 						setResult( null );
@@ -1411,6 +1406,7 @@ export function StudentApp( {
 		( answer ) => answer.option
 	).length;
 	const blank = attempt.questions.length - answered;
+	const answersLocked = submitting || draftRef.current?.finishRequested;
 
 	return (
 		<section
@@ -1476,12 +1472,17 @@ export function StudentApp( {
 					</button>
 				</div>
 			</header>
-			{ offline && (
+			{ ( offline || storageUnavailable ) && (
 				<div className="ptq-offline" role="status">
-					{ __(
-						'There is no internet connection. Your answers are safe in this browser and will be submitted when the connection returns.',
-						'paper-to-quiz'
-					) }
+					{ storageUnavailable
+						? __(
+								'This browser could not save your answers locally. Keep this page open until your answers are submitted.',
+								'paper-to-quiz'
+							)
+						: __(
+								'There is no internet connection. Your answers are safe in this browser and will be submitted when the connection returns.',
+								'paper-to-quiz'
+							) }
 				</div>
 			) }
 			{ error && (
@@ -1541,6 +1542,7 @@ export function StudentApp( {
 						<button
 							type="button"
 							className="ptq-bookmark"
+							disabled={ answersLocked }
 							aria-pressed={ Boolean(
 								answers[ question.id ]?.flagged
 							) }
@@ -1577,6 +1579,7 @@ export function StudentApp( {
 							<button
 								type="button"
 								key={ option }
+								disabled={ answersLocked }
 								className={ immediateOptionClass(
 									question,
 									option,
@@ -1596,7 +1599,10 @@ export function StudentApp( {
 						<button
 							type="button"
 							className="ptq-clear-answer"
-							disabled={ ! answers[ question.id ]?.option }
+							disabled={
+								answersLocked ||
+								! answers[ question.id ]?.option
+							}
 							onClick={ () => void choose( question.id, null ) }
 						>
 							{ __( 'Clear', 'paper-to-quiz' ) }
@@ -1885,14 +1891,14 @@ function ReviewQuestionImage( props: {
 function ResultView( {
 	result,
 	attempt,
-	questionImageRoot,
+	questionImageUrl,
 	token,
 	nonce,
 	type,
 	onRetry,
 }: {
 	result: Result;
-	questionImageRoot: string;
+	questionImageUrl?: ( questionId: number ) => string;
 	attempt: Attempt | null;
 	token: string;
 	nonce: string;
@@ -2264,10 +2270,12 @@ function ResultView( {
 				<div className="ptq-review">
 					<h3>{ __( 'Review your answers', 'paper-to-quiz' ) }</h3>
 					{ result.answers?.map( ( answer ) => {
-						const question = questionImageRoot && {
+						const question = questionImageUrl && {
 							id: Number( answer.question_id ),
 							ordinal: Number( answer.ordinal ),
-							imageUrl: `${ questionImageRoot }${ Number( answer.question_id ) }/image`,
+							imageUrl: questionImageUrl(
+								Number( answer.question_id )
+							),
 						};
 						return (
 							<div
@@ -2539,15 +2547,6 @@ function BookmarkIcon() {
 			/>
 		</svg>
 	);
-}
-
-async function persistDraft( draft: AttemptDraft ): Promise< void > {
-	const {
-		updatedAt: _updatedAt,
-		expiresAt: _expiresAt,
-		...persisted
-	} = draft;
-	await writeDraft( persisted );
 }
 
 function formatTime( seconds: number ) {

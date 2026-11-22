@@ -143,6 +143,7 @@ final class AdminController {
 						'search'   => array('type' => 'string', 'default' => '', 'maxLength' => 190),
 						'page'     => array('type' => 'integer', 'default' => 1, 'minimum' => 1),
 						'per_page' => array('type' => 'integer', 'default' => 20, 'minimum' => 1, 'maximum' => 100),
+						'focus'    => $this->positive_integer_arg(false),
 					),
 				),
 				array(
@@ -203,6 +204,7 @@ final class AdminController {
 						'search'   => array('type' => 'string', 'default' => '', 'maxLength' => 190),
 						'page'     => array('type' => 'integer', 'default' => 1, 'minimum' => 1),
 						'per_page' => array('type' => 'integer', 'default' => 100, 'minimum' => 1, 'maximum' => 100),
+						'focus'    => $this->positive_integer_arg(false),
 					),
 				),
 				array(
@@ -549,15 +551,15 @@ final class AdminController {
 		return is_wp_error($result) ? $result : rest_ensure_response($result);
 	}
 
-	public function list_classes(\WP_REST_Request $request): \WP_REST_Response {
-		return rest_ensure_response(
-			$this->terms->classes(
-				sanitize_key((string) $request->get_param('status')),
-				sanitize_text_field((string) $request->get_param('search')),
-				max(1, (int) $request->get_param('page')),
-				min(100, max(1, (int) ($request->get_param('per_page') ?: 20)))
-			)
+	public function list_classes(\WP_REST_Request $request): \WP_REST_Response|\WP_Error {
+		$result = $this->terms->classes(
+			sanitize_key((string) $request->get_param('status')),
+			sanitize_text_field((string) $request->get_param('search')),
+			max(1, (int) $request->get_param('page')),
+			min(100, max(1, (int) ($request->get_param('per_page') ?: 20))),
+			(int) $request->get_param('focus')
 		);
+		return is_wp_error($result) ? $result : rest_ensure_response($result);
 	}
 
 	public function save_class(\WP_REST_Request $request): \WP_REST_Response|\WP_Error {
@@ -599,15 +601,15 @@ final class AdminController {
 		return rest_ensure_response(array('changed' => $changed, 'errors' => $errors));
 	}
 
-	public function list_subjects(\WP_REST_Request $request): \WP_REST_Response {
-		return rest_ensure_response(
-			$this->terms->subjects(
-				sanitize_key((string) $request->get_param('status')),
-				sanitize_text_field((string) $request->get_param('search')),
-				max(1, (int) $request->get_param('page')),
-				min(100, max(1, (int) ($request->get_param('per_page') ?: 100)))
-			)
+	public function list_subjects(\WP_REST_Request $request): \WP_REST_Response|\WP_Error {
+		$result = $this->terms->subjects(
+			sanitize_key((string) $request->get_param('status')),
+			sanitize_text_field((string) $request->get_param('search')),
+			max(1, (int) $request->get_param('page')),
+			min(100, max(1, (int) ($request->get_param('per_page') ?: 100))),
+			(int) $request->get_param('focus')
 		);
+		return is_wp_error($result) ? $result : rest_ensure_response($result);
 	}
 
 	public function save_subject(\WP_REST_Request $request): \WP_REST_Response|\WP_Error {

@@ -34,6 +34,11 @@ const RECEIPT_TTL = 90 * 24 * 60 * 60 * 1000;
 function database(): Promise< IDBDatabase > {
 	return new Promise( ( resolve, reject ) => {
 		const request = indexedDB.open( DB_NAME, VERSION );
+		let blocked = false;
+		request.onblocked = () => {
+			blocked = true;
+			reject( new Error( 'The draft database upgrade is blocked.' ) );
+		};
 		request.onupgradeneeded = () => {
 			const db = request.result;
 			if ( ! db.objectStoreNames.contains( DRAFT_STORE ) ) {
@@ -47,26 +52,51 @@ function database(): Promise< IDBDatabase > {
 				} );
 			}
 		};
-		request.onsuccess = () => resolve( request.result );
+		request.onsuccess = () => {
+			const db = request.result;
+			if ( blocked ) {
+				db.close();
+				return;
+			}
+			db.onversionchange = () => db.close();
+			resolve( db );
+		};
 		request.onerror = () => reject( request.error );
 	} );
+}
+
+async function runStoreRequest< T >(
+	store: string,
+	mode: IDBTransactionMode,
+	operation: ( store: IDBObjectStore ) => IDBRequest< T >
+): Promise< T > {
+	const db = await database();
+	try {
+		return await new Promise< T >( ( resolve, reject ) => {
+			const transaction = db.transaction( store, mode );
+			const request = operation( transaction.objectStore( store ) );
+			transaction.oncomplete = () => resolve( request.result );
+			transaction.onabort = () =>
+				reject(
+					transaction.error ||
+						new Error(
+							'The draft database transaction was aborted.'
+						)
+				);
+		} );
+	} finally {
+		db.close();
+	}
 }
 
 export async function readDraft(
 	assessmentId: number
 ): Promise< AttemptDraft | null > {
-	const db = await database();
-	const draft = await new Promise< AttemptDraft | undefined >(
-		( resolve, reject ) => {
-			const request = db
-				.transaction( DRAFT_STORE, 'readonly' )
-				.objectStore( DRAFT_STORE )
-				.get( assessmentId );
-			request.onsuccess = () => resolve( request.result );
-			request.onerror = () => reject( request.error );
-		}
+	const draft = await runStoreRequest< AttemptDraft | undefined >(
+		DRAFT_STORE,
+		'readonly',
+		( store ) => store.get( assessmentId )
 	);
-	db.close();
 	if ( ! draft ) {
 		return null;
 	}
@@ -80,50 +110,26 @@ export async function readDraft(
 export async function writeDraft(
 	draft: Omit< AttemptDraft, 'updatedAt' | 'expiresAt' >
 ): Promise< void > {
-	const db = await database();
-	await new Promise< void >( ( resolve, reject ) => {
-		const request = db
-			.transaction( DRAFT_STORE, 'readwrite' )
-			.objectStore( DRAFT_STORE )
-			.put( {
-				...draft,
-				updatedAt: Date.now(),
-				expiresAt: Date.now() + TTL,
-			} );
-		request.onsuccess = () => resolve();
-		request.onerror = () => reject( request.error );
-	} );
-	db.close();
+	const now = Date.now();
+	await runStoreRequest( DRAFT_STORE, 'readwrite', ( store ) =>
+		store.put( { ...draft, updatedAt: now, expiresAt: now + TTL } )
+	);
 }
 
 export async function deleteDraft( assessmentId: number ): Promise< void > {
-	const db = await database();
-	await new Promise< void >( ( resolve, reject ) => {
-		const request = db
-			.transaction( DRAFT_STORE, 'readwrite' )
-			.objectStore( DRAFT_STORE )
-			.delete( assessmentId );
-		request.onsuccess = () => resolve();
-		request.onerror = () => reject( request.error );
-	} );
-	db.close();
+	await runStoreRequest( DRAFT_STORE, 'readwrite', ( store ) =>
+		store.delete( assessmentId )
+	);
 }
 
 export async function readReceipt(
 	assessmentId: number
 ): Promise< AttemptReceipt | null > {
-	const db = await database();
-	const receipt = await new Promise< AttemptReceipt | undefined >(
-		( resolve, reject ) => {
-			const request = db
-				.transaction( RECEIPT_STORE, 'readonly' )
-				.objectStore( RECEIPT_STORE )
-				.get( assessmentId );
-			request.onsuccess = () => resolve( request.result );
-			request.onerror = () => reject( request.error );
-		}
+	const receipt = await runStoreRequest< AttemptReceipt | undefined >(
+		RECEIPT_STORE,
+		'readonly',
+		( store ) => store.get( assessmentId )
 	);
-	db.close();
 	if ( ! receipt ) {
 		return null;
 	}
@@ -137,31 +143,18 @@ export async function readReceipt(
 export async function writeReceipt(
 	receipt: Omit< AttemptReceipt, 'completedAt' | 'expiresAt' >
 ): Promise< void > {
-	const db = await database();
-	await new Promise< void >( ( resolve, reject ) => {
-		const request = db
-			.transaction( RECEIPT_STORE, 'readwrite' )
-			.objectStore( RECEIPT_STORE )
-			.put( {
-				...receipt,
-				completedAt: Date.now(),
-				expiresAt: Date.now() + RECEIPT_TTL,
-			} );
-		request.onsuccess = () => resolve();
-		request.onerror = () => reject( request.error );
-	} );
-	db.close();
+	const now = Date.now();
+	await runStoreRequest( RECEIPT_STORE, 'readwrite', ( store ) =>
+		store.put( {
+			...receipt,
+			completedAt: now,
+			expiresAt: now + RECEIPT_TTL,
+		} )
+	);
 }
 
 export async function deleteReceipt( assessmentId: number ): Promise< void > {
-	const db = await database();
-	await new Promise< void >( ( resolve, reject ) => {
-		const request = db
-			.transaction( RECEIPT_STORE, 'readwrite' )
-			.objectStore( RECEIPT_STORE )
-			.delete( assessmentId );
-		request.onsuccess = () => resolve();
-		request.onerror = () => reject( request.error );
-	} );
-	db.close();
+	await runStoreRequest( RECEIPT_STORE, 'readwrite', ( store ) =>
+		store.delete( assessmentId )
+	);
 }

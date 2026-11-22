@@ -54,6 +54,7 @@ export interface Revision {
 	subject_ids?: number[];
 	subject_names?: string[];
 	class_name?: string;
+	class_status?: Term[ 'status' ] | null;
 	access_mode: AccessMode;
 	options: string[];
 	total_points: string;

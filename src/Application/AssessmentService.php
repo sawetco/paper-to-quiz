@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PaperToQuiz\Application;
 
 use PaperToQuiz\Infrastructure\Database;
+use PaperToQuiz\Infrastructure\DatabaseException;
 use PaperToQuiz\Infrastructure\OperationalErrorReporter;
 use PaperToQuiz\Infrastructure\Settings;
 
@@ -101,8 +102,8 @@ final class AssessmentService {
 			(SELECT COUNT(*) FROM ' . $this->db->table('attempts') . " t WHERE t.assessment_id = a.id AND t.status IN ('submitted','auto_submitted')) participation_count
 			FROM " . $this->db->table('assessments') . ' a
 			LEFT JOIN ' . $this->db->table('revisions') . ' r ON r.id = COALESCE(a.current_draft_revision_id,a.published_revision_id)
-			LEFT JOIN ' . $this->db->table('terms') . ' c ON c.id = r.class_id
-			WHERE ' . $where . ' ORDER BY ' . $order_column . ' ' . $order_direction . ', a.id DESC LIMIT %d OFFSET %d';
+			LEFT JOIN ' . $this->db->table('terms') . " c ON c.id = r.class_id AND c.type = 'class'
+			WHERE " . $where . ' ORDER BY ' . $order_column . ' ' . $order_direction . ', a.id DESC LIMIT %d OFFSET %d';
 		$args[] = $per_page;
 		$args[] = $offset;
 		$rows = $this->db->wpdb()->get_results($this->db->wpdb()->prepare($sql, ...$args), ARRAY_A) ?: array();
@@ -250,9 +251,9 @@ final class AssessmentService {
 	public function get_revision(int $revision_id, bool $include_details = true): ?array {
 		$row = $this->db->wpdb()->get_row(
 			$this->db->wpdb()->prepare(
-				'SELECT r.*, c.name class_name, c.color class_color FROM ' . $this->db->table('revisions') . ' r
-				LEFT JOIN ' . $this->db->table('terms') . ' c ON c.id = r.class_id
-				WHERE r.id = %d',
+				'SELECT r.*, c.name class_name, c.color class_color, c.status class_status FROM ' . $this->db->table('revisions') . ' r
+				LEFT JOIN ' . $this->db->table('terms') . " c ON c.id = r.class_id AND c.type = 'class'
+				WHERE r.id = %d",
 				$revision_id
 			),
 			ARRAY_A
@@ -301,6 +302,10 @@ final class AssessmentService {
 	}
 
 	public function save(array $payload, ?int $assessment_id, int $user_id): array|\WP_Error {
+		return $this->save_with_class_context($payload, $assessment_id, $user_id);
+	}
+
+	private function save_with_class_context(array $payload, ?int $assessment_id, int $user_id, int $copied_class_id = 0): array|\WP_Error {
 		$type = sanitize_key((string) ($payload['type'] ?? 'test'));
 		if (! in_array($type, array('exam', 'test'), true)) {
 			return new \WP_Error('paper_to_quiz_invalid_type', __('Invalid assessment type.', 'paper-to-quiz'), array('status' => 400));
@@ -329,6 +334,11 @@ final class AssessmentService {
 		if (! $assessment_id) {
 			try {
 				$this->db->begin();
+				$class_error = $this->validate_class_selection((int) ($payload['class_id'] ?? 0), $copied_class_id);
+				if ($class_error) {
+					$this->db->rollback();
+					return $class_error;
+				}
 				$inserted = $this->db->write(
 					'assessment_insert',
 					fn (): int|false => $this->db->wpdb()->insert(
@@ -384,6 +394,15 @@ final class AssessmentService {
 			}
 			$revision_id = (int) $record['assessment']['current_draft_revision_id'];
 			if (! $revision_id) {
+				if (array_key_exists('class_id', $payload)) {
+					$class_error = $this->validate_class_selection(
+						(int) $payload['class_id'],
+						(int) ($record['revision']['class_id'] ?? 0)
+					);
+					if ($class_error) {
+						return $class_error;
+					}
+				}
 				$revision_id = $this->clone_published_to_draft($record);
 				if (is_wp_error($revision_id)) {
 					return $revision_id;
@@ -399,6 +418,16 @@ final class AssessmentService {
 				}
 
 				$type = (string) $locked['assessment']['type'];
+				$current_class_id = (int) ($locked['revision']['class_id'] ?? 0);
+				if (! array_key_exists('class_id', $payload)) {
+					$payload['class_id'] = $current_class_id;
+				} else {
+					$class_error = $this->validate_class_selection((int) $payload['class_id'], $current_class_id);
+					if ($class_error) {
+						$this->db->rollback();
+						return $class_error;
+					}
+				}
 				if (! array_key_exists('subject_ids', $payload)) {
 					$payload['subject_ids'] = $locked['revision']['subject_ids'] ?? array();
 				}
@@ -974,11 +1003,14 @@ final class AssessmentService {
 			return new \WP_Error('paper_to_quiz_not_found', __('The record to duplicate could not be found.', 'paper-to-quiz'), array('status' => 404));
 		}
 
+		$class_id = in_array($source['revision']['class_status'], array('active', 'archived'), true)
+			? (int) $source['revision']['class_id']
+			: 0;
 		$payload = array(
 			'type'                 => (string) $source['assessment']['type'],
 			'title'                => (string) $source['revision']['title'],
 			'description'          => (string) $source['revision']['description'],
-			'class_id'             => $source['revision']['class_id'],
+			'class_id'             => $class_id,
 			'subject_ids'          => $source['revision']['subject_ids'] ?? array(),
 			'access_mode'          => $source['revision']['access_mode'],
 			'options'              => $source['revision']['options'],
@@ -996,7 +1028,7 @@ final class AssessmentService {
 		);
 		/* translators: %s: Original assessment title. */
 		$payload['title'] = sprintf(__('%s (Copy)', 'paper-to-quiz'), $payload['title']);
-		$created          = $this->save($payload, null, $user_id);
+		$created          = $this->save_with_class_context($payload, null, $user_id, $class_id);
 		if (is_wp_error($created)) {
 			return $created;
 		}
@@ -1305,6 +1337,8 @@ final class AssessmentService {
 		}
 		if (empty($revision['class_id'])) {
 			$errors[] = __('A class must be selected.', 'paper-to-quiz');
+		} elseif (! in_array($revision['class_status'] ?? null, array('active', 'archived'), true)) {
+			$errors[] = __('The selected class is no longer available. Select an active class.', 'paper-to-quiz');
 		}
 		$selected_subject_ids = $this->sanitize_subject_ids($revision['subject_ids'] ?? array());
 		if (! $selected_subject_ids) {
@@ -1480,6 +1514,34 @@ final class AssessmentService {
 			);
 		}
 		return true;
+	}
+
+	private function validate_class_selection(int $class_id, int $current_class_id): ?\WP_Error {
+		if ($class_id === 0) {
+			return null;
+		}
+		$wpdb = $this->db->wpdb();
+		$previous_suppression = $wpdb->suppress_errors(true);
+		try {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Check the current class status on the authoritative custom table.
+			$status = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT status FROM %i WHERE id = %d AND type = 'class'",
+					$this->db->table('terms'),
+					$class_id
+				)
+			);
+			if ($wpdb->last_error !== '') {
+				return (new DatabaseException(DatabaseException::is_busy($wpdb->last_error)))->rest_error();
+			}
+		} finally {
+			$wpdb->suppress_errors($previous_suppression);
+		}
+		if ($status === 'active' || ($status === 'archived' && $class_id === $current_class_id)) {
+			return null;
+		}
+		$message = __('The selected class is no longer available. Select an active class.', 'paper-to-quiz');
+		return new \WP_Error('paper_to_quiz_class_invalid', $message, array('status' => 400, 'params' => array('class_id' => $message)));
 	}
 
 	private function validate_subject_selection(array $payload): bool|\WP_Error {

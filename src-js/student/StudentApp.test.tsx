@@ -198,13 +198,13 @@ function configureDefaultApi() {
 	} );
 }
 
-function renderStudentApp() {
+function renderStudentApp( restRoot = '/wp-json/paper-to-quiz/v1/' ) {
 	const mountElement = document.createElement( 'div' );
 	document.body.appendChild( mountElement );
 	const view = render(
 		<StudentApp
 			assessmentId={ ASSESSMENT_ID }
-			restRoot="/wp-json/paper-to-quiz/v1/"
+			restRoot={ restRoot }
 			nonce="test-nonce"
 			mountElement={ mountElement }
 		/>
@@ -476,7 +476,7 @@ describe( 'StudentApp offline recovery lifecycle', () => {
 			window.dispatchEvent( new Event( 'online' ) );
 			window.dispatchEvent( new Event( 'online' ) );
 		} );
-		expect( submitCount ).toBe( 2 );
+		await waitFor( () => expect( submitCount ).toBe( 2 ) );
 		expect( writeReceiptMock ).not.toHaveBeenCalled();
 
 		await act( async () => {
@@ -490,6 +490,105 @@ describe( 'StudentApp offline recovery lifecycle', () => {
 		expect( deleteDraftMock ).toHaveBeenCalledWith( ASSESSMENT_ID );
 
 		view.unmount();
+	} );
+
+	it( 'submits the latest answers and question position at the deadline', async () => {
+		jest.useFakeTimers();
+		const defaultApi = apiMock.getMockImplementation()!;
+		apiMock.mockImplementation( ( ...args ) => {
+			const path = String( args[ 1 ] );
+			if ( path.endsWith( '/bootstrap' ) ) {
+				return Promise.resolve( createBootstrap( { type: 'exam' } ) );
+			}
+			if ( path.endsWith( '/attempts' ) ) {
+				return Promise.resolve(
+					createAttempt( {
+						assessment_type: 'exam',
+						deadline_at: '2026-08-31T09:00:10.000Z',
+					} )
+				);
+			}
+			return defaultApi( ...args );
+		} );
+		try {
+			await act( async () => {
+				renderStudentApp();
+			} );
+			await act( async () => {
+				fireEvent.click(
+					screen.getByRole( 'button', { name: 'Start exam' } )
+				);
+			} );
+			fireEvent.click( screen.getByRole( 'button', { name: 'Next →' } ) );
+			const question = screen.getByLabelText( 'Answer for question 2' );
+			fireEvent.click(
+				within( question ).getByRole( 'button', { name: 'C' } )
+			);
+			fireEvent.click(
+				screen.getByRole( 'button', { name: 'Review later' } )
+			);
+			await act( async () => {
+				await jest.advanceTimersByTimeAsync( 10_000 );
+			} );
+
+			expect( submitCalls() ).toHaveLength( 1 );
+			expect( submitCalls()[ 0 ][ 4 ] ).toMatchObject( {
+				json: {
+					automatic: true,
+					deferred: true,
+					answers: [
+						{
+							question_id: QUESTION_ONE,
+							option: null,
+							flagged: false,
+						},
+						{
+							question_id: QUESTION_TWO,
+							option: 'C',
+							flagged: true,
+						},
+					],
+				},
+			} );
+			expect( writeDraftMock ).toHaveBeenCalledWith(
+				expect.objectContaining( { active: 1, finishRequested: true } )
+			);
+		} finally {
+			jest.useRealTimers();
+		}
+	} );
+
+	it( 'starts and submits when the browser disables local storage', async () => {
+		const unavailable = new Error( 'IndexedDB unavailable' );
+		readDraftMock.mockRejectedValue( unavailable );
+		readReceiptMock.mockRejectedValue( unavailable );
+		writeDraftMock.mockRejectedValue( unavailable );
+		writeReceiptMock.mockRejectedValue( unavailable );
+		renderStudentApp();
+		await startAttempt();
+
+		expect(
+			screen.getByText( /could not save your answers locally/ )
+		).toBeVisible();
+		const question = screen.getByLabelText( 'Answer for question 1' );
+		fireEvent.click(
+			within( question ).getByRole( 'button', { name: 'A' } )
+		);
+		fireEvent.click(
+			screen.getByRole( 'button', { name: 'Finish test' } )
+		);
+		fireEvent.click(
+			screen.getByRole( 'button', { name: 'Confirm and finish' } )
+		);
+		await screen.findByRole( 'heading', { name: 'Test result document' } );
+		expect( submitCalls()[ 0 ][ 4 ] ).toMatchObject( {
+			json: {
+				answers: [
+					{ question_id: QUESTION_ONE, option: 'A', flagged: false },
+					{ question_id: QUESTION_TWO, option: null, flagged: false },
+				],
+			},
+		} );
 	} );
 
 	it( 'auto-retries a pending finish draft after reload without starting a new attempt', async () => {
@@ -635,53 +734,64 @@ describe( 'StudentApp offline recovery lifecycle', () => {
 		}
 	} );
 
-	it( 'fetches only the question image opened in a detailed result', async () => {
-		readReceiptMock.mockResolvedValue( {
-			assessmentId: ASSESSMENT_ID,
-			publicId: PUBLIC_ID,
-			revisionId: REVISION_ID,
-			completedAt: 1,
-			expiresAt: Number.MAX_SAFE_INTEGER,
-		} );
-		const defaultApi = apiMock.getMockImplementation()!;
-		apiMock.mockImplementation( ( ...args ) => {
-			const path = String( args[ 1 ] );
-			if ( /\/attempts\/[^/]+$/.test( path ) ) {
-				return Promise.resolve(
-					createAttempt( { status: 'submitted' } )
-				);
-			}
-			if ( path.endsWith( '/result' ) ) {
-				return Promise.resolve(
-					createResult( {
-						visibility: 'detailed',
-						answers: [
-							{ question_id: QUESTION_ONE, ordinal: 1 },
-							{ question_id: QUESTION_TWO, ordinal: 2 },
-						],
-					} )
-				);
-			}
-			return defaultApi( ...args );
-		} );
+	it.each( [
+		[ '/wp-json/paper-to-quiz/v1/', '/wp-json/paper-to-quiz/v1/' ],
+		[
+			'/?rest_route=/paper-to-quiz/v1/',
+			'/?rest_route=/paper-to-quiz/v1/',
+		],
+	] )(
+		'fetches only the detailed result image opened under %s',
+		async ( root, imageRoot ) => {
+			readReceiptMock.mockResolvedValue( {
+				assessmentId: ASSESSMENT_ID,
+				publicId: PUBLIC_ID,
+				revisionId: REVISION_ID,
+				completedAt: 1,
+				expiresAt: Number.MAX_SAFE_INTEGER,
+			} );
+			const defaultApi = apiMock.getMockImplementation()!;
+			apiMock.mockImplementation( ( ...args ) => {
+				const path = String( args[ 1 ] );
+				if ( /\/attempts\/[^/]+$/.test( path ) ) {
+					return Promise.resolve(
+						createAttempt( { status: 'submitted' } )
+					);
+				}
+				if ( path.endsWith( '/result' ) ) {
+					return Promise.resolve(
+						createResult( {
+							visibility: 'detailed',
+							answers: [
+								{ question_id: QUESTION_ONE, ordinal: 1 },
+								{ question_id: QUESTION_TWO, ordinal: 2 },
+							],
+						} )
+					);
+				}
+				return defaultApi( ...args );
+			} );
 
-		const view = renderStudentApp();
-		const controls = await screen.findAllByText( 'Show question image' );
-		expect( controls ).toHaveLength( 2 );
-		expect( globalThis.fetch ).not.toHaveBeenCalled();
+			const view = renderStudentApp( root );
+			const controls = await screen.findAllByText(
+				'Show question image'
+			);
+			expect( controls ).toHaveLength( 2 );
+			expect( globalThis.fetch ).not.toHaveBeenCalled();
 
-		const first = controls[ 0 ].closest( 'details' )!;
-		first.open = true;
-		fireEvent( first, new Event( 'toggle' ) );
-		await waitFor( () =>
-			expect( globalThis.fetch ).toHaveBeenCalledTimes( 1 )
-		);
-		expect( globalThis.fetch ).toHaveBeenCalledWith(
-			`/wp-json/paper-to-quiz/v1/attempts/${ PUBLIC_ID }/questions/${ QUESTION_ONE }/image`,
-			expect.objectContaining( { credentials: 'same-origin' } )
-		);
-		view.unmount();
-	} );
+			const first = controls[ 0 ].closest( 'details' )!;
+			first.open = true;
+			fireEvent( first, new Event( 'toggle' ) );
+			await waitFor( () =>
+				expect( globalThis.fetch ).toHaveBeenCalledTimes( 1 )
+			);
+			expect( globalThis.fetch ).toHaveBeenCalledWith(
+				`${ imageRoot }attempts/${ PUBLIC_ID }/questions/${ QUESTION_ONE }/image`,
+				expect.objectContaining( { credentials: 'same-origin' } )
+			);
+			view.unmount();
+		}
+	);
 
 	it( 'deletes an invalid receipt when its completed attempt cannot be restored', async () => {
 		readReceiptMock.mockResolvedValue( {

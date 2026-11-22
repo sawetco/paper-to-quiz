@@ -99,11 +99,7 @@ describe( 'admin authoring loading boundaries', () => {
 		expect( app ).toContain(
 			'/admin/subjects?status=active&page=1&per_page=1'
 		);
-		expect( wizard ).toContain(
-			'/admin/classes?status=active&page=1&per_page=100'
-		);
-		expect( wizard ).toContain(
-			'/admin/subjects?status=active&page=1&per_page=100'
-		);
+		expect( wizard ).toContain( "loadActiveTerms( 'classes', signal )" );
+		expect( wizard ).toContain( "loadActiveTerms( 'subjects', signal )" );
 	} );
 } );

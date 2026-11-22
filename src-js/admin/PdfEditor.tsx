@@ -19,19 +19,16 @@ import { Layer, Rect, Stage, Transformer } from 'react-konva';
 import type Konva from 'konva';
 import {
 	getDocument,
+	type PDFDocumentLoadingTask,
 	type PDFDocumentProxy,
 	type PDFPageProxy,
 } from 'pdfjs-dist';
-import type {
-	AssessmentRecord,
-	ListResponse,
-	Question,
-	Selection,
-	Term,
-} from '../types';
+import type { AssessmentRecord, Question, Selection, Term } from '../types';
 import { api, fetchBinary } from './api';
 import { BusyLabel } from './BusyLabel';
 import { initializePdfWorker } from './pdfWorker';
+import { randomUuid } from '../shared/random-uuid';
+import { loadActiveTerms } from './terms';
 
 initializePdfWorker();
 
@@ -88,12 +85,11 @@ export function PdfEditor( {
 	);
 
 	useEffect( () => {
-		let cancelled = false;
-		api< ListResponse< Term > >(
-			'/admin/subjects?status=active&page=1&per_page=100'
-		)
-			.then( ( response ) => {
-				if ( cancelled ) {
+		const controller = new AbortController();
+		const { signal } = controller;
+		loadActiveTerms( 'subjects', signal )
+			.then( ( items ) => {
+				if ( signal.aborted ) {
 					return;
 				}
 				const allowedSubjectIds = new Set( [
@@ -106,14 +102,14 @@ export function PdfEditor( {
 				] );
 				setSubjects(
 					allowedSubjectIds.size
-						? response.items.filter( ( subject ) =>
+						? items.filter( ( subject ) =>
 								allowedSubjectIds.has( Number( subject.id ) )
 							)
-						: response.items
+						: items
 				);
 			} )
 			.catch( () => {
-				if ( ! cancelled ) {
+				if ( ! signal.aborted ) {
 					onError(
 						__(
 							'Subjects could not be loaded. Try again before saving questions.',
@@ -122,9 +118,7 @@ export function PdfEditor( {
 					);
 				}
 			} );
-		return () => {
-			cancelled = true;
-		};
+		return () => controller.abort();
 	}, [ onError, record.questions, record.revision.subject_ids ] );
 
 	useEffect( () => {
@@ -187,7 +181,8 @@ export function PdfEditor( {
 	}, [ selections ] );
 
 	useEffect( () => {
-		let cancelled = false;
+		const controller = new AbortController();
+		let loadingTask: PDFDocumentLoadingTask | undefined;
 		const configuredThreshold = Number(
 			window.paperToQuizAdmin.settings.page_warning
 		);
@@ -197,10 +192,22 @@ export function PdfEditor( {
 					Math.min( 1000, Math.floor( configuredThreshold ) )
 				)
 			: 200;
-		fetchBinary( record.revision.pdf_url! )
-			.then( ( data ) => getDocument( { data } ).promise )
+		setPdf( null );
+		setPage( null );
+		setPageNumber( 1 );
+		setMainReady( false );
+		thumbsRef.current = {};
+		setThumbs( {} );
+		fetchBinary( record.revision.pdf_url!, controller.signal )
+			.then( ( data ) => {
+				if ( controller.signal.aborted ) {
+					return;
+				}
+				loadingTask = getDocument( { data } );
+				return loadingTask.promise;
+			} )
 			.then( ( document ) => {
-				if ( ! cancelled ) {
+				if ( document && ! controller.signal.aborted ) {
 					setPdf( document );
 					if ( document.numPages > threshold ) {
 						setPageWarning(
@@ -219,12 +226,13 @@ export function PdfEditor( {
 				}
 			} )
 			.catch( ( caught ) => {
-				if ( ! cancelled ) {
+				if ( ! controller.signal.aborted ) {
 					onError( pdfError( caught ) );
 				}
 			} );
 		return () => {
-			cancelled = true;
+			controller.abort();
+			void loadingTask?.destroy().catch( () => undefined );
 		};
 	}, [ record.revision.pdf_url, onError ] );
 
@@ -289,7 +297,10 @@ export function PdfEditor( {
 				}
 			} )
 			.catch( ( caught: any ) => {
-				if ( caught?.name !== 'RenderingCancelledException' ) {
+				if (
+					! cancelled &&
+					caught?.name !== 'RenderingCancelledException'
+				) {
 					onError( pdfError( caught ) );
 				}
 			} );
@@ -426,7 +437,7 @@ export function PdfEditor( {
 				selection.page === pageNumber &&
 				intersectionOverUnion( selection, temp ) >= 0.9
 		);
-		const key = crypto.randomUUID();
+		const key = randomUuid();
 		setSelections( ( current ) => [
 			...current,
 			{
@@ -1090,7 +1101,7 @@ function questionToSelection( question: Question, index: number ): Selection {
 	return {
 		key: isUuid( question.client_key )
 			? String( question.client_key )
-			: crypto.randomUUID(),
+			: randomUuid(),
 		id: Number( question.id ),
 		page: Number( question.source_page ),
 		x: Number( question.crop_x ),
@@ -1121,7 +1132,7 @@ function reconcileRecovery(
 					isUuid( question.client_key ) &&
 					question.client_key === selection.key
 			);
-		let key: string = crypto.randomUUID();
+		let key: string = randomUuid();
 		if ( isUuid( selection.key ) ) {
 			key = selection.key;
 		}
@@ -1177,54 +1188,42 @@ async function renderCrop(
 		maxEdge / Math.max( cropBaseWidth, cropBaseHeight )
 	);
 	const viewport = page.getViewport( { scale } );
-	const full = document.createElement( 'canvas' );
-	full.width = Math.ceil( viewport.width );
-	full.height = Math.ceil( viewport.height );
-	const context = full.getContext( '2d', { alpha: false } );
-	if ( ! context ) {
-		throw new Error(
-			__( 'The PDF canvas could not be created.', 'paper-to-quiz' )
-		);
-	}
-	await page.render( { canvas: full, canvasContext: context, viewport } )
-		.promise;
-
-	const source = {
-		x: Math.round( selection.x * full.width ),
-		y: Math.round( selection.y * full.height ),
-		width: Math.max( 1, Math.round( selection.width * full.width ) ),
-		height: Math.max( 1, Math.round( selection.height * full.height ) ),
-	};
+	const pageWidth = Math.ceil( viewport.width );
+	const pageHeight = Math.ceil( viewport.height );
+	const x = Math.round( selection.x * pageWidth );
+	const y = Math.round( selection.y * pageHeight );
 	const crop = document.createElement( 'canvas' );
-	crop.width = source.width;
-	crop.height = source.height;
+	crop.width = Math.max(
+		1,
+		Math.min( maxEdge, Math.round( selection.width * pageWidth ) )
+	);
+	crop.height = Math.max(
+		1,
+		Math.min( maxEdge, Math.round( selection.height * pageHeight ) )
+	);
 	const cropContext = crop.getContext( '2d', { alpha: false } );
 	if ( ! cropContext ) {
 		throw new Error(
 			__( 'The crop canvas could not be created.', 'paper-to-quiz' )
 		);
 	}
-	cropContext.fillStyle = '#fff';
-	cropContext.fillRect( 0, 0, crop.width, crop.height );
-	cropContext.drawImage(
-		full,
-		source.x,
-		source.y,
-		source.width,
-		source.height,
-		0,
-		0,
-		crop.width,
-		crop.height
-	);
+	// Translate in rendered pixels while retaining the PDF viewport's rotation and scale.
+	await page.render( {
+		canvas: crop,
+		canvasContext: cropContext,
+		viewport,
+		transform: [ 1, 0, 0, 1, -x, -y ],
+		background: '#fff',
+	} ).promise;
 	const main = await canvasBlob( crop, 'image/png' );
 
 	const thumb = document.createElement( 'canvas' );
-	thumb.width = Math.min( 320, crop.width );
-	thumb.height = Math.max(
+	const thumbnailScale = Math.min(
 		1,
-		Math.round( crop.height * ( thumb.width / crop.width ) )
+		320 / Math.max( crop.width, crop.height )
 	);
+	thumb.width = Math.max( 1, Math.round( crop.width * thumbnailScale ) );
+	thumb.height = Math.max( 1, Math.round( crop.height * thumbnailScale ) );
 	const thumbContext = thumb.getContext( '2d', { alpha: false } );
 	if ( ! thumbContext ) {
 		throw new Error(

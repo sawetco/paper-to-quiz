@@ -129,6 +129,7 @@ export async function api< T >(
 
 	const response = await fetch( restUrl( config.restRoot, path ), {
 		credentials: 'same-origin',
+		cache: 'no-store',
 		...options,
 		headers,
 		body:
@@ -149,10 +150,14 @@ export async function api< T >(
 	return response.json() as Promise< T >;
 }
 
-export async function fetchBinary( url: string ): Promise< ArrayBuffer > {
+export async function fetchBinary(
+	url: string,
+	signal?: AbortSignal
+): Promise< ArrayBuffer > {
 	const response = await fetch( url, {
 		credentials: 'same-origin',
 		headers: { 'X-WP-Nonce': config.nonce },
+		signal,
 	} );
 	if ( ! response.ok ) {
 		throw new ApiError(
@@ -190,9 +195,9 @@ export async function uploadPdf(
 			Math.min( file.size, ( index + 1 ) * chunkSize )
 		);
 		const bytes = await chunk.arrayBuffer();
-		wholeHasher.update( new Uint8Array( bytes ) );
-		const digest = await crypto.subtle.digest( 'SHA-256', bytes );
-		const hex = bytesToHex( new Uint8Array( digest ) );
+		const chunkBytes = new Uint8Array( bytes );
+		wholeHasher.update( chunkBytes );
+		const hex = bytesToHex( sha256( chunkBytes ) );
 		let lastError: unknown;
 		for ( let attempt = 1; attempt <= 3; attempt += 1 ) {
 			try {
