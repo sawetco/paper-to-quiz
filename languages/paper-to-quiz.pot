@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-22T14:32:51+00:00\n"
+"POT-Creation-Date: 2026-11-22T14:36:16+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: paper-to-quiz\n"
@@ -93,7 +93,7 @@ msgstr ""
 #: src/Application/AssessmentPurgeService.php:31
 #: src/Application/AssessmentService.php:393
 #: src/Application/AssessmentService.php:1273
-#: src/Application/TermService.php:295
+#: src/Application/TermService.php:332
 #: src/Rest/AdminController.php:457
 msgid "Record not found."
 msgstr ""
@@ -862,49 +862,49 @@ msgstr[1] ""
 msgid "Select a valid class color."
 msgstr ""
 
-#: src/Application/TermService.php:190
-#: src/Application/TermService.php:195
+#: src/Application/TermService.php:227
+#: src/Application/TermService.php:232
 msgid "Invalid term."
 msgstr ""
 
-#: src/Application/TermService.php:213
-#: src/Application/TermService.php:233
+#: src/Application/TermService.php:250
+#: src/Application/TermService.php:270
 msgid "The term could not be saved."
 msgstr ""
 
-#: src/Application/TermService.php:223
+#: src/Application/TermService.php:260
 msgid "The term could not be restored."
 msgstr ""
 
-#: src/Application/TermService.php:242
+#: src/Application/TermService.php:279
 msgid "Term not found."
 msgstr ""
 
-#: src/Application/TermService.php:257
+#: src/Application/TermService.php:294
 msgid "class"
 msgstr ""
 
-#: src/Application/TermService.php:257
+#: src/Application/TermService.php:294
 msgid "subject"
 msgstr ""
 
 #. translators: %s: Class or subject label.
-#: src/Application/TermService.php:262
+#: src/Application/TermService.php:299
 #, php-format
 msgid "A %s with this name already exists."
 msgstr ""
 
-#: src/Application/TermService.php:300
+#: src/Application/TermService.php:337
 msgid "The record must be moved to the trash before it can be permanently deleted."
 msgstr ""
 
 #. translators: %d: Number of references to the class or subject.
-#: src/Application/TermService.php:322
+#: src/Application/TermService.php:359
 #, php-format
 msgid "This record cannot be permanently deleted because it is used in %d historical revisions or questions."
 msgstr ""
 
-#: src/Application/TermService.php:333
+#: src/Application/TermService.php:370
 msgid "The record could not be permanently deleted."
 msgstr ""
 

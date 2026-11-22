@@ -284,15 +284,17 @@ try {
 	$user = new WP_User($manager);
 	$user->add_cap('paper_to_quiz_manage_assessments');
 	$user->add_cap('paper_to_quiz_publish_assessments');
-	$class_response = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/classes', array('name' => $suffix . ' Class', 'color' => '#123456'), $manager);
+	$class_name = $suffix . ' 3. Sınıf % Başarı';
+	$subject_name = $suffix . ' Türkçe % Başarı';
+	$class_response = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/classes', array('name' => $class_name, 'color' => '#123456'), $manager);
 	paper_to_quiz_rest_assert(201 === paper_to_quiz_rest_status($class_response) || 200 === paper_to_quiz_rest_status($class_response), 'Class REST creation failed.');
 	$class_data = $class_response->get_data();
 	$class = (int) ($class_data['id'] ?? 0);
 	paper_to_quiz_rest_assert($class > 0 && '#123456' === ($class_data['color'] ?? ''), 'Class color was not persisted.');
-	$duplicate = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/classes', array('name' => $suffix . ' Class', 'color' => '#123456'), $manager);
+	$duplicate = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/classes', array('name' => $class_name, 'color' => '#123456'), $manager);
 	paper_to_quiz_rest_assert(409 === paper_to_quiz_rest_status($duplicate), 'Duplicate class did not return 409.');
 
-	$subject_response = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/subjects', array('name' => $suffix . ' Subject'), $manager);
+	$subject_response = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/subjects', array('name' => $subject_name), $manager);
 	paper_to_quiz_rest_assert(201 === paper_to_quiz_rest_status($subject_response) || 200 === paper_to_quiz_rest_status($subject_response), 'Subject REST creation failed.');
 	$subject = (int) (paper_to_quiz_rest_data($subject_response)['id'] ?? 0);
 	paper_to_quiz_rest_assert($subject > 0, 'Subject creation did not return its ID.');
@@ -307,6 +309,9 @@ try {
 		$search_response = paper_to_quiz_rest_request('GET', $route, array('search' => $suffix, 'status' => 'active'), $manager);
 		$search_data = paper_to_quiz_rest_data($search_response);
 		paper_to_quiz_rest_assert(1 === ($search_data['total'] ?? 0) && $term === (int) ($search_data['items'][0]['id'] ?? 0), 'Catalog search did not find the newly created record: ' . $catalog);
+		$name = $catalog === 'classes' ? $class_name : $subject_name;
+		$literal_search = paper_to_quiz_rest_request('GET', $route, array('search' => $name), $manager);
+		paper_to_quiz_rest_assert($name === (paper_to_quiz_rest_data($literal_search)['items'][0]['name'] ?? null), 'Catalog search lost Turkish characters or a literal percent sign: ' . $catalog);
 		$filtered = paper_to_quiz_rest_request('GET', $route, array('status' => 'archived', 'search' => $suffix, 'focus' => $term), $manager);
 		paper_to_quiz_rest_assert(array() === (paper_to_quiz_rest_data($filtered)['items'] ?? null), 'Catalog focus bypassed its status filter: ' . $catalog);
 	}
