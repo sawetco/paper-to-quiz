@@ -44,6 +44,8 @@ type FetchImplementation = (
 ) => Promise< Response >;
 
 let fetchMock: jest.MockedFunction< FetchImplementation >;
+let api: typeof import( './api' ).api;
+let fetchBinary: typeof import( './api' ).fetchBinary;
 let uploadPdf: typeof import( './api' ).uploadPdf;
 
 function response( body: unknown, ok = true, status = 200 ): Response {
@@ -115,7 +117,7 @@ beforeAll( async () => {
 			settings: {},
 		},
 	} );
-	( { uploadPdf } = await import( './api' ) );
+	( { api, fetchBinary, uploadPdf } = await import( './api' ) );
 } );
 
 beforeEach( () => {
@@ -143,6 +145,72 @@ beforeEach( () => {
 
 afterEach( () => {
 	jest.restoreAllMocks();
+} );
+
+describe( 'private catalog requests', () => {
+	it.each( [ 'classes', 'subjects' ] )(
+		'reads the latest %s even if the prior list URL is cached',
+		async ( catalog ) => {
+			const path = `/admin/${ catalog }`;
+			const query = 'status=active&page=1&per_page=20';
+			const priorUrl = `${ REST_ROOT }admin/${ catalog }?${ query }`;
+			const staleItems = [ { id: 1, name: 'Existing' } ];
+			const currentItems = [ ...staleItems ];
+			const added = { id: 2, name: 'Added' };
+			fetchMock.mockImplementation( async ( input, init ) => {
+				if ( init?.method === 'POST' ) {
+					currentItems.push( added );
+					return response( added );
+				}
+				return response( {
+					items:
+						input === priorUrl ? staleItems : [ ...currentItems ],
+				} );
+			} );
+
+			await expect( api( `${ path }?${ query }` ) ).resolves.toEqual( {
+				items: staleItems,
+			} );
+			await api( path, { method: 'POST', json: { name: added.name } } );
+			await expect( api( `${ path }?${ query }` ) ).resolves.toEqual( {
+				items: [ ...staleItems, added ],
+			} );
+
+			const freshUrl = `${ priorUrl }&_paper_to_quiz_private=1`;
+			expect( fetchMock.mock.calls.map( ( [ url ] ) => url ) ).toEqual( [
+				freshUrl,
+				`${ REST_ROOT }admin/${ catalog }`,
+				freshUrl,
+			] );
+			const readOptions = fetchMock.mock.calls[ 2 ][ 1 ];
+			expect( readOptions ).toEqual(
+				expect.objectContaining( {
+					cache: 'no-store',
+					credentials: 'same-origin',
+				} )
+			);
+			expect(
+				new Headers( readOptions?.headers ).get( 'X-WP-Nonce' )
+			).toBe( 'test-nonce' );
+		}
+	);
+
+	it( 'keeps protected binary URLs unchanged', async () => {
+		const url = `${ REST_ROOT }admin/assets/7`;
+		const contents = new ArrayBuffer( 1 );
+		fetchMock.mockResolvedValue( {
+			ok: true,
+			arrayBuffer: async () => contents,
+		} as Response );
+
+		await expect( fetchBinary( url ) ).resolves.toBe( contents );
+		expect( fetchMock ).toHaveBeenCalledWith(
+			url,
+			expect.objectContaining( {
+				headers: { 'X-WP-Nonce': 'test-nonce' },
+			} )
+		);
+	} );
 } );
 
 describe( 'uploadPdf incremental hashing', () => {

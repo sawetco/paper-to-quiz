@@ -1,5 +1,5 @@
 import { __, sprintf } from '@wordpress/i18n';
-import { restUrl } from '../rest-url';
+import { restJsonUrl } from '../rest-url';
 
 export class StudentApiError extends Error {
 	status: number;
@@ -29,7 +29,8 @@ export async function studentApi< T >(
 	if ( options.json !== undefined ) {
 		headers.set( 'Content-Type', 'application/json' );
 	}
-	const response = await fetch( restUrl( restRoot, path ), {
+	const url = restJsonUrl( restRoot, path, options.method );
+	const response = await fetch( url, {
 		credentials: 'same-origin',
 		cache: 'no-store',
 		...options,

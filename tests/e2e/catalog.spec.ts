@@ -39,6 +39,9 @@ for ( const { route, heading, term } of catalogs ) {
 		const initial = await firstList;
 		expect( initial.ok() ).toBe( true );
 		expect( initial.headers()[ 'cache-control' ] ).toContain( 'no-store' );
+		expect(
+			new URL( initial.url() ).searchParams.get( '_paper_to_quiz_private' )
+		).toBe( '1' );
 		expect( Array.isArray( ( await initial.json() ).items ) ).toBe( true );
 
 		// Use the real REST list with shorter pages to keep the fixture small.

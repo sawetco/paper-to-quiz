@@ -23,6 +23,25 @@ export function restUrl( root: string, path: string ): string {
 	return params.length ? `${ url }?${ params.join( '&' ) }` : url;
 }
 
+/**
+ * Use a new URL for JSON reads that a proxy may have cached before this policy.
+ * @param root
+ * @param path
+ * @param method
+ */
+export function restJsonUrl(
+	root: string,
+	path: string,
+	method = 'GET'
+): string {
+	const url = restUrl( root, path );
+	const verb = method.toUpperCase();
+	if ( verb !== 'GET' && verb !== 'HEAD' ) {
+		return url;
+	}
+	return `${ url }${ url.includes( '?' ) ? '&' : '?' }_paper_to_quiz_private=1`;
+}
+
 function splitQuery( url: string ): [ string, string ] {
 	const start = url.indexOf( '?' );
 	return start === -1
