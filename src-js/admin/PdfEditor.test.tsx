@@ -183,6 +183,13 @@ function pdf( numPages: number ) {
 	};
 }
 
+function loadingTask( promise: Promise< unknown > ) {
+	return {
+		promise,
+		destroy: jest.fn().mockResolvedValue( undefined ),
+	} as unknown as ReturnType< typeof getDocument >;
+}
+
 function putRecovery( items: unknown[] ): Promise< void > {
 	return new Promise( ( resolve, reject ) => {
 		const request = indexedDB.open( 'ptq-admin-recovery', 1 );
@@ -272,9 +279,20 @@ afterEach( () => {
 } );
 
 it( 'uses the configured page warning threshold and filters subjects', async () => {
-	mockedGetDocument.mockReturnValue( {
-		promise: Promise.resolve( pdf( 21 ) ),
-	} as unknown as ReturnType< typeof getDocument > );
+	mockedGetDocument.mockReturnValue(
+		loadingTask( Promise.resolve( pdf( 21 ) ) )
+	);
+	mockedApi
+		.mockResolvedValueOnce( {
+			page: 1,
+			pages: 2,
+			items: [ { id: '4', type: 'subject', name: 'Science' } ],
+		} )
+		.mockResolvedValueOnce( {
+			page: 2,
+			pages: 2,
+			items: [ { id: '3', type: 'subject', name: 'Mathematics' } ],
+		} );
 
 	render(
 		<PdfEditor
@@ -292,18 +310,18 @@ it( 'uses the configured page warning threshold and filters subjects', async () 
 	await waitFor( () =>
 		expect( screen.getByTestId( 'konva-stage' ) ).toBeVisible()
 	);
-	expect( screen.getByText( 'Mathematics' ) ).toBeVisible();
+	expect( await screen.findByText( 'Mathematics' ) ).toBeVisible();
 	expect( screen.queryByText( 'Science' ) ).not.toBeInTheDocument();
+	expect( mockedApi ).toHaveBeenCalledWith(
+		'/admin/subjects?status=active&page=2&per_page=100',
+		expect.objectContaining( { signal: expect.any( AbortSignal ) } )
+	);
 } );
 
 it( 'does not warn at the threshold and clears a prior document warning', async () => {
 	mockedGetDocument
-		.mockReturnValueOnce( {
-			promise: Promise.resolve( pdf( 21 ) ),
-		} as unknown as ReturnType< typeof getDocument > )
-		.mockReturnValueOnce( {
-			promise: Promise.resolve( pdf( 20 ) ),
-		} as unknown as ReturnType< typeof getDocument > );
+		.mockReturnValueOnce( loadingTask( Promise.resolve( pdf( 21 ) ) ) )
+		.mockReturnValueOnce( loadingTask( Promise.resolve( pdf( 20 ) ) ) );
 
 	const rendered = render(
 		<PdfEditor
@@ -330,9 +348,9 @@ it( 'does not warn at the threshold and clears a prior document warning', async 
 
 it( 'falls back to 200 for a missing warning setting', async () => {
 	window.paperToQuizAdmin.settings.page_warning = undefined;
-	mockedGetDocument.mockReturnValue( {
-		promise: Promise.resolve( pdf( 201 ) ),
-	} as unknown as ReturnType< typeof getDocument > );
+	mockedGetDocument.mockReturnValue(
+		loadingTask( Promise.resolve( pdf( 201 ) ) )
+	);
 
 	render(
 		<PdfEditor
@@ -353,12 +371,13 @@ it( 'does not report a stale page load after unmount', async () => {
 			resolvePage = resolve;
 		}
 	);
-	mockedGetDocument.mockReturnValue( {
-		promise: Promise.resolve( {
+	const task = loadingTask(
+		Promise.resolve( {
 			numPages: 1,
 			getPage: jest.fn( () => pendingPage ),
-		} ),
-	} as unknown as ReturnType< typeof getDocument > );
+		} )
+	);
+	mockedGetDocument.mockReturnValue( task );
 	const onError = jest.fn();
 	const rendered = render(
 		<PdfEditor
@@ -369,6 +388,8 @@ it( 'does not report a stale page load after unmount', async () => {
 	);
 	await waitFor( () => expect( mockedGetDocument ).toHaveBeenCalled() );
 	rendered.unmount();
+	expect( task.destroy ).toHaveBeenCalledTimes( 1 );
+	expect( mockedFetchBinary.mock.calls[ 0 ][ 1 ]?.aborted ).toBe( true );
 	resolvePage( page() );
 	await Promise.resolve();
 	await Promise.resolve();
@@ -417,9 +438,9 @@ it( 'restores dirty recovery and removes its beforeunload handler', async () => 
 			dirty: true,
 		},
 	] );
-	mockedGetDocument.mockReturnValue( {
-		promise: Promise.resolve( pdf( 1 ) ),
-	} as unknown as ReturnType< typeof getDocument > );
+	mockedGetDocument.mockReturnValue(
+		loadingTask( Promise.resolve( pdf( 1 ) ) )
+	);
 	const removeListener = jest.spyOn( window, 'removeEventListener' );
 	const rendered = render(
 		<PdfEditor
@@ -443,9 +464,31 @@ it( 'restores dirty recovery and removes its beforeunload handler', async () => 
 } );
 
 it( 'saves questions before the answer key and awaits refresh once', async () => {
-	mockedGetDocument.mockReturnValue( {
-		promise: Promise.resolve( pdf( 1 ) ),
-	} as unknown as ReturnType< typeof getDocument > );
+	const renderPage = jest.fn( page().render );
+	const rotatedPage = {
+		rotate: 90,
+		getViewport: ( { scale }: { scale: number } ) => ( {
+			width: 10_000 * scale,
+			height: 8_000 * scale,
+		} ),
+		render: renderPage,
+	};
+	mockedGetDocument.mockReturnValue(
+		loadingTask(
+			Promise.resolve( {
+				numPages: 1,
+				getPage: async () => rotatedPage,
+			} )
+		)
+	);
+	const assessment = record();
+	Object.assign( assessment.questions[ 0 ], {
+		crop_x: '0.25',
+		crop_y: '0.25',
+		crop_width: '0.02',
+		crop_height: '0.5',
+		source_rotation: '90',
+	} );
 	const calls: string[] = [];
 	mockedApi.mockImplementation( async ( path: string ) => {
 		if ( path.startsWith( '/admin/subjects' ) ) {
@@ -475,7 +518,7 @@ it( 'saves questions before the answer key and awaits refresh once', async () =>
 	} );
 	render(
 		<PdfEditor
-			record={ record() }
+			record={ assessment }
 			onSaved={ onSaved }
 			onError={ jest.fn() }
 		/>
@@ -497,12 +540,27 @@ it( 'saves questions before the answer key and awaits refresh once', async () =>
 		'/admin/revisions/11/answer-key',
 		'onSaved',
 	] );
+	expect( renderPage ).toHaveBeenCalledWith(
+		expect.objectContaining( {
+			canvas: expect.objectContaining( { width: 200, height: 4000 } ),
+			viewport: { width: 10_000, height: 8_000 },
+			transform: [ 1, 0, 0, 1, -2500, -2000 ],
+		} )
+	);
+	const encodedCanvases = jest.mocked( HTMLCanvasElement.prototype.toBlob )
+		.mock.contexts as HTMLCanvasElement[];
+	expect(
+		encodedCanvases.map( ( { width, height } ) => [ width, height ] )
+	).toEqual( [
+		[ 200, 4000 ],
+		[ 16, 320 ],
+	] );
 } );
 
 it( 'stops save sequencing after a question failure', async () => {
-	mockedGetDocument.mockReturnValue( {
-		promise: Promise.resolve( pdf( 1 ) ),
-	} as unknown as ReturnType< typeof getDocument > );
+	mockedGetDocument.mockReturnValue(
+		loadingTask( Promise.resolve( pdf( 1 ) ) )
+	);
 	const onError = jest.fn();
 	mockedApi.mockImplementation( async ( path: string ) => {
 		if ( path.startsWith( '/admin/subjects' ) ) {
@@ -550,9 +608,9 @@ it( 'stops save sequencing after a question failure', async () => {
 } );
 
 it( 'keeps delete single-flight while its request is pending', async () => {
-	mockedGetDocument.mockReturnValue( {
-		promise: Promise.resolve( pdf( 1 ) ),
-	} as unknown as ReturnType< typeof getDocument > );
+	mockedGetDocument.mockReturnValue(
+		loadingTask( Promise.resolve( pdf( 1 ) ) )
+	);
 	let resolveDelete: () => void = () => undefined;
 	const pendingDelete = new Promise< void >( ( resolve ) => {
 		resolveDelete = resolve;

@@ -6,6 +6,7 @@ namespace PaperToQuiz\Application;
 
 use PaperToQuiz\Infrastructure\Crypto;
 use PaperToQuiz\Infrastructure\Database;
+use PaperToQuiz\Infrastructure\DatabaseException;
 use PaperToQuiz\Infrastructure\OperationalErrorReporter;
 use PaperToQuiz\Infrastructure\Settings;
 
@@ -616,7 +617,7 @@ final class AttemptService {
 			if ($deferred) {
 				return $this->accept_submission($attempt, $automatic, $submission_id, $answers, $received_at);
 			}
-			$attempt = $this->finalize($attempt, $automatic, $submission_id, $answers);
+			$attempt = $this->finalize($attempt, $automatic, $submission_id, $answers, $received_at);
 		} catch (\Throwable $error) {
 			return $this->finalize_error($error);
 		}
@@ -716,7 +717,7 @@ final class AttemptService {
 					if (! $received || ! is_array($payload['answers'] ?? null) || ! is_bool($payload['automatic'] ?? null)) {
 						throw new \RuntimeException('Stored submission is invalid.');
 					}
-					$this->finalize($attempt, $payload['automatic'], (string) $attempt['submission_id'], $payload['answers'], $received);
+					$this->finalize($attempt, $payload['automatic'], (string) $attempt['submission_id'], $payload['answers'], $received, true);
 				} catch (\Throwable $error) {
 					$this->finalize_error($error);
 					$failures = (int) $attempt['submission_failures'] + 1;
@@ -1424,13 +1425,8 @@ final class AttemptService {
 		return $payload;
 	}
 
-	private function finalize(array $attempt, bool $automatic, ?string $submission_id = null, ?array $snapshot = null, ?int $received_at = null): array {
-		$questions = $this->questions_for((int) $attempt['revision_id'], true);
-		$question_map = array();
-		foreach ($questions as $question) {
-			$question_map[(int) $question['id']] = $question;
-		}
-
+	private function finalize(array $attempt, bool $automatic, ?string $submission_id = null, ?array $snapshot = null, ?int $received_at = null, bool $from_queue = false): array {
+		$received_at ??= time();
 		$wpdb = $this->db->wpdb();
 		$previous_suppression = $wpdb->suppress_errors(true);
 		try {
@@ -1440,14 +1436,24 @@ final class AttemptService {
 				throw new \RuntimeException('Attempt disappeared before finalization.');
 			}
 			$pending = $this->submission_pending($attempt);
-			if ($attempt['status'] !== 'in_progress' || ($pending && $received_at === null)) {
+			if ($attempt['status'] !== 'in_progress' || ($pending && ! $from_queue)) {
 				$this->db->rollback();
 				return $attempt;
 			}
-			if ($received_at !== null && (! $pending || $attempt['submission_id'] !== $submission_id)) {
+			if ($from_queue && (! $pending || $attempt['submission_id'] !== $submission_id)) {
 				throw new \RuntimeException('The durable submission no longer matches the worker request.');
 			}
-			$batch_answers = $received_at !== null;
+			$revision_id = (int) $attempt['revision_id'];
+			$questions = $this->questions_for($revision_id, true);
+			if (! $questions) {
+				throw new DatabaseException(DatabaseException::is_busy($wpdb->last_error));
+			}
+			$revision = $this->revision($revision_id);
+			if (! $revision) {
+				throw new DatabaseException(DatabaseException::is_busy($wpdb->last_error));
+			}
+			$question_map = array_column($questions, null, 'id');
+			$submitted = gmdate('Y-m-d H:i:s', $received_at);
 			$answers_by_question = array();
 			if (is_array($snapshot)) {
 				$latest = array();
@@ -1456,7 +1462,7 @@ final class AttemptService {
 						$latest[(int) $item['question_id']] = $item;
 					}
 				}
-				$revision_options = $this->revision((int) $attempt['revision_id'])['options'] ?? array();
+				$revision_options = $revision['options'];
 				foreach ($latest as $question_id => $item) {
 					if (! isset($question_map[$question_id])) {
 						throw new \InvalidArgumentException('Question does not belong to this revision.');
@@ -1476,7 +1482,7 @@ final class AttemptService {
 					if ($option === null && ! $flagged) {
 						continue;
 					}
-					if ($batch_answers) {
+					if ($from_queue) {
 						$answers_by_question[$question_id] = (object) array(
 							'selected_option' => $option,
 							'is_flagged' => $flagged,
@@ -1494,7 +1500,7 @@ final class AttemptService {
 								'question_id'     => $question_id,
 								'selected_option' => $option,
 								'is_flagged'      => $flagged ? 1 : 0,
-								'answered_at'     => $option ? current_time('mysql', true) : null,
+								'answered_at'     => $option ? $submitted : null,
 							)
 						)
 					);
@@ -1504,14 +1510,17 @@ final class AttemptService {
 				}
 			}
 
-			if (! $batch_answers) {
+			if (! $from_queue) {
 				$answer_rows = $this->db->wpdb()->get_results(
 					$this->db->wpdb()->prepare(
 						'SELECT * FROM ' . $this->db->table('answers') . ' WHERE attempt_id = %d',
 						(int) $attempt['id']
 					),
 					OBJECT_K
-				) ?: array();
+				);
+				if ($wpdb->last_error !== '') {
+					throw new DatabaseException(DatabaseException::is_busy($wpdb->last_error));
+				}
 				foreach ($answer_rows as $answer) {
 					$answers_by_question[(int) $answer->question_id] = $answer;
 				}
@@ -1545,7 +1554,7 @@ final class AttemptService {
 				}
 				$score += $points;
 				$subjects[$subject_id]['score'] += $points;
-				if ($batch_answers) {
+				if ($from_queue) {
 					$answer->is_correct = $is_correct ? 1 : 0;
 					$answer->awarded_points = $points;
 					continue;
@@ -1562,18 +1571,15 @@ final class AttemptService {
 					throw new \RuntimeException('Answer grading update failed.');
 				}
 			}
-			if ($batch_answers) {
-				$this->write_graded_answers((int) $attempt['id'], $answers_by_question, gmdate('Y-m-d H:i:s', $received_at));
+			if ($from_queue) {
+				$this->write_graded_answers((int) $attempt['id'], $answers_by_question, $submitted);
 			}
 
-			$now       = $received_at ?? time();
 			$started   = strtotime((string) $attempt['started_at'] . ' UTC');
-			$duration  = max(0, $now - $started);
-			$revision  = $this->revision((int) $attempt['revision_id']);
+			$duration  = max(0, $received_at - $started);
 			$total     = max(1, (int) $revision['total_points']);
-			$late      = $this->is_past_grace($attempt, $now);
+			$late      = $this->is_past_grace($attempt, $received_at);
 			$eligible  = ! $late && RankingService::enabled($revision, 'exam') && empty($attempt['anonymized_at']);
-			$submitted = gmdate('Y-m-d H:i:s', $now);
 			$affected = $this->db->write(
 				'finalize_attempt_close',
 				fn (): int|false => $this->db->wpdb()->update(
@@ -1752,7 +1758,7 @@ final class AttemptService {
 			'ranking_eligible' => ! empty($attempt['ranking_eligible']),
 			'ranking_list_available' => $policy_record && (int) $revision['id'] === (int) $attempt['revision_id'] && $this->ranking_list_available($policy_record),
 			'score_precision'  => $fractional ? 2 : 0,
-			'answer_key_visible' => $revision['feedback_timing'] !== 'never',
+			'answer_key_visible' => $visible === 'detailed' && $revision['feedback_timing'] !== 'never',
 		);
 		if ($visible === 'hidden') {
 			return $result;
@@ -1768,12 +1774,12 @@ final class AttemptService {
 		}
 		if ($visible === 'detailed') {
 			$key_columns = $result['answer_key_visible']
-				? 'q.correct_option,an.is_correct'
-				: 'NULL correct_option,NULL is_correct';
+				? 'q.correct_option,an.is_correct,an.awarded_points'
+				: 'NULL correct_option,NULL is_correct,NULL awarded_points';
 			$result['answers'] = $this->db->wpdb()->get_results(
 				$this->db->wpdb()->prepare(
 					'SELECT q.id question_id,q.ordinal,' . $key_columns . ',q.points,q.subject_id,
-						COALESCE(s.name,%s) subject_name,an.selected_option,an.awarded_points
+						COALESCE(s.name,%s) subject_name,an.selected_option
 					FROM ' . $this->db->table('questions') . ' q
 					LEFT JOIN ' . $this->db->table('answers') . ' an ON an.question_id = q.id AND an.attempt_id = %d
 					LEFT JOIN ' . $this->db->table('terms') . " s ON s.id = q.subject_id AND s.type = 'subject'

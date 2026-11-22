@@ -111,6 +111,22 @@ final class PublishValidationTest extends TestCase {
 		$this->assertSame(array(), $errors);
 	}
 
+	public function test_existing_archived_class_can_publish_but_trashed_or_missing_class_cannot(): void {
+		$subject = $this->seed_term('subject', 'publish-class', 'active');
+		$record = $this->record(array($subject), array($subject));
+		$service = $this->service();
+		$record['revision']['class_status'] = 'archived';
+		$this->assertSame(array(), $this->validate($service, $record));
+
+		foreach (array('trash', null) as $status) {
+			$record['revision']['class_status'] = $status;
+			$this->assertSame(
+				array(__('The selected class is no longer available. Select an active class.', 'paper-to-quiz')),
+				$this->validate($service, $record)
+			);
+		}
+	}
+
 	private function service(): AssessmentService {
 		return new AssessmentService($this->db, new AssetService($this->db, new EncryptedStorage()));
 	}
@@ -134,6 +150,7 @@ final class PublishValidationTest extends TestCase {
 			'revision'   => array(
 				'title'                   => $this->title_prefix,
 				'class_id'                => 1,
+				'class_status'            => 'active',
 				'subject_ids'             => $selected_subject_ids,
 				'source_asset_id'         => 1,
 				'ranking_enabled'         => 0,

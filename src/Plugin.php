@@ -37,6 +37,14 @@ final class Plugin {
 	}
 
 	public function boot(): void {
+		// JSON can contain mutable records, personal data, or access decisions.
+		add_filter('rest_post_dispatch', static function (\WP_HTTP_Response $response, \WP_REST_Server $server, \WP_REST_Request $request): \WP_HTTP_Response {
+			if (str_starts_with(strtolower($request->get_route()), '/paper-to-quiz/v1/') && ! ($response instanceof BinaryResponse)) {
+				$response->header('Cache-Control', 'private, no-store, max-age=0');
+			}
+			return $response;
+		}, 10, 3);
+
 		if (! Installer::maybe_upgrade()) {
 			add_action('admin_notices', static function (): void {
 				if (current_user_can('activate_plugins')) {

@@ -102,6 +102,7 @@ export function ResultsPage() {
 	}, [] );
 
 	useEffect( () => {
+		const controller = new AbortController();
 		setLoading( true );
 		setError( '' );
 		const query = new URLSearchParams( {
@@ -122,10 +123,25 @@ export function ResultsPage() {
 		if ( search ) {
 			query.set( 'search', search );
 		}
-		api< AdminResultsResponse >( `/admin/results?${ query }` )
-			.then( setResponse )
-			.catch( ( caught ) => setError( caught.message ) )
-			.finally( () => setLoading( false ) );
+		api< AdminResultsResponse >( `/admin/results?${ query }`, {
+			signal: controller.signal,
+		} )
+			.then( ( next ) => {
+				if ( ! controller.signal.aborted ) {
+					setResponse( next );
+				}
+			} )
+			.catch( ( caught ) => {
+				if ( ! controller.signal.aborted ) {
+					setError( caught.message );
+				}
+			} )
+			.finally( () => {
+				if ( ! controller.signal.aborted ) {
+					setLoading( false );
+				}
+			} );
+		return () => controller.abort();
 	}, [
 		assessmentId,
 		page,
@@ -258,16 +274,11 @@ export function ResultsPage() {
 						id="ptq-result-search"
 						type="search"
 						value={ searchInput }
-						disabled={ loading }
 						onChange={ ( event ) =>
 							setSearchInput( event.target.value )
 						}
 					/>
-					<button
-						type="submit"
-						className="button"
-						disabled={ loading }
-					>
+					<button type="submit" className="button">
 						{ __( 'Search results', 'paper-to-quiz' ) }
 					</button>
 				</form>

@@ -6,6 +6,7 @@ namespace PaperToQuiz\Infrastructure;
 
 final class Installer {
 	private const SCHEMA_FAILURE_TTL = 5 * MINUTE_IN_SECONDS;
+	private const SCHEMA_CHECK_REVISION = '2';
 
 	public static function activate(): void {
 		add_filter('cron_schedules', array(self::class, 'cron_schedules'));
@@ -54,12 +55,16 @@ final class Installer {
 	}
 
 	public static function deactivate(): void {
-		wp_clear_scheduled_hook('paper_to_quiz_daily_cleanup');
-		wp_clear_scheduled_hook(Cleanup::CONTINUATION_HOOK);
-		wp_clear_scheduled_hook('paper_to_quiz_process_result_emails');
-		wp_clear_scheduled_hook('paper_to_quiz_process_encryption_migration');
-		wp_clear_scheduled_hook('paper_to_quiz_process_submissions');
-		wp_clear_scheduled_hook('paper_to_quiz_continue_submissions');
+		foreach (array(
+			'paper_to_quiz_daily_cleanup',
+			Cleanup::CONTINUATION_HOOK,
+			'paper_to_quiz_process_result_emails',
+			'paper_to_quiz_process_encryption_migration',
+			'paper_to_quiz_process_submissions',
+			'paper_to_quiz_continue_submissions',
+		) as $hook) {
+			wp_unschedule_hook($hook);
+		}
 	}
 
 	public static function maybe_upgrade(): bool {
@@ -83,13 +88,13 @@ final class Installer {
 
 		if (
 			$installed_version === PAPER_TO_QUIZ_DB_VERSION &&
-			get_transient($verified) === '1'
+			get_transient($verified) === self::SCHEMA_CHECK_REVISION
 		) {
 			self::initialize_encryption_migration(! $existing_install);
 			return true;
 		}
 
-		if (get_transient($failed) === '1') {
+		if (get_transient($failed) === self::SCHEMA_CHECK_REVISION) {
 			return false;
 		}
 
@@ -100,10 +105,10 @@ final class Installer {
 				if (($installed_version === PAPER_TO_QUIZ_DB_VERSION && self::schema_is_complete()) || self::install_schema()) {
 					self::initialize_encryption_migration(! $existing_install);
 					delete_transient($failed);
-					set_transient($verified, '1', 12 * HOUR_IN_SECONDS);
+					set_transient($verified, self::SCHEMA_CHECK_REVISION, 12 * HOUR_IN_SECONDS);
 					return true;
 				}
-				set_transient($failed, '1', self::SCHEMA_FAILURE_TTL);
+				set_transient($failed, self::SCHEMA_CHECK_REVISION, self::SCHEMA_FAILURE_TTL);
 				return false;
 			});
 		} catch (\Throwable $error) {
@@ -113,8 +118,16 @@ final class Installer {
 	}
 
 	public static function repair_schema(): bool {
-		delete_transient('paper_to_quiz_schema_failed_' . PAPER_TO_QUIZ_DB_VERSION);
-		return self::with_schema_lock(static fn (): bool => self::install_schema());
+		return self::with_schema_lock(static function (): bool {
+			$verified = 'paper_to_quiz_schema_verified_' . PAPER_TO_QUIZ_DB_VERSION;
+			delete_transient('paper_to_quiz_schema_failed_' . PAPER_TO_QUIZ_DB_VERSION);
+			delete_transient($verified);
+			if (! self::install_schema()) {
+				return false;
+			}
+			set_transient($verified, self::SCHEMA_CHECK_REVISION, 12 * HOUR_IN_SECONDS);
+			return true;
+		});
 	}
 
 	private static function with_schema_lock(callable $operation): bool {
@@ -168,9 +181,9 @@ final class Installer {
 		$required_columns = array(
 			'assets'            => array('id', 'type', 'storage_key', 'mime', 'byte_size', 'sha256', 'width', 'height', 'ref_count', 'created_at'),
 			'questions'         => array('id', 'revision_id', 'client_key', 'ordinal', 'subject_id'),
-			'revisions'         => array('id', 'assessment_id', 'subject_ids_json', 'source_asset_id', 'ranking_list_enabled'),
+			'revisions'         => array('id', 'assessment_id', 'class_id', 'subject_ids_json', 'source_asset_id', 'ranking_list_enabled'),
 			'ranking_entries'   => array('id', 'revision_id', 'wp_user_id', 'attempt_id', 'public_label', 'public_search'),
-			'terms'             => array('id', 'type', 'name', 'slug', 'color', 'status'),
+			'terms'             => array('id', 'type', 'name', 'slug', 'color', 'sort_order', 'status', 'created_at', 'updated_at'),
 			'upload_sessions'   => array('id', 'owner_user_id', 'expected_size', 'received_size', 'chunk_count', 'manifest_json', 'status'),
 			'attempts'          => array('id', 'submission_id', 'integrity_status', 'ranking_eligible', 'pending_submission', 'submission_retry_at', 'submission_failures'),
 			'result_email_jobs' => array('id', 'attempt_id', 'status', 'next_run_at', 'claimed_at', 'sent_at'),
@@ -514,7 +527,7 @@ final class Installer {
 		}
 
 		update_option('paper_to_quiz_db_version', PAPER_TO_QUIZ_DB_VERSION, false);
-		return true;
+		return get_option('paper_to_quiz_db_version') === PAPER_TO_QUIZ_DB_VERSION;
 	}
 
 }

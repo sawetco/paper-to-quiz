@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from '@wordpress/element';
+import { useEffect, useRef, useState } from '@wordpress/element';
 import { Notice, Spinner } from '@wordpress/components';
 import { __, _n, _x, sprintf } from '@wordpress/i18n';
 import type { ListResponse, Term } from '../types';
@@ -15,6 +15,12 @@ const emptyResponse: ListResponse< Term > = {
 	counts: {},
 };
 type TermAction = 'archive' | 'trash' | 'restore' | 'delete_permanently';
+type TermView = {
+	status: 'active' | 'archived' | 'trash';
+	page: number;
+	search: string;
+	focus?: string;
+};
 type ConfirmState = null | {
 	action: TermAction;
 	ids: number[];
@@ -40,19 +46,22 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 	const [ color, setColor ] = useState( '' );
 	const [ editingId, setEditingId ] = useState< number | null >( null );
 	const [ selected, setSelected ] = useState< number[] >( [] );
-	const [ status, setStatus ] = useState< 'active' | 'archived' | 'trash' >(
-		'active'
-	);
 	const [ searchInput, setSearchInput ] = useState( '' );
-	const [ search, setSearch ] = useState( '' );
-	const [ page, setPage ] = useState( 1 );
+	const [ view, setView ] = useState< TermView >( {
+		status: 'active',
+		page: 1,
+		search: '',
+	} );
+	const { status } = view;
 	const [ loading, setLoading ] = useState( true );
+	const [ listError, setListError ] = useState( '' );
 	const [ saving, setSaving ] = useState( false );
 	const [ pendingAction, setPendingAction ] = useState( '' );
 	const [ error, setError ] = useState( '' );
 	const [ message, setMessage ] = useState( '' );
 	const [ confirmation, setConfirmation ] = useState< ConfirmState >( null );
 	const actionLock = useRef( false );
+	const navigationDisabled = loading || saving || Boolean( pendingAction );
 	const label =
 		type === 'classes'
 			? _x( 'Class', 'Term label', 'paper-to-quiz' )
@@ -71,36 +80,69 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 		label
 	);
 
-	const load = useCallback( async () => {
-		setLoading( true );
-		setError( '' );
-		try {
-			const query = new URLSearchParams( {
-				status,
-				page: String( page ),
-				per_page: '20',
-			} );
-			if ( search ) {
-				query.set( 'search', search );
-			}
-			setList(
-				await api< ListResponse< Term > >(
-					`/admin/${ type }?${ query }`
-				)
-			);
-			setSelected( [] );
-		} catch ( caught ) {
-			setError(
-				caught instanceof Error
-					? caught.message
-					: __( 'The list could not be loaded.', 'paper-to-quiz' )
-			);
-		} finally {
-			setLoading( false );
+	useEffect( () => {
+		const controller = new AbortController();
+		const { signal } = controller;
+		const query = new URLSearchParams( {
+			status: view.status,
+			page: String( view.page ),
+			per_page: '20',
+		} );
+		if ( view.search ) {
+			query.set( 'search', view.search );
 		}
-	}, [ page, search, status, type ] );
+		if ( view.focus ) {
+			query.set( 'focus', view.focus );
+		}
+		setLoading( true );
+		setListError( '' );
+		setSelected( [] );
+		api< ListResponse< Term > >( `/admin/${ type }?${ query }`, {
+			signal,
+		} )
+			.then( ( response ) => {
+				if ( ! signal.aborted ) {
+					setList( response );
+				}
+			} )
+			.catch( ( caught ) => {
+				if ( ! signal.aborted ) {
+					setList( emptyResponse );
+					setListError(
+						caught instanceof Error
+							? caught.message
+							: __(
+									'The list could not be loaded.',
+									'paper-to-quiz'
+								)
+					);
+				}
+			} )
+			.finally( () => {
+				if ( ! signal.aborted ) {
+					setLoading( false );
+				}
+			} );
+		return () => controller.abort();
+	}, [ type, view ] );
 
-	useEffect( () => void load(), [ load ] );
+	function selectStatus( nextStatus: TermView[ 'status' ] ) {
+		setLoading( true );
+		setView( ( current ) => ( {
+			status: nextStatus,
+			page: 1,
+			search: current.search,
+		} ) );
+	}
+
+	function selectPage( page: number ) {
+		setLoading( true );
+		setView( ( current ) => ( {
+			status: current.status,
+			page,
+			search: current.search,
+		} ) );
+	}
 
 	async function save( event: React.FormEvent ) {
 		event.preventDefault();
@@ -120,8 +162,9 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 		actionLock.current = true;
 		setSaving( true );
 		setError( '' );
+		setMessage( '' );
 		try {
-			await api( `/admin/${ type }`, {
+			const saved = await api< Term >( `/admin/${ type }`, {
 				method: 'POST',
 				json: {
 					name: name.trim(),
@@ -142,7 +185,14 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 			setName( '' );
 			setColor( '' );
 			setEditingId( null );
-			await load();
+			setSearchInput( '' );
+			setLoading( true );
+			setView( {
+				status: 'active',
+				page: 1,
+				search: '',
+				focus: saved.id,
+			} );
 		} catch ( caught ) {
 			setError(
 				caught instanceof Error
@@ -155,20 +205,13 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 		}
 	}
 
-	async function runConfirmedAction( next: Exclude< ConfirmState, null > ) {
-		const success = await mutate( next.action, next.ids, false );
-		if ( success ) {
-			setConfirmation( null );
-		}
-	}
-
 	async function mutate(
 		action: TermAction,
 		ids: number[],
 		askConfirmation = true
-	): Promise< boolean > {
+	): Promise< void > {
 		if ( actionLock.current ) {
-			return false;
+			return;
 		}
 		if ( ! ids.length ) {
 			setError(
@@ -177,7 +220,7 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 					'paper-to-quiz'
 				)
 			);
-			return false;
+			return;
 		}
 		if ( askConfirmation && action === 'archive' ) {
 			setConfirmation( {
@@ -199,7 +242,7 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 				),
 				confirmLabel: __( 'Archive', 'paper-to-quiz' ),
 			} );
-			return false;
+			return;
 		}
 		if ( askConfirmation && action === 'trash' ) {
 			setConfirmation( {
@@ -224,9 +267,9 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 				),
 				confirmLabel: __( 'Move to trash', 'paper-to-quiz' ),
 			} );
-			return false;
+			return;
 		}
-		if ( action === 'delete_permanently' ) {
+		if ( askConfirmation && action === 'delete_permanently' ) {
 			const selectedTerms = list.items.filter( ( item ) =>
 				ids.includes( Number( item.id ) )
 			);
@@ -253,25 +296,24 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 					value: selectedTerms.length,
 				},
 			];
-			if ( askConfirmation ) {
-				setConfirmation( {
-					action,
-					ids,
-					title: __( 'Delete permanently?', 'paper-to-quiz' ),
-					description: deletionMessage,
-					consequences,
-					consequence: confirmationMessage,
-					confirmLabel: __( 'Delete permanently', 'paper-to-quiz' ),
-					confirmPhrase: required,
-				} );
-				return false;
-			}
+			setConfirmation( {
+				action,
+				ids,
+				title: __( 'Delete permanently?', 'paper-to-quiz' ),
+				description: deletionMessage,
+				consequences,
+				consequence: confirmationMessage,
+				confirmLabel: __( 'Delete permanently', 'paper-to-quiz' ),
+				confirmPhrase: required,
+			} );
+			return;
 		}
 		actionLock.current = true;
 		setPendingAction(
 			ids.length === 1 ? `${ action }-${ ids[ 0 ] }` : 'bulk'
 		);
 		setError( '' );
+		setMessage( '' );
 		try {
 			const response = await api< {
 				changed: number;
@@ -281,7 +323,11 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 				json: { action, ids },
 			} );
 			if ( response.errors?.length ) {
-				setError( response.errors.join( '\n' ) );
+				const details = response.errors.join( '\n' );
+				if ( response.changed === 0 ) {
+					throw new Error( details );
+				}
+				setError( details );
 			}
 			let successMessage: string = sprintf(
 				/* translators: %d: Number of permanently deleted records. */
@@ -309,10 +355,19 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 					'paper-to-quiz'
 				);
 			}
-			setMessage( successMessage );
-			await load();
-			return true;
+			if ( response.changed > 0 ) {
+				setMessage( successMessage );
+			}
+			setLoading( true );
+			setView( ( current ) => ( {
+				status: current.status,
+				page: list.page,
+				search: current.search,
+			} ) );
 		} catch ( caught ) {
+			if ( ! askConfirmation ) {
+				throw caught;
+			}
 			setError(
 				caught instanceof Error
 					? caught.message
@@ -321,7 +376,6 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 							'paper-to-quiz'
 						)
 			);
-			throw caught;
 		} finally {
 			actionLock.current = false;
 			setPendingAction( '' );
@@ -335,7 +389,7 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 		<div className="alignleft actions bulkactions">
 			<select
 				aria-label={ __( 'Bulk action', 'paper-to-quiz' ) }
-				disabled={ Boolean( pendingAction ) || saving }
+				disabled={ navigationDisabled || Boolean( listError ) }
 			>
 				<option value="">
 					{ __( 'Bulk actions', 'paper-to-quiz' ) }
@@ -374,7 +428,7 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 			<button
 				type="button"
 				className="button action"
-				disabled={ Boolean( pendingAction ) || saving }
+				disabled={ navigationDisabled || Boolean( listError ) }
 				onClick={ ( event ) => {
 					const select = event.currentTarget
 						.previousElementSibling as HTMLSelectElement;
@@ -562,14 +616,13 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 								<li>
 									<button
 										type="button"
-										disabled={ loading }
+										disabled={ navigationDisabled }
 										className={
 											status === 'active' ? 'current' : ''
 										}
-										onClick={ () => {
-											setStatus( 'active' );
-											setPage( 1 );
-										} }
+										onClick={ () =>
+											selectStatus( 'active' )
+										}
 									>
 										{ sprintf(
 											/* translators: %d: Number of active terms. */
@@ -582,16 +635,15 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 								<li>
 									<button
 										type="button"
-										disabled={ loading }
+										disabled={ navigationDisabled }
 										className={
 											status === 'archived'
 												? 'current'
 												: ''
 										}
-										onClick={ () => {
-											setStatus( 'archived' );
-											setPage( 1 );
-										} }
+										onClick={ () =>
+											selectStatus( 'archived' )
+										}
 									>
 										{ sprintf(
 											/* translators: %d: Number of archived terms. */
@@ -607,14 +659,13 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 								<li>
 									<button
 										type="button"
-										disabled={ loading }
+										disabled={ navigationDisabled }
 										className={
 											status === 'trash' ? 'current' : ''
 										}
-										onClick={ () => {
-											setStatus( 'trash' );
-											setPage( 1 );
-										} }
+										onClick={ () =>
+											selectStatus( 'trash' )
+										}
 									>
 										{ sprintf(
 											/* translators: %d: Number of trashed terms. */
@@ -628,8 +679,12 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 								className="search-box"
 								onSubmit={ ( event ) => {
 									event.preventDefault();
-									setSearch( searchInput.trim() );
-									setPage( 1 );
+									setLoading( true );
+									setView( {
+										status,
+										page: 1,
+										search: searchInput.trim(),
+									} );
 								} }
 							>
 								<label
@@ -642,7 +697,7 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 									id="ptq-term-search"
 									type="search"
 									value={ searchInput }
-									disabled={ loading }
+									disabled={ navigationDisabled }
 									onChange={ ( event ) =>
 										setSearchInput( event.target.value )
 									}
@@ -650,7 +705,7 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 								<button
 									type="submit"
 									className="button"
-									disabled={ loading }
+									disabled={ navigationDisabled }
 								>
 									{ sprintf(
 										/* translators: %s: Plural term type. */
@@ -666,16 +721,22 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 								page={ list.page }
 								pages={ list.pages }
 								total={ list.total }
-								onChange={ setPage }
-								disabled={ loading || Boolean( pendingAction ) }
+								onChange={ selectPage }
+								disabled={ navigationDisabled }
 							/>
 							<br className="clear" />
 						</div>
-						{ loading ? (
+						{ listError && (
+							<Notice status="error" isDismissible={ false }>
+								{ listError }
+							</Notice>
+						) }
+						{ loading && (
 							<div className="ptq-loading">
 								<Spinner />
 							</div>
-						) : (
+						) }
+						{ ! loading && ! listError && (
 							<table className="wp-list-table widefat fixed striped table-view-list">
 								<thead>
 									<tr>
@@ -1036,8 +1097,8 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 								page={ list.page }
 								pages={ list.pages }
 								total={ list.total }
-								onChange={ setPage }
-								disabled={ loading || Boolean( pendingAction ) }
+								onChange={ selectPage }
+								disabled={ navigationDisabled }
 							/>
 							<br className="clear" />
 						</div>
@@ -1054,7 +1115,11 @@ function TermsPage( { type }: { type: 'classes' | 'subjects' } ) {
 								}
 								onClose={ () => setConfirmation( null ) }
 								onConfirm={ () =>
-									runConfirmedAction( confirmation )
+									mutate(
+										confirmation.action,
+										confirmation.ids,
+										false
+									)
 								}
 							/>
 						) }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PaperToQuiz\Application;
 
 use PaperToQuiz\Infrastructure\Database;
+use PaperToQuiz\Infrastructure\DatabaseException;
 
 final class TermService {
 	public function __construct(
@@ -16,43 +17,10 @@ final class TermService {
 		string $status = 'active',
 		string $search = '',
 		int $page = 1,
-		int $per_page = 20
-	): array {
-		$status = in_array($status, array('active', 'archived', 'trash'), true) ? $status : 'active';
-		$where = 't.type = %s AND t.status = %s';
-		$args = array('class', $status);
-		if ($search !== '') {
-			$where .= ' AND t.name LIKE %s';
-			$args[] = '%' . $this->db->wpdb()->esc_like($search) . '%';
-		}
-		$offset = max(0, ($page - 1) * $per_page);
-		$usage_sql = '(SELECT COUNT(DISTINCT r.assessment_id) FROM ' . $this->db->table('revisions') . ' r WHERE r.class_id = t.id)';
-		$sql = 'SELECT t.*, ' . $usage_sql . ' usage_count FROM ' . $this->db->table('terms') .
-			' t WHERE ' . $where . ' ORDER BY t.sort_order,t.name LIMIT %d OFFSET %d';
-		$list_args = array_merge($args, array($per_page, $offset));
-		$items = $this->db->wpdb()->get_results($this->db->wpdb()->prepare($sql, ...$list_args), ARRAY_A) ?: array();
-		$count_sql = 'SELECT COUNT(*) FROM ' . $this->db->table('terms') . ' t WHERE ' . $where;
-		$total = (int) $this->db->wpdb()->get_var($this->db->wpdb()->prepare($count_sql, ...$args));
-		$count_rows = $this->db->wpdb()->get_results(
-			$this->db->wpdb()->prepare(
-				'SELECT status, COUNT(*) count FROM ' . $this->db->table('terms') . ' WHERE type = %s GROUP BY status',
-				'class'
-			),
-			ARRAY_A
-		) ?: array();
-		$counts = array('active' => 0, 'archived' => 0, 'trash' => 0);
-		foreach ($count_rows as $count_row) {
-			if (isset($counts[$count_row['status']])) {
-				$counts[$count_row['status']] = (int) $count_row['count'];
-			}
-		}
-		return array(
-			'items'  => $items,
-			'total'  => $total,
-			'pages'  => (int) ceil($total / max(1, $per_page)),
-			'page'   => $page,
-			'counts' => $counts,
-		);
+		int $per_page = 20,
+		int $focus = 0
+	): array|\WP_Error {
+		return $this->terms('class', $status, $search, $page, $per_page, $focus);
 	}
 
 	public function save_class(string $name, ?int $id = null, ?string $color = null): array|\WP_Error {
@@ -90,8 +58,8 @@ final class TermService {
 		return $this->purge_term('class', $id);
 	}
 
-	public function subjects(string $status = 'active', string $search = '', int $page = 1, int $per_page = 100): array {
-		return $this->terms('subject', $status, $search, $page, $per_page);
+	public function subjects(string $status = 'active', string $search = '', int $page = 1, int $per_page = 100, int $focus = 0): array|\WP_Error {
+		return $this->terms('subject', $status, $search, $page, $per_page, $focus);
 	}
 
 	public function save_subject(string $name, ?int $id = null): array|\WP_Error {
@@ -114,42 +82,144 @@ final class TermService {
 		return $this->purge_term('subject', $id);
 	}
 
-	private function terms(string $type, string $status, string $search, int $page, int $per_page): array {
-		$status = in_array($status, array('active', 'archived', 'trash'), true) ? $status : 'active';
-		$where  = 't.type = %s AND t.status = %s';
-		$args   = array($type, $status);
-		if ($search !== '') {
-			$where .= ' AND t.name LIKE %s';
-			$args[] = '%' . $this->db->wpdb()->esc_like($search) . '%';
+	private function terms(string $type, string $status, string $search, int $page, int $per_page, int $focus): array|\WP_Error {
+		$wpdb = $this->db->wpdb();
+		$previous_suppression = $wpdb->suppress_errors(true);
+		try {
+			return $this->query_terms($type, $status, $search, $page, $per_page, $focus);
+		} finally {
+			$wpdb->suppress_errors($previous_suppression);
 		}
-		$usage_column = $type === 'subject' ? 'q.subject_id' : 'r.class_id';
-		$usage_table  = $type === 'subject' ? 'questions' : 'revisions';
-		$usage_alias  = $type === 'subject' ? 'q' : 'r';
-		$usage_sql    = '(SELECT COUNT(*) FROM ' . $this->db->table($usage_table) . " {$usage_alias} WHERE {$usage_column} = t.id)";
-		$items = $this->db->wpdb()->get_results(
-			$this->db->wpdb()->prepare(
-				'SELECT t.*, ' . $usage_sql . ' usage_count FROM ' . $this->db->table('terms') . " t WHERE {$where} ORDER BY t.sort_order,t.name LIMIT %d OFFSET %d",
-				...array_merge($args, array($per_page, max(0, ($page - 1) * $per_page)))
-			),
-			ARRAY_A
-		) ?: array();
-		$total = (int) $this->db->wpdb()->get_var(
-			$this->db->wpdb()->prepare('SELECT COUNT(*) FROM ' . $this->db->table('terms') . " t WHERE {$where}", ...$args)
+	}
+
+	private function query_terms(string $type, string $status, string $search, int $page, int $per_page, int $focus): array|\WP_Error {
+		// This custom table is authoritative for catalog changes, so reads must bypass persistent caching.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery
+		$wpdb = $this->db->wpdb();
+		$table = $this->db->table('terms');
+		$status = in_array($status, array('active', 'archived', 'trash'), true) ? $status : 'active';
+		$name_pattern = $search === '' ? '%' : '%' . $wpdb->esc_like($search) . '%';
+		$total = $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT COUNT(*) FROM %i WHERE type = %s AND status = %s AND name LIKE %s',
+				$table,
+				$type,
+				$status,
+				$name_pattern
+			)
 		);
-		$count_rows = $this->db->wpdb()->get_results(
-			$this->db->wpdb()->prepare(
-				'SELECT status,COUNT(*) count FROM ' . $this->db->table('terms') . ' WHERE type = %s GROUP BY status',
+		if ($total === null || $wpdb->last_error !== '') {
+			return (new DatabaseException(DatabaseException::is_busy($wpdb->last_error)))->rest_error();
+		}
+		$total = (int) $total;
+		$per_page = max(1, $per_page);
+		$pages = (int) ceil($total / $per_page);
+		if ($focus > 0) {
+			$position = $this->term_position($type, $status, $name_pattern, $focus);
+			if (is_wp_error($position)) {
+				return $position;
+			}
+			if ($position !== null) {
+				$page = intdiv($position, $per_page) + 1;
+			}
+		}
+		$page = max(1, min($page, $pages));
+		$offset = ($page - 1) * $per_page;
+		$items = $type === 'subject'
+			? $wpdb->get_results(
+				$wpdb->prepare(
+					'SELECT t.*, (SELECT COUNT(*) FROM %i q WHERE q.subject_id = t.id) usage_count FROM %i t
+					WHERE t.type = %s AND t.status = %s AND t.name LIKE %s ORDER BY t.sort_order, t.name, t.id LIMIT %d OFFSET %d',
+					$this->db->table('questions'),
+					$table,
+					$type,
+					$status,
+					$name_pattern,
+					$per_page,
+					$offset
+				),
+				ARRAY_A
+			)
+			: $wpdb->get_results(
+				$wpdb->prepare(
+					'SELECT t.*, (SELECT COUNT(DISTINCT r.assessment_id) FROM %i r WHERE r.class_id = t.id) usage_count FROM %i t
+					WHERE t.type = %s AND t.status = %s AND t.name LIKE %s ORDER BY t.sort_order, t.name, t.id LIMIT %d OFFSET %d',
+					$this->db->table('revisions'),
+					$table,
+					$type,
+					$status,
+					$name_pattern,
+					$per_page,
+					$offset
+				),
+				ARRAY_A
+			);
+		if ($wpdb->last_error !== '') {
+			return (new DatabaseException(DatabaseException::is_busy($wpdb->last_error)))->rest_error();
+		}
+		$count_rows = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT status, COUNT(*) count FROM %i WHERE type = %s GROUP BY status',
+				$table,
 				$type
 			),
 			ARRAY_A
-		) ?: array();
+		);
+		if ($wpdb->last_error !== '') {
+			return (new DatabaseException(DatabaseException::is_busy($wpdb->last_error)))->rest_error();
+		}
 		$counts = array('active' => 0, 'archived' => 0, 'trash' => 0);
 		foreach ($count_rows as $row) {
 			if (isset($counts[$row['status']])) {
 				$counts[$row['status']] = (int) $row['count'];
 			}
 		}
-		return array('items' => $items, 'total' => $total, 'pages' => (int) ceil($total / max(1, $per_page)), 'page' => $page, 'counts' => $counts);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery
+		return array('items' => $items, 'total' => $total, 'pages' => $pages, 'page' => $page, 'counts' => $counts);
+	}
+
+	/** Count earlier rows using the same filters and collation as the list. */
+	private function term_position(string $type, string $status, string $name_pattern, int $focus): int|\WP_Error|null {
+		// Resolve the page from the current catalog, which is not cached.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery
+		$wpdb = $this->db->wpdb();
+		$table = $this->db->table('terms');
+		$term = $wpdb->get_row(
+			$wpdb->prepare(
+				'SELECT name, sort_order FROM %i WHERE type = %s AND status = %s AND name LIKE %s AND id = %d',
+				$table,
+				$type,
+				$status,
+				$name_pattern,
+				$focus
+			),
+			ARRAY_A
+		);
+		if ($wpdb->last_error !== '') {
+			return (new DatabaseException(DatabaseException::is_busy($wpdb->last_error)))->rest_error();
+		}
+		if ($term === null) {
+			return null;
+		}
+		$position = $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT COUNT(*) FROM %i WHERE type = %s AND status = %s AND name LIKE %s
+					AND (sort_order < %d OR (sort_order = %d AND (name < %s OR (name = %s AND id < %d))))',
+				$table,
+				$type,
+				$status,
+				$name_pattern,
+				$term['sort_order'],
+				$term['sort_order'],
+				$term['name'],
+				$term['name'],
+				$focus
+			)
+		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery
+		return $position === null || $wpdb->last_error !== ''
+			? (new DatabaseException(DatabaseException::is_busy($wpdb->last_error)))->rest_error()
+			: (int) $position;
 	}
 
 	private function save_term(string $type, string $name, ?int $id, array $extra = array()): array|\WP_Error {

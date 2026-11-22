@@ -257,16 +257,24 @@ wp eval-file wp-content/plugins/paper-to-quiz/tests/data-regression.php
 - Preserve schema 1.1.0 in rollback fixes; never downgrade nullable guest rows
   to the old mandatory-user ranking schema.
 - Selecting an answer does not write to the server; submission is atomic and idempotent.
+- A timed attempt submits the last current answer and flag snapshot and uses the
+  same frozen snapshot and submission ID when retrying. Browser storage is best
+  effort. An IndexedDB failure must allow online submission and display a warning
+  if the running attempt cannot be recovered from local storage.
 - Exam clients request deferred submission through the existing submit route.
   HTTP 202 confirms the validated snapshot and server receipt time are durable.
   The per-site worker grades bounded batches, retains failed snapshots for
   retry, writes each scored answer snapshot in groups, and uses the receipt
   time for duration and deadline eligibility.
+  Synchronous grading also uses the server receipt time. An unreadable or
+  incomplete grading revision leaves the attempt and its snapshot intact.
   Legacy synchronous callers and test submissions keep their existing contract.
   Ensure WP-Cron runs at least once per minute on sites with few visits. Drain
   the submission queue before rolling back to a release without a worker.
 - Result review displays answer text immediately and fetches a protected
   question image only when the student opens that question's image control.
+  Personalized student JSON is private and non-cacheable. Hidden answer keys
+  also suppress per-question correctness and awarded points.
 - Refreshes at exam start and result release are spread over several seconds.
   A completed receipt loads the result directly. Public ranking pages calculate
   tied ranks without querying for every unfiltered row, and a personal result
@@ -332,6 +340,12 @@ SQLite local-development contract (1.3.0):
 
 - A schema change updates `PAPER_TO_QUIZ_DB_VERSION`, installation/update logic,
   uninstall coverage, types, and tests together.
+- A change to the required schema verification checks advances
+  `Installer::SCHEMA_CHECK_REVISION` so a cached verification from older code
+  cannot hide missing catalog columns. Schema repair revalidates before
+  marking the existing database version ready.
+- Plugin deactivation and uninstall remove all argument variants of its cron
+  hooks, including result email work and batched cleanup continuations.
 - Schema `1.1.0` (plugin 1.2.0) adds revision `ranking_list_enabled` (default
   off), nullable ranking `wp_user_id`, and masked `public_label`/`public_search`.
   Preserve the unique attempt and revision/member indexes and verify nullability
@@ -354,6 +368,15 @@ SQLite local-development contract (1.3.0):
 
 - Sanitize and validate input early; escape output at the final rendering boundary.
 - Preserve capability and nonce checks together on state-changing REST routes.
+- REST JSON responses, including denied requests, use private, no-store cache headers.
+- Administrative class and subject lists return a safe 503 error if a
+  database read fails. The optional positive `focus` ID selects the page containing
+  that record within the current filters and sort order. If the requested page no
+  longer exists, the response reports the nearest available page.
+- The authoring screens read active classes and subjects in bounded REST pages.
+- New class assignments require an active class. Updating a draft without
+  `class_id` keeps its current assignment. A revision and its copy can retain an
+  archived class, which is identified by `class_status` in the revision data.
 - Use `$wpdb->prepare()` and explicit allowlists for dynamic database operations.
 - Never expose personal data, private keys, or internal error details to clients.
 - Preserve unrelated worktree changes.

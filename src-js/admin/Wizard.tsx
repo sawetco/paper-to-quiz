@@ -23,7 +23,6 @@ import type {
 	AssessmentRecord,
 	AssessmentType,
 	FeedbackTiming,
-	ListResponse,
 	ResultVisibility,
 	Term,
 } from '../types';
@@ -32,6 +31,7 @@ import { ConfirmationDialog } from './ConfirmationDialog';
 import { BusyLabel, LoadingRegion } from './BusyLabel';
 import { feedbackTimingForRelease, normalizeExamPolicy } from './policy';
 import { useAuthenticatedBlobUrl } from '../shared/useAuthenticatedBlobUrl';
+import { loadActiveTerms } from './terms';
 
 const LazyPdfEditor = lazy( () =>
 	import(
@@ -206,21 +206,44 @@ export function Wizard( {
 	const [ leaveConfirmation, setLeaveConfirmation ] = useState( false );
 	const operationLock = useRef( false );
 	const saving = savingStep !== null;
+	const revision = record?.revision;
+	const availableClasses =
+		revision?.class_status === 'archived' &&
+		revision.class_id &&
+		revision.class_name &&
+		! classes.some(
+			( term ) => Number( term.id ) === Number( revision.class_id )
+		)
+			? [
+					{
+						id: revision.class_id,
+						name: revision.class_name,
+						type: 'class' as const,
+					},
+					...classes,
+				]
+			: classes;
 
 	useEffect( () => {
+		const controller = new AbortController();
+		const { signal } = controller;
 		Promise.all( [
-			api< ListResponse< Term > >(
-				'/admin/classes?status=active&page=1&per_page=100'
-			),
-			api< ListResponse< Term > >(
-				'/admin/subjects?status=active&page=1&per_page=100'
-			),
+			loadActiveTerms( 'classes', signal ),
+			loadActiveTerms( 'subjects', signal ),
 		] )
 			.then( ( [ classItems, subjectItems ] ) => {
-				setClasses( classItems.items );
-				setSubjects( subjectItems.items );
+				if ( ! signal.aborted ) {
+					setClasses( classItems );
+					setSubjects( subjectItems );
+				}
 			} )
-			.catch( ( caught ) => setError( caught.message ) );
+			.catch( ( caught ) => {
+				if ( ! signal.aborted ) {
+					setError( caught.message );
+					controller.abort();
+				}
+			} );
+		return () => controller.abort();
 	}, [] );
 
 	useEffect( () => {
@@ -421,7 +444,7 @@ export function Wizard( {
 						draft={ draft }
 						update={ update }
 						updateMany={ updateMany }
-						classes={ classes }
+						classes={ availableClasses }
 						subjects={ subjects }
 						createdAt={ record?.assessment.created_at_display }
 					/>
@@ -473,13 +496,7 @@ export function Wizard( {
 				{ step === reviewStep && record && (
 					<PublishStep
 						record={ record }
-						className={
-							classes.find(
-								( item ) =>
-									Number( item.id ) ===
-									Number( record.revision.class_id )
-							)?.name || '—'
-						}
+						className={ record.revision.class_name || '—' }
 						subjectName={
 							( record.revision.subject_names || [] ).join(
 								', '

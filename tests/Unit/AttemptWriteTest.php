@@ -16,6 +16,7 @@ use PaperToQuiz\Application\ResultEmailService;
 use PaperToQuiz\Infrastructure\Crypto;
 use PaperToQuiz\Infrastructure\Database;
 use PaperToQuiz\Infrastructure\EncryptedStorage;
+use PaperToQuiz\Rest\PublicController;
 use Yoast\PHPUnitPolyfills\TestCases\TestCase;
 
 final class AttemptWriteTest extends TestCase {
@@ -256,6 +257,104 @@ final class AttemptWriteTest extends TestCase {
 		$this->assertSame($saved['finish_requested_at'], $final['submitted_at']);
 		$this->assertNull($final['pending_submission']);
 		$this->assertSame('B', $wpdb->get_var($wpdb->prepare('SELECT selected_option FROM %i WHERE attempt_id=%d', $db->table('answers'), $fixture['attempt_id'])));
+	}
+
+	public function test_incomplete_revision_preserves_the_durable_snapshot_for_retry(): void {
+		$fixture = $this->seed_fixture(false);
+		[$db, $attempts] = $this->services_failing('unused_operation');
+		$wpdb = $db->wpdb();
+		$this->assertSame(1, $wpdb->delete($db->table('questions'), array('id' => $fixture['question_id'])));
+		$receipt = $attempts->submit($fixture['public_id'], $fixture['token'], false, wp_generate_uuid4(), array(), true);
+		$this->assertIsArray($receipt);
+		$this->assertSame('processing', $receipt['status']);
+
+		$attempts->process_submissions();
+
+		$row = $wpdb->get_row($wpdb->prepare('SELECT status, pending_submission, submission_failures FROM %i WHERE id=%d', $db->table('attempts'), $fixture['attempt_id']), ARRAY_A);
+		$this->assertSame('in_progress', $row['status']);
+		$this->assertNotNull($row['pending_submission']);
+		$this->assertSame(1, (int) $row['submission_failures']);
+	}
+
+	public function test_synchronous_grading_uses_the_request_receipt_time(): void {
+		$fixture = $this->seed_fixture(false);
+		$answer_write_started = null;
+		$db = new Database($this->base_db->wpdb(), static function (string $operation, callable $write) use (&$answer_write_started): mixed {
+			if ($operation === 'finalize_answer_insert') {
+				$answer_write_started = time();
+				usleep(1100000);
+			}
+			return $write();
+		});
+		$attempts = new AttemptService($db, new AssessmentService($db, new AssetService($db, new EncryptedStorage())), $this->crypto);
+		try {
+			$result = $attempts->submit($fixture['public_id'], $fixture['token'], false, wp_generate_uuid4(), array(
+				array('question_id' => $fixture['question_id'], 'option' => 'A'),
+			));
+			$this->assertIsArray($result);
+			$this->assertSame('submitted', $result['status']);
+			$this->assertNotNull($answer_write_started);
+			$wpdb = $db->wpdb();
+			$row = $wpdb->get_row($wpdb->prepare('SELECT submitted_at, finish_requested_at FROM %i WHERE id=%d', $db->table('attempts'), $fixture['attempt_id']), ARRAY_A);
+			$this->assertSame($row['finish_requested_at'], $row['submitted_at']);
+			$this->assertLessThanOrEqual($answer_write_started, strtotime($row['submitted_at'] . ' UTC'));
+		} finally {
+			wp_clear_scheduled_hook('paper_to_quiz_process_result_emails', array($fixture['attempt_id']));
+		}
+	}
+
+	public function test_personalized_read_responses_forbid_caching(): void {
+		$fixture = $this->seed_fixture(true);
+		$this->seed_answer('A');
+		[, $attempts] = $this->services_failing('unused_operation');
+		$controller = new PublicController($attempts);
+
+		$bootstrap = new \WP_REST_Request('GET');
+		$bootstrap->set_url_params(array('id' => $fixture['assessment_id']));
+		$bootstrap_response = $controller->bootstrap($bootstrap);
+		$this->assertInstanceOf(\WP_REST_Response::class, $bootstrap_response);
+		$this->assertSame($this->user_id, $bootstrap_response->get_data()['current_user']['id']);
+		$this->assertSame('private, no-store, max-age=0', $bootstrap_response->get_headers()['Cache-Control']);
+
+		$state = new \WP_REST_Request('GET');
+		$state->set_url_params(array('public_id' => $fixture['public_id']));
+		$state->set_header('Authorization', 'Bearer ' . $fixture['token']);
+		$state_response = $controller->state($state);
+		$this->assertInstanceOf(\WP_REST_Response::class, $state_response);
+		$this->assertSame('A', $state_response->get_data()['answers'][0]['selected_option']);
+		$this->assertSame('private, no-store, max-age=0', $state_response->get_headers()['Cache-Control']);
+	}
+
+	public function test_detailed_review_hides_per_question_grading_when_answer_key_is_disabled(): void {
+		$fixture = $this->seed_fixture(false);
+		[$db, $attempts] = $this->services_failing('unused_operation');
+		$wpdb = $db->wpdb();
+		$revision = array('id' => $fixture['revision_id']);
+		$this->assertSame(1, $wpdb->update($db->table('revisions'), array(
+			'result_visibility' => 'detailed',
+			'feedback_timing' => 'never',
+		), $revision));
+		try {
+			$result = $attempts->submit($fixture['public_id'], $fixture['token'], false, wp_generate_uuid4(), array(
+				array('question_id' => $fixture['question_id'], 'option' => 'A'),
+			));
+			$this->assertIsArray($result);
+			$this->assertSame(10000, $result['score']);
+			$this->assertFalse($result['answer_key_visible']);
+			$this->assertSame('A', $result['answers'][0]['selected_option']);
+			foreach (array('correct_option', 'is_correct', 'awarded_points') as $field) {
+				$this->assertNull($result['answers'][0][$field]);
+			}
+
+			$this->assertSame(1, $wpdb->update($db->table('revisions'), array('feedback_timing' => 'after_submit'), $revision));
+			$revealed = $attempts->result($fixture['public_id'], $fixture['token']);
+			$this->assertIsArray($revealed);
+			$this->assertTrue($revealed['answer_key_visible']);
+			$this->assertSame('A', $revealed['answers'][0]['correct_option']);
+			$this->assertSame(10000, (int) $revealed['answers'][0]['awarded_points']);
+		} finally {
+			wp_clear_scheduled_hook('paper_to_quiz_process_result_emails', array($fixture['attempt_id']));
+		}
 	}
 
 	/**

@@ -5,6 +5,7 @@ use PaperToQuiz\Application\AssessmentPurgeService;
 use PaperToQuiz\Application\AssessmentService;
 use PaperToQuiz\Application\AssetService;
 use PaperToQuiz\Application\AttemptService;
+use PaperToQuiz\Application\TermService;
 use PaperToQuiz\Infrastructure\Crypto;
 use PaperToQuiz\Infrastructure\Database;
 use PaperToQuiz\Infrastructure\EncryptedStorage;
@@ -30,8 +31,14 @@ $revision_row = array('revision_no' => 1, 'lifecycle' => 'published', 'title' =>
 
 if ($phase === 'seed') {
 	$baseline = getenv('PTQ_BASELINE_VERSION') ?: '1.1.6';
-	$baseline_schemas = array('1.1.6' => '1.0.0', '1.2.6' => '1.1.0');
+	$baseline_schemas = array('1.1.6' => '1.0.0', '1.2.6' => '1.1.0', '1.3.0' => '1.2.0', '1.4.3' => '1.2.0');
 	paper_to_quiz_release_assert(PAPER_TO_QUIZ_VERSION === $baseline && PAPER_TO_QUIZ_DB_VERSION === ($baseline_schemas[$baseline] ?? null), 'The baseline ZIP was not installed.');
+	$terms = new TermService($db);
+	$class = $terms->save_class('PTQ ZIP retained class', null, '#123456');
+	$subject = $terms->save_subject('PTQ ZIP retained subject');
+	paper_to_quiz_release_assert(is_array($class) && is_array($subject), 'The baseline catalog fixtures could not be created.');
+	$revision_row['class_id'] = (int) $class['id'];
+	$revision_row['subject_ids_json'] = wp_json_encode(array((int) $subject['id']));
 	$member = wp_insert_user(array('user_login' => 'ptq_zip_upgrade_' . wp_generate_password(8, false, false), 'user_pass' => wp_generate_password(32), 'role' => 'subscriber'));
 	paper_to_quiz_release_assert(! is_wp_error($member), 'The baseline member fixture failed.');
 	paper_to_quiz_release_assert(1 === $wpdb->insert($db->table('assessments'), $assessment_row), 'The baseline assessment failed.');
@@ -48,9 +55,9 @@ if ($phase === 'seed') {
 	)), 'The baseline attempt failed.');
 	$attempt = (int) $wpdb->insert_id;
 	paper_to_quiz_release_assert(1 === $wpdb->insert($db->table('ranking_entries'), array('revision_id' => $revision, 'attempt_id' => $attempt, 'wp_user_id' => (int) $member, 'score' => 9000, 'duration_seconds' => 60, 'submitted_at' => $now)), 'The baseline ranking failed.');
-	paper_to_quiz_release_assert(1 === $wpdb->insert($db->table('questions'), array('revision_id' => $revision, 'client_key' => wp_generate_uuid4(), 'ordinal' => 1, 'source_page' => 1, 'crop_x' => 0, 'crop_y' => 0, 'crop_width' => 1, 'crop_height' => 1, 'correct_option' => 'A', 'points' => 9000, 'created_at' => $now, 'updated_at' => $now)), 'The baseline question failed.');
+	paper_to_quiz_release_assert(1 === $wpdb->insert($db->table('questions'), array('revision_id' => $revision, 'client_key' => wp_generate_uuid4(), 'ordinal' => 1, 'source_page' => 1, 'crop_x' => 0, 'crop_y' => 0, 'crop_width' => 1, 'crop_height' => 1, 'correct_option' => 'A', 'points' => 9000, 'subject_id' => (int) $subject['id'], 'created_at' => $now, 'updated_at' => $now)), 'The baseline question failed.');
 	paper_to_quiz_release_assert(1 === $wpdb->insert($db->table('answers'), array('attempt_id' => $attempt, 'question_id' => (int) $wpdb->insert_id, 'selected_option' => 'A', 'is_correct' => 1, 'awarded_points' => 9000, 'answered_at' => $now)), 'The baseline answer failed.');
-	paper_to_quiz_release_assert(add_option($state_option, array('assessment' => $assessment, 'revision' => $revision, 'attempt' => $attempt, 'member' => (int) $member), '', false), 'The upgrade fixture state failed.');
+	paper_to_quiz_release_assert(add_option($state_option, array('assessment' => $assessment, 'revision' => $revision, 'attempt' => $attempt, 'member' => (int) $member, 'class' => (int) $class['id'], 'subject' => (int) $subject['id']), '', false), 'The upgrade fixture state failed.');
 	echo "PTQ_RELEASE_BASELINE=ready\n";
 	return;
 }
@@ -66,12 +73,36 @@ if ($phase === 'clean') {
 	paper_to_quiz_release_assert(0 === (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . $db->table('attempts')), 'The clean ZIP install contains unexpected attempts.');
 	$flag = $wpdb->get_row($wpdb->prepare('SHOW COLUMNS FROM %i LIKE %s', $db->table('revisions'), 'ranking_list_enabled'), ARRAY_A);
 	paper_to_quiz_release_assert((string) $flag['Default'] === '0', 'List publication does not default to off.');
+	if ($db->engine() === 'mysql') {
+		$terms = new TermService($db);
+		$class = $terms->save_class('PTQ ZIP class');
+		$subject = $terms->save_subject('PTQ ZIP subject');
+		paper_to_quiz_release_assert(is_array($class) && is_array($subject), 'The fixture classes and subjects could not be created.');
+		paper_to_quiz_release_assert(
+			false !== $wpdb->query($wpdb->prepare('ALTER TABLE %i DROP COLUMN sort_order', $db->table('terms'))),
+			'The disposable test could not simulate a missing catalog column.'
+		);
+		set_transient('paper_to_quiz_schema_verified_' . PAPER_TO_QUIZ_DB_VERSION, '1', HOUR_IN_SECONDS);
+		paper_to_quiz_release_assert(Installer::maybe_upgrade(), 'A legacy verification cache prevented catalog schema repair.');
+		$classes = $terms->classes();
+		$subjects = $terms->subjects();
+		paper_to_quiz_release_assert(is_array($classes) && ($classes['items'][0]['id'] ?? null) === $class['id'], 'Schema repair lost the existing class.');
+		paper_to_quiz_release_assert(is_array($subjects) && ($subjects['items'][0]['id'] ?? null) === $subject['id'], 'Schema repair lost the existing subject.');
+		echo "PTQ_RELEASE_CATALOG_REPAIR=passed\n";
+	}
 	echo "PTQ_RELEASE_CLEAN_INSTALL=passed\n";
 	return;
 }
 paper_to_quiz_release_assert($phase === 'verify', 'Unknown release verification phase.');
 $state = get_option($state_option);
 paper_to_quiz_release_assert(is_array($state), 'Baseline fixture state is missing.');
+$terms = new TermService($db);
+$classes = $terms->classes('active', 'PTQ ZIP retained class');
+$subjects = $terms->subjects('active', 'PTQ ZIP retained subject');
+$class = is_array($classes) ? ($classes['items'][0] ?? array()) : array();
+$subject = is_array($subjects) ? ($subjects['items'][0] ?? array()) : array();
+paper_to_quiz_release_assert((int) ($class['id'] ?? 0) === $state['class'] && $class['color'] === '#123456' && (int) $class['usage_count'] === 1, 'The upgrade changed the existing class, color, or assessment link.');
+paper_to_quiz_release_assert((int) ($subject['id'] ?? 0) === $state['subject'] && (int) $subject['usage_count'] === 1, 'The upgrade changed the existing subject or question link.');
 $old = $wpdb->get_row($wpdb->prepare('SELECT * FROM %i WHERE attempt_id = %d', $db->table('ranking_entries'), $state['attempt']), ARRAY_A);
 paper_to_quiz_release_assert((int) $old['wp_user_id'] === $state['member'] && (int) $old['score'] === 9000 && null === $old['public_label'], 'The member ranking changed or its identity was automatically published.');
 $old_answer = $wpdb->get_row($wpdb->prepare('SELECT selected_option,awarded_points FROM %i WHERE attempt_id=%d', $db->table('answers'), $state['attempt']), ARRAY_A);
@@ -106,6 +137,8 @@ foreach (array($state['assessment'], $assessment) as $id) {
 	paper_to_quiz_release_assert(false !== $wpdb->update($db->table('assessments'), array('status' => 'trash'), array('id' => $id)), 'Fixture cleanup could not mark the assessment.');
 	paper_to_quiz_release_assert(! is_wp_error($purge->purge($id)), 'Fixture cleanup failed.');
 }
+paper_to_quiz_release_assert($terms->trash_class($state['class']) && $terms->purge_class($state['class']) === true, 'The synthetic class could not be removed.');
+paper_to_quiz_release_assert($terms->trash_subject($state['subject']) && $terms->purge_subject($state['subject']) === true, 'The synthetic subject could not be removed.');
 require_once ABSPATH . 'wp-admin/includes/user.php';
 paper_to_quiz_release_assert(wp_delete_user($state['member']), 'The synthetic member could not be removed.');
 paper_to_quiz_release_assert(delete_option($state_option), 'The upgrade fixture state could not be removed.');

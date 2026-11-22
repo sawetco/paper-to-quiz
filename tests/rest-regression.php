@@ -36,7 +36,9 @@ function paper_to_quiz_rest_request(string $method, string $route, array $params
 	$previous = get_current_user_id();
 	wp_set_current_user(null === $user_id ? 0 : $user_id);
 	$request = new WP_REST_Request($method, $route);
-	if ($params) {
+	if ($method === 'GET') {
+		$request->set_query_params($params);
+	} elseif ($params) {
 		$request->set_body(wp_json_encode($params));
 		$request->set_header('Content-Type', 'application/json');
 	}
@@ -282,16 +284,50 @@ try {
 	$user = new WP_User($manager);
 	$user->add_cap('paper_to_quiz_manage_assessments');
 	$user->add_cap('paper_to_quiz_publish_assessments');
-	$class_response = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/classes', array('name' => $suffix . ' Class', 'color' => '#123456'), $manager);
+	$class_name = $suffix . ' 3. Sınıf % Başarı';
+	$subject_name = $suffix . ' Türkçe % Başarı';
+	$class_response = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/classes', array('name' => $class_name, 'color' => '#123456'), $manager);
 	paper_to_quiz_rest_assert(201 === paper_to_quiz_rest_status($class_response) || 200 === paper_to_quiz_rest_status($class_response), 'Class REST creation failed.');
 	$class_data = $class_response->get_data();
 	$class = (int) ($class_data['id'] ?? 0);
 	paper_to_quiz_rest_assert($class > 0 && '#123456' === ($class_data['color'] ?? ''), 'Class color was not persisted.');
-	$duplicate = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/classes', array('name' => $suffix . ' Class', 'color' => '#123456'), $manager);
+	$duplicate = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/classes', array('name' => $class_name, 'color' => '#123456'), $manager);
 	paper_to_quiz_rest_assert(409 === paper_to_quiz_rest_status($duplicate), 'Duplicate class did not return 409.');
 
-	paper_to_quiz_rest_assert(1 === $wpdb->insert($db->table('terms'), array('type' => 'subject', 'name' => $suffix . ' Subject', 'slug' => sanitize_title($suffix . ' Subject'), 'status' => 'active', 'created_at' => $now, 'updated_at' => $now)), 'Subject insert failed.');
-	$subject = (int) $wpdb->insert_id;
+	$subject_response = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/subjects', array('name' => $subject_name), $manager);
+	paper_to_quiz_rest_assert(201 === paper_to_quiz_rest_status($subject_response) || 200 === paper_to_quiz_rest_status($subject_response), 'Subject REST creation failed.');
+	$subject = (int) (paper_to_quiz_rest_data($subject_response)['id'] ?? 0);
+	paper_to_quiz_rest_assert($subject > 0, 'Subject creation did not return its ID.');
+
+	foreach (array('classes' => $class, 'subjects' => $subject) as $catalog => $term) {
+		$route = '/paper-to-quiz/v1/admin/' . $catalog;
+		$focused = paper_to_quiz_rest_request('GET', $route, array('focus' => $term, 'per_page' => 1), $manager);
+		$focused_data = paper_to_quiz_rest_data($focused);
+		paper_to_quiz_rest_assert(200 === paper_to_quiz_rest_status($focused) && $term === (int) ($focused_data['items'][0]['id'] ?? 0), 'Created record was absent from its catalog page: ' . $catalog);
+		$normal_page = paper_to_quiz_rest_request('GET', $route, array('page' => $focused_data['page'], 'per_page' => 1), $manager);
+		paper_to_quiz_rest_assert($focused_data === paper_to_quiz_rest_data($normal_page), 'The focused catalog moved the record outside its normal sort position: ' . $catalog);
+		$search_response = paper_to_quiz_rest_request('GET', $route, array('search' => $suffix, 'status' => 'active'), $manager);
+		$search_data = paper_to_quiz_rest_data($search_response);
+		paper_to_quiz_rest_assert(1 === ($search_data['total'] ?? 0) && $term === (int) ($search_data['items'][0]['id'] ?? 0), 'Catalog search did not find the newly created record: ' . $catalog);
+		$name = $catalog === 'classes' ? $class_name : $subject_name;
+		$literal_search = paper_to_quiz_rest_request('GET', $route, array('search' => $name), $manager);
+		paper_to_quiz_rest_assert($name === (paper_to_quiz_rest_data($literal_search)['items'][0]['name'] ?? null), 'Catalog search lost Turkish characters or a literal percent sign: ' . $catalog);
+		$filtered = paper_to_quiz_rest_request('GET', $route, array('status' => 'archived', 'search' => $suffix, 'focus' => $term), $manager);
+		paper_to_quiz_rest_assert(array() === (paper_to_quiz_rest_data($filtered)['items'] ?? null), 'Catalog focus bypassed its status filter: ' . $catalog);
+	}
+
+	$fail_catalog_read = static fn (string $sql): string => str_contains($sql, 'usage_count FROM') && str_contains($sql, 'ORDER BY t.sort_order')
+		? 'SELECT count(*) FROM paper_to_quiz_regression_missing_table'
+		: $sql;
+	add_filter('query', $fail_catalog_read);
+	try {
+		$failed_list = paper_to_quiz_rest_request('GET', '/paper-to-quiz/v1/admin/classes', array(), $manager);
+		paper_to_quiz_rest_assert(503 === paper_to_quiz_rest_status($failed_list), 'A failed catalog query was reported as an empty successful list.');
+		paper_to_quiz_rest_assert(! str_contains(wp_json_encode(paper_to_quiz_rest_data($failed_list)), 'paper_to_quiz_regression_missing_table'), 'A catalog error exposed its database details.');
+	} finally {
+		remove_filter('query', $fail_catalog_read);
+	}
+	$report['term_catalogs'] = 'passed';
 
 	$ranking_payload = array('type' => 'exam', 'title' => $suffix . ' Ranking', 'class_id' => $class,
 		'subject_ids' => array($subject), 'access_mode' => 'guest_allowed', 'allow_repeat' => false,
@@ -315,6 +351,37 @@ try {
 		array_merge($ranking_payload, array('ranking_enabled' => false, 'ranking_list_enabled' => false)), $manager);
 	paper_to_quiz_rest_assert('0' === (string) paper_to_quiz_rest_data($ranking_edit)['revision']['ranking_list_enabled'], 'Disabling ranking did not clear list publication.');
 	$report['ranking_policy'] = 'passed';
+
+	foreach (array($subject, PHP_INT_MAX) as $invalid_class) {
+		$bad_class = paper_to_quiz_rest_request('PUT', '/paper-to-quiz/v1/admin/assessments/' . $ranking_id, array_merge($ranking_payload, array('class_id' => $invalid_class)), $manager);
+		paper_to_quiz_rest_assert(400 === paper_to_quiz_rest_status($bad_class) && isset(paper_to_quiz_rest_data($bad_class)['data']['params']['class_id']), 'Assessment save accepted a missing or wrong-type class.');
+	}
+	$without_class = $ranking_payload;
+	unset($without_class['class_id']);
+	$retained = paper_to_quiz_rest_request('PUT', '/paper-to-quiz/v1/admin/assessments/' . $ranking_id, $without_class, $manager);
+	paper_to_quiz_rest_assert($class === (int) (paper_to_quiz_rest_data($retained)['revision']['class_id'] ?? 0), 'An update without class_id cleared the existing class.');
+	$archived_class = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/classes/bulk', array('action' => 'archive', 'ids' => array($class)), $manager);
+	paper_to_quiz_rest_assert(1 === (paper_to_quiz_rest_data($archived_class)['changed'] ?? 0), 'The class could not be archived.');
+	try {
+		$new_with_archived = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/assessments', $ranking_payload, $manager);
+		$new_archived_data = paper_to_quiz_rest_data($new_with_archived);
+		if (! empty($new_archived_data['assessment']['id'])) {
+			$ranking_assessments[] = (int) $new_archived_data['assessment']['id'];
+		}
+		paper_to_quiz_rest_assert(400 === paper_to_quiz_rest_status($new_with_archived) && isset($new_archived_data['data']['params']['class_id']), 'A new assessment accepted an archived class selection.');
+		$edit_archived = paper_to_quiz_rest_request('PUT', '/paper-to-quiz/v1/admin/assessments/' . $ranking_id, $ranking_payload, $manager);
+		paper_to_quiz_rest_assert($class === (int) (paper_to_quiz_rest_data($edit_archived)['revision']['class_id'] ?? 0), 'An existing assessment could not retain its archived class.');
+		$copy_archived = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/assessments/' . $ranking_id . '/duplicate', array(), $manager);
+		$copy_archived_data = paper_to_quiz_rest_data($copy_archived);
+		if (! empty($copy_archived_data['assessment']['id'])) {
+			$ranking_assessments[] = (int) $copy_archived_data['assessment']['id'];
+		}
+		paper_to_quiz_rest_assert($class === (int) ($copy_archived_data['revision']['class_id'] ?? 0), 'Duplicating changed the archived class of an existing assessment.');
+	} finally {
+		$restored_class = paper_to_quiz_rest_request('POST', '/paper-to-quiz/v1/admin/classes/bulk', array('action' => 'restore', 'ids' => array($class)), $manager);
+		paper_to_quiz_rest_assert(1 === (paper_to_quiz_rest_data($restored_class)['changed'] ?? 0), 'The class could not be restored before the remaining fixtures.');
+	}
+	$report['assessment_class_integrity'] = 'passed';
 
 	/*
 	 * Exercise the complete authoring workflow through its REST contracts. The

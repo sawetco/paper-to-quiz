@@ -1,6 +1,12 @@
 import React from 'react';
 import '@testing-library/jest-dom';
-import { render, screen, waitFor } from '@testing-library/react';
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from '@testing-library/react';
 import { answerStatus, ResultDetail, ResultsPage } from './ResultsPage';
 import { api } from './api';
 import type {
@@ -285,6 +291,38 @@ describe( 'admin results response contracts', () => {
 		expect( screen.getByText( 'Average: 66.67%' ) ).toBeInTheDocument();
 		expect( screen.getByText( 'Guest learner' ) ).toBeInTheDocument();
 		expect( screen.getAllByText( 'Completed' ) ).toHaveLength( 2 );
+	} );
+
+	it( 'keeps current search rows when an older list request finishes later', async () => {
+		window.history.replaceState(
+			{},
+			'',
+			'/wp-admin/admin.php?page=paper-to-quiz-results'
+		);
+		let resolveOldRequest!: ( value: AdminResultsResponse ) => void;
+		const oldRequest = new Promise< AdminResultsResponse >( ( resolve ) => {
+			resolveOldRequest = resolve;
+		} );
+		mockedApi
+			.mockResolvedValueOnce( { items: [] } )
+			.mockReturnValueOnce( oldRequest )
+			.mockResolvedValueOnce( filteredResponse );
+
+		render( <ResultsPage /> );
+		fireEvent.change( screen.getByRole( 'searchbox' ), {
+			target: { value: 'Algebra' },
+		} );
+		fireEvent.click(
+			screen.getByRole( 'button', { name: 'Search results' } )
+		);
+		await screen.findByText( 'Algebra assessment' );
+		expect( mockedApi.mock.calls[ 1 ][ 1 ]?.signal?.aborted ).toBe( true );
+
+		await act( async () => {
+			resolveOldRequest( unfilteredResponse );
+			await oldRequest;
+		} );
+		expect( screen.getByText( 'Algebra assessment' ) ).toBeVisible();
 	} );
 
 	it( 'renders detail participants, diagnostics, subjects, and answer states', async () => {
