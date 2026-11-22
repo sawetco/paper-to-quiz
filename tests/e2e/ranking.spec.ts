@@ -88,11 +88,14 @@ test( 'checks and publishes settings for a public ranked exam without opening th
 	] );
 	const url = `/wp-admin/admin.php?page=paper-to-quiz-exams&assessment=${ id }`;
 	const assessmentPath = `/paper-to-quiz/v1/admin/assessments/${ id }`;
-	const originalResponse = page.waitForResponse(
-		( response ) =>
-			response.url().endsWith( assessmentPath ) &&
+	const originalResponse = page.waitForResponse( ( response ) => {
+		const url = new URL( response.url() );
+		const route = url.searchParams.get( 'rest_route' ) || url.pathname;
+		return (
+			route.endsWith( assessmentPath ) &&
 			response.request().method() === 'GET'
-	);
+		);
+	} );
 	const pdfRequests: string[] = [];
 	page.on( 'request', ( request ) => {
 		if (

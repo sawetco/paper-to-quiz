@@ -369,6 +369,12 @@ SQLite local-development contract (1.3.0):
 - Sanitize and validate input early; escape output at the final rendering boundary.
 - Preserve capability and nonce checks together on state-changing REST routes.
 - REST JSON responses, including denied requests, use private, no-store cache headers.
+- Paper to Quiz REST routes also signal no-cache to GWS and LiteSpeed via their
+  shared control hook and response header. The bundled clients use a fixed
+  `_paper_to_quiz_private=1` query marker on JSON reads to avoid entries stored
+  under the old URLs before the response policy reached the cache. Keep the
+  marker outside plain-permalink `rest_route`. Binary URLs and browser-private
+  binary caching are preserved.
 - Administrative class and subject lists return a safe 503 error if a
   database read fails. The optional positive `focus` ID selects the page containing
   that record within the current filters and sort order. If the requested page no

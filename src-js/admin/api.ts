@@ -1,6 +1,6 @@
 import { __, sprintf } from '@wordpress/i18n';
 import { sha256 } from '@noble/hashes/sha2.js';
-import { restUrl } from '../rest-url';
+import { restJsonUrl } from '../rest-url';
 
 const config = window.paperToQuizAdmin;
 let currentContentName: string = __( 'Record', 'paper-to-quiz' );
@@ -127,7 +127,8 @@ export async function api< T >(
 		headers.set( 'Content-Type', 'application/json' );
 	}
 
-	const response = await fetch( restUrl( config.restRoot, path ), {
+	const url = restJsonUrl( config.restRoot, path, options.method );
+	const response = await fetch( url, {
 		credentials: 'same-origin',
 		cache: 'no-store',
 		...options,
