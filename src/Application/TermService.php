@@ -320,14 +320,31 @@ final class TermService {
 	}
 
 	private function purge_term(string $type, int $id): bool|\WP_Error {
-		$term = $this->db->wpdb()->get_row(
-			$this->db->wpdb()->prepare(
-				'SELECT * FROM ' . $this->db->table('terms') . ' WHERE id = %d AND type = %s',
+		$wpdb = $this->db->wpdb();
+		$previous_suppression = $wpdb->suppress_errors(true);
+		try {
+			return $this->purge_trashed_term($type, $id);
+		} finally {
+			$wpdb->suppress_errors($previous_suppression);
+		}
+	}
+
+	private function purge_trashed_term(string $type, int $id): bool|\WP_Error {
+		// Check the live dependencies before deleting from the custom table.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery
+		$wpdb = $this->db->wpdb();
+		$term = $wpdb->get_row(
+			$wpdb->prepare(
+				'SELECT status FROM %i WHERE id = %d AND type = %s',
+				$this->db->table('terms'),
 				$id,
 				$type
 			),
 			ARRAY_A
 		);
+		if ($wpdb->last_error !== '') {
+			return (new DatabaseException(DatabaseException::is_busy($wpdb->last_error)))->rest_error();
+		}
 		if (! $term) {
 			return new \WP_Error('paper_to_quiz_term_not_found', __('Record not found.', 'paper-to-quiz'), array('status' => 404));
 		}
@@ -338,19 +355,19 @@ final class TermService {
 				array('status' => 409)
 			);
 		}
-		$usage = $type === 'subject'
-			? (int) $this->db->wpdb()->get_var(
-				$this->db->wpdb()->prepare(
-					'SELECT COUNT(*) FROM ' . $this->db->table('questions') . ' WHERE subject_id = %d',
-					$id
-				)
+		$usage = $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT COUNT(*) FROM %i WHERE %i = %d',
+				$this->db->table($type === 'subject' ? 'questions' : 'revisions'),
+				$type === 'subject' ? 'subject_id' : 'class_id',
+				$id
 			)
-			: (int) $this->db->wpdb()->get_var(
-				$this->db->wpdb()->prepare(
-					'SELECT COUNT(*) FROM ' . $this->db->table('revisions') . ' WHERE class_id = %d',
-					$id
-				)
-			);
+		);
+		if ($usage === null || $wpdb->last_error !== '') {
+			return (new DatabaseException(DatabaseException::is_busy($wpdb->last_error)))->rest_error();
+		}
+
+		$usage = (int) $usage;
 		if ($usage > 0) {
 			return new \WP_Error(
 				'paper_to_quiz_term_in_use',
@@ -362,13 +379,14 @@ final class TermService {
 				array('status' => 409, 'usage_count' => $usage)
 			);
 		}
-		if (1 !== $this->db->wpdb()->delete(
+		if (1 !== $wpdb->delete(
 			$this->db->table('terms'),
 			array('id' => $id, 'type' => $type, 'status' => 'trash'),
 			array('%d', '%s', '%s')
 		)) {
 			return new \WP_Error('paper_to_quiz_term_purge_failed', __('The record could not be permanently deleted.', 'paper-to-quiz'), array('status' => 500));
 		}
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery
 		return true;
 	}
 }

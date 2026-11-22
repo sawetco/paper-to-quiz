@@ -44,10 +44,8 @@ final class AttemptWriteTest extends TestCase {
 			$wpdb->delete($this->base_db->table('answers'), array('attempt_id' => $attempt_id), array('%d'));
 			$wpdb->delete($this->base_db->table('attempts'), array('id' => $attempt_id), array('%d'));
 		}
-		if (! empty($this->fixture['question_id'])) {
-			$wpdb->delete($this->base_db->table('questions'), array('id' => (int) $this->fixture['question_id']), array('%d'));
-		}
 		if (! empty($this->fixture['revision_id'])) {
+			$wpdb->delete($this->base_db->table('questions'), array('revision_id' => (int) $this->fixture['revision_id']), array('%d'));
 			$wpdb->delete($this->base_db->table('revisions'), array('id' => (int) $this->fixture['revision_id']), array('%d'));
 		}
 		if (! empty($this->fixture['assessment_id'])) {
@@ -274,6 +272,71 @@ final class AttemptWriteTest extends TestCase {
 		$this->assertSame('in_progress', $row['status']);
 		$this->assertNotNull($row['pending_submission']);
 		$this->assertSame(1, (int) $row['submission_failures']);
+	}
+
+	public static function incomplete_grading_inputs(): iterable {
+		yield 'missing unanswered question' => array(true, array());
+		yield 'missing answer key' => array(false, array('correct_option' => null));
+		yield 'gap in question order' => array(false, array('ordinal' => 3));
+	}
+
+	/** @dataProvider incomplete_grading_inputs */
+	public function test_partial_grading_revision_keeps_answers_and_retries(bool $delete_question, array $changes): void {
+		$fixture = $this->seed_fixture(true);
+		$this->seed_answer('B');
+		[$db, $attempts] = $this->services_failing('unused_operation');
+		$wpdb = $db->wpdb();
+		$questions = $db->table('questions');
+		$attempt_id = $fixture['attempt_id'];
+		$question_id = $fixture['question_id'];
+		$this->assertSame(1, $wpdb->update($questions, array('points' => 5000), array('id' => $question_id)));
+		$second_question = $wpdb->get_row($wpdb->prepare('SELECT * FROM %i WHERE id=%d', $questions, $question_id), ARRAY_A);
+		$this->assertIsArray($second_question);
+		unset($second_question['id']);
+		$second_question['ordinal'] = 2;
+		$second_question['client_key'] = wp_generate_uuid4();
+		$this->assertSame(1, $wpdb->insert($questions, $second_question));
+		$second_question['id'] = (int) $wpdb->insert_id;
+		$second_id = array('id' => $second_question['id']);
+		$read = static fn (): array => $wpdb->get_row($wpdb->prepare('SELECT * FROM %i WHERE id=%d', $db->table('attempts'), $attempt_id), ARRAY_A);
+
+		try {
+			$receipt = $attempts->submit($fixture['public_id'], $fixture['token'], false, wp_generate_uuid4(), array(
+				array('question_id' => $question_id, 'option' => 'A'),
+			), true);
+			$this->assertIsArray($receipt);
+			$this->assertSame('processing', $receipt['status']);
+			$saved = $read();
+			if ($delete_question) {
+				$this->assertSame(1, $wpdb->delete($questions, $second_id));
+			} else {
+				$this->assertSame(1, $wpdb->update($questions, $changes, $second_id));
+			}
+			$attempts->process_submissions();
+
+			$pending = $read();
+			$this->assertSame('in_progress', $pending['status']);
+			$this->assertSame($saved['pending_submission'], $pending['pending_submission']);
+			$this->assertSame(1, (int) $pending['submission_failures']);
+			$this->assertSame('B', $wpdb->get_var($wpdb->prepare('SELECT selected_option FROM %i WHERE attempt_id=%d', $db->table('answers'), $attempt_id)));
+			foreach (array('attempt_subject_scores', 'ranking_entries', 'result_email_jobs') as $table) {
+				$this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM %i WHERE attempt_id=%d', $db->table($table), $attempt_id)));
+			}
+
+			$this->assertNotFalse($wpdb->delete($questions, $second_id));
+			$this->assertSame(1, $wpdb->insert($questions, $second_question));
+			$this->assertSame(1, $wpdb->update($db->table('attempts'), array('submission_retry_at' => gmdate('Y-m-d H:i:s', time() - 1)), array('id' => $attempt_id)));
+			[, $healthy] = $this->services_failing('unused_operation');
+			$healthy->process_submissions();
+			$final = $read();
+			$this->assertSame('submitted', $final['status']);
+			$this->assertNull($final['pending_submission']);
+			$this->assertSame($saved['finish_requested_at'], $final['submitted_at']);
+			$this->assertSame(5000, (int) $final['score']);
+			$this->assertSame(1, (int) $final['blank_count']);
+		} finally {
+			wp_clear_scheduled_hook('paper_to_quiz_process_result_emails', array($attempt_id));
+		}
 	}
 
 	public function test_synchronous_grading_uses_the_request_receipt_time(): void {

@@ -50,9 +50,9 @@ final class ResultEmailService {
 		 * Two-phase atomic claim:
 		 * 1. Read up to 20 due job ids.
 		 * 2. Atomically flip each row from pending/retry -> processing (and stamp
-		 *    claimed_at). The status guard makes the claim safe against another
-		 *    worker that selected the same ids; only an update affecting exactly
-		 *    one row belongs to this worker.
+		 *    claimed_at). Check that the job is still due in case a competing
+		 *    worker already rescheduled it. Only an update affecting exactly one
+		 *    row belongs to this worker.
 		 * 3. Re-select only the ids this worker actually claimed
 		 *    and process them. wp_mail is gated behind a successful claim, which
 		 *    closes the duplicate-send vector when the recurring 5-minute tick
@@ -83,10 +83,11 @@ final class ResultEmailService {
 			$affected = $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Conditional update is the queue's atomic claim operation.
 				$wpdb->prepare(
 					"UPDATE %i SET status = 'processing', claimed_at = %s
-					WHERE id = %d AND status IN ('pending','retry')",
+					WHERE id = %d AND status IN ('pending','retry') AND next_run_at <= %s",
 					$table,
 					$now,
-					$id
+					$id,
+					$now
 				)
 			);
 			if (1 === $affected) {

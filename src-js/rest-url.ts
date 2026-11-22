@@ -24,7 +24,7 @@ export function restUrl( root: string, path: string ): string {
 }
 
 /**
- * Use a new URL for JSON reads that a proxy may have cached before this policy.
+ * Avoid previously cached URLs and request WP REST Cache's early bypass.
  * @param root
  * @param path
  * @param method
@@ -39,7 +39,7 @@ export function restJsonUrl(
 	if ( verb !== 'GET' && verb !== 'HEAD' ) {
 		return url;
 	}
-	return `${ url }${ url.includes( '?' ) ? '&' : '?' }_paper_to_quiz_private=1`;
+	return `${ url }${ url.includes( '?' ) ? '&' : '?' }_paper_to_quiz_private=1&skip_cache=1`;
 }
 
 function splitQuery( url: string ): [ string, string ] {

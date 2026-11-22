@@ -37,6 +37,14 @@ final class Plugin {
 	}
 
 	public function boot(): void {
+		// WP REST Cache serves early from a persisted allowlist. Remove this namespace
+		// when it rebuilds that list, including when another plugin explicitly adds it.
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- This is the documented WP REST Cache filter.
+		add_filter('wp_rest_cache/allowed_endpoints', static function (array $endpoints): array {
+			unset($endpoints['paper-to-quiz/v1']);
+			return $endpoints;
+		}, 100);
+
 		add_filter('rest_post_dispatch', static function (\WP_HTTP_Response $response, \WP_REST_Server $server, \WP_REST_Request $request): \WP_HTTP_Response {
 			if (! str_starts_with(strtolower($request->get_route()), '/paper-to-quiz/v1/')) {
 				return $response;

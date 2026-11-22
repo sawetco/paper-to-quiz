@@ -44,7 +44,7 @@ it( 'puts the JSON cache marker outside a plain permalink route', () => {
 	const root = '/index.php?rest_route=/paper-to-quiz/v1/&lang=tr';
 	const path = '/admin/subjects?search=A%26B';
 	expect( restJsonUrl( root, path, 'get' ) ).toBe(
-		'/index.php?rest_route=/paper-to-quiz/v1/admin/subjects&lang=tr&search=A%26B&_paper_to_quiz_private=1'
+		'/index.php?rest_route=/paper-to-quiz/v1/admin/subjects&lang=tr&search=A%26B&_paper_to_quiz_private=1&skip_cache=1'
 	);
 	expect( restJsonUrl( root, path, 'POST' ) ).toBe( restUrl( root, path ) );
 } );
@@ -53,7 +53,7 @@ it( 'uses the same cache marker for GET and HEAD without changing binary URLs', 
 	const root = '/site/wp-json/paper-to-quiz/v1/';
 	const path = '/attempts/example/result';
 	expect( restJsonUrl( root, path ) ).toBe(
-		'/site/wp-json/paper-to-quiz/v1/attempts/example/result?_paper_to_quiz_private=1'
+		'/site/wp-json/paper-to-quiz/v1/attempts/example/result?_paper_to_quiz_private=1&skip_cache=1'
 	);
 	expect( restJsonUrl( root, path, 'HEAD' ) ).toBe(
 		restJsonUrl( root, path )
