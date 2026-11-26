@@ -68,7 +68,7 @@
 		"@dnd-kit/utilities": "^3.2.2",
 		"@noble/hashes": "^2.4.0",
 		"@wordpress/api-fetch": "^8.1.0",
-		"@wordpress/components": "^44.0.0",
+		"@wordpress/components": "^45.0.0",
 		"@wordpress/element": "^10.1.0",
 		"@wordpress/i18n": "^7.0.0",
 		"konva": "^10.10.0",
